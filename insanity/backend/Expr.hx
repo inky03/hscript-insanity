@@ -32,6 +32,7 @@ typedef Expr = {
 	var e : ExprDef;
 	var pmin : Int;
 	var pmax : Int;
+	var column : Int;
 	var origin : String;
 	var line : Int;
 }
@@ -54,7 +55,7 @@ enum Expr {
 	EFor( v : String, it : Expr, e : Expr );
 	EBreak;
 	EContinue;
-	EFunction( args : Array<Argument>, e : Expr, ?name : String, ?ret : CType );
+	EFunction( args : Array<Argument>, e : Expr, ?name : String, ?ret : CType, ?id : Int );
 	EReturn( ?e : Expr );
 	EArray( e : Expr, index : Expr );
 	EArrayDecl( e : Array<Expr> );
@@ -85,42 +86,6 @@ enum CType {
 	CTNamed( n : String, t : CType );
 	CTExpr( e : Expr ); // for type parameters only
 }
-
-#if hscriptPos
-class Error {
-	public var e : ErrorDef;
-	public var pmin : Int;
-	public var pmax : Int;
-	public var origin : String;
-	public var line : Int;
-	public function new(e, pmin, pmax, origin, line) {
-		this.e = e;
-		this.pmin = pmin;
-		this.pmax = pmax;
-		this.origin = origin;
-		this.line = line;
-	}
-	public function toString(): String {
-		return Printer.errorToString(this);
-	}
-}
-enum ErrorDef {
-#else
-enum Error {
-#end
-	EUnknownType( t : String );
-	EInvalidChar( c : Int );
-	EUnexpected( s : String );
-	EUnterminatedString;
-	EUnterminatedComment;
-	EInvalidPreprocessor( msg : String );
-	EUnknownVariable( v : String );
-	EInvalidIterator( v : String );
-	EInvalidOp( op : String );
-	EInvalidAccess( f : String );
-	ECustom( msg : String );
-}
-
 
 enum ModuleDecl {
 	DPackage( path : Array<String> );
@@ -185,11 +150,4 @@ enum ImportMode {
 	INormal;
 	IAsName(alias:String);
 	IAll;
-}
-
-enum StackItem {
-	SModule(m:String);
-	SFilePos(s:Null<StackItem>, file:String, line:Int, ?column:Int);
-	SMethod(classname:Null<String>, method:String);
-	SLocalFunction(?v:Int);
 }

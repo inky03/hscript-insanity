@@ -21,6 +21,7 @@
  */
 package insanity.backend;
 import insanity.backend.Expr;
+import insanity.backend.Exception;
 
 enum Token {
 	TEof;
@@ -51,6 +52,7 @@ class Parser {
 	public var identChars : String;
 	public var opPriority : Map<String,Int>;
 	public var opRightAssoc : Map<String,Bool>;
+	public var columnOffset : Int;
 
 	/**
 		allows to check for #if / #else in code
@@ -79,6 +81,7 @@ class Parser {
 
 	// implementation
 	var decl : Bool;
+	var origin : String;
 	var input : String;
 	var readPos : Int;
 	var offset : Int;
@@ -87,10 +90,10 @@ class Parser {
 	var char : Int;
 	var ops : Array<Bool>;
 	var idents : Array<Bool>;
+	var fid : Int = 0;
 	var uid : Int = 0;
 
 	#if hscriptPos
-	var origin : String;
 	var tokenMin : Int;
 	var tokenMax : Int;
 	var oldTokenMin : Int;
@@ -137,7 +140,7 @@ class Parser {
 	public inline function error( err, pmin, pmax ) {
 		if( !resumeErrors )
 		#if hscriptPos
-		throw new Error(err, pmin, pmax, origin, line);
+		throw new ParserException(err, pmin, pmax, origin, line);
 		#else
 		throw err;
 		#end
@@ -148,11 +151,12 @@ class Parser {
 	}
 
 	function initParser( origin, pos ) {
-		// line=1 - don't reset line : it might be set manualy
+		columnOffset = 0;
+		line = 1;
 		decl = false;
 		preprocStack = [];
-		#if hscriptPos
 		this.origin = origin;
+		#if hscriptPos
 		readPos = 0;
 		tokenMin = oldTokenMin = pos;
 		tokenMax = oldTokenMax = pos;
@@ -164,7 +168,7 @@ class Parser {
 		char = -1;
 		ops = new Array();
 		idents = new Array();
-		uid = 0;
+		fid = uid = 0;
 		for( i in 0...opChars.length )
 			ops[opChars.charCodeAt(i)] = true;
 		for( i in 0...identChars.length )
@@ -255,9 +259,13 @@ class Parser {
 	inline function mk(e,pmin=-1,pmax=-1) : Expr {
 		#if hscriptPos
 		if( e == null ) return null;
-		if( pmin < 0 ) pmin = tokenMin;
-		if( pmax < 0 ) pmax = tokenMax;
-		return { e : e, pmin : pmin, pmax : pmax, origin : origin, line : line };
+		
+		if (pmin < 0) pmin = tokenMin;
+		if (pmax < 0) pmax = tokenMax;
+		
+		var column:Int = ((pmin < columnOffset ? pmax : pmin) - columnOffset);
+		
+		return { e : e, pmin : pmin, pmax : pmax, origin : origin, line : line , column : column };
 		#else
 		return e;
 		#end
@@ -535,7 +543,7 @@ class Parser {
 	}
 
 	function mkLambda(args,eret,p) {
-		return mk(EFunction(args, mk(EMeta(":lambda",[],mk(EReturn(eret),pmin(eret))),p)),p);
+		return mk(EFunction(args, mk(EMeta(":lambda",[],mk(EReturn(eret),pmin(eret))),p), ++ fid),p);
 	}
 
 	function parseMetaArgs() {
@@ -747,7 +755,7 @@ class Parser {
 			default: push(tk);
 			}
 			var inf = parseFunctionDecl();
-			mk(EFunction(inf.args, inf.body, name, inf.ret),p1,pmax(inf.body));
+			mk(EFunction(inf.args, inf.body, name, inf.ret, (name == null ? ++ fid : null)),p1,pmax(inf.body));
 		case "return":
 			var tk = token();
 			push(tk);
@@ -1462,7 +1470,10 @@ class Parser {
 			else if( c == until )
 				break;
 			else {
-				if( c == 10 ) line++;
+				if( c == 10 ) {
+					columnOffset = p1;
+					line++;
+				}
 				b.addChar(c);
 			}
 		}
@@ -1509,7 +1520,9 @@ class Parser {
 				#if hscriptPos
 				tokenMin++;
 				#end
-			case 10: line++; // LF
+			case 10:
+				columnOffset = currentPos;
+				line++; // LF
 				#if hscriptPos
 				tokenMin++;
 				#end
@@ -1800,7 +1813,10 @@ class Parser {
 			}
 			while( true ) {
 				while( char != '*'.code ) {
-					if( char == '\n'.code ) line++;
+					if( char == '\n'.code ) {
+						columnOffset = currentPos;
+						line++;
+					}
 					char = readChar();
 					if( StringTools.isEof(char) ) {
 						line = old;

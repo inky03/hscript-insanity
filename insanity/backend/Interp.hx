@@ -21,6 +21,8 @@
  */
 package insanity.backend;
 import insanity.backend.Expr;
+import insanity.backend.Exception;
+import insanity.backend.CallStack;
 import haxe.PosInfos;
 import haxe.Constraints.IMap;
 
@@ -31,14 +33,12 @@ private enum Stop {
 }
 
 class Interp {
-
 	public var imports : Map<String, Dynamic>;
 	public var variables : Map<String,Dynamic>;
-	var locals : Map<String,{ r : Dynamic }>;
+	var locals (get, never) : Map<String, {r : Dynamic}>;
 	var binops : Map<String, Expr -> Expr -> Dynamic >;
 	
-	var depth:Int = 0;
-	var stack:Array<StackItem> = [];
+	var stack:CallStack;
 	
 	var inTry : Bool;
 	var declared : Array<{ n : String, old : { r : Dynamic } }>;
@@ -49,8 +49,8 @@ class Interp {
 	#end
 
 	public function new() {
-		stack = new Array();
-		locals = new Map();
+		stack = new CallStack();
+		
 		imports = new Map();
 		declared = new Array();
 		resetVariables();
@@ -77,32 +77,33 @@ class Interp {
 		#end
 		return cast { fileName : "hscript", lineNumber : 0 };
 	}
+	
+	function get_locals():Map<String, {r: Dynamic}> { return stack.last().locals; }
 
 	function initOps() {
-		var me = this;
 		binops = new Map();
-		binops.set("+",function(e1,e2) return me.expr(e1) + me.expr(e2));
-		binops.set("-",function(e1,e2) return me.expr(e1) - me.expr(e2));
-		binops.set("*",function(e1,e2) return me.expr(e1) * me.expr(e2));
-		binops.set("/",function(e1,e2) return me.expr(e1) / me.expr(e2));
-		binops.set("%",function(e1,e2) return me.expr(e1) % me.expr(e2));
-		binops.set("&",function(e1,e2) return me.expr(e1) & me.expr(e2));
-		binops.set("|",function(e1,e2) return me.expr(e1) | me.expr(e2));
-		binops.set("^",function(e1,e2) return me.expr(e1) ^ me.expr(e2));
-		binops.set("<<",function(e1,e2) return me.expr(e1) << me.expr(e2));
-		binops.set(">>",function(e1,e2) return me.expr(e1) >> me.expr(e2));
-		binops.set(">>>",function(e1,e2) return me.expr(e1) >>> me.expr(e2));
-		binops.set("==",function(e1,e2) return me.expr(e1) == me.expr(e2));
-		binops.set("!=",function(e1,e2) return me.expr(e1) != me.expr(e2));
-		binops.set(">=",function(e1,e2) return me.expr(e1) >= me.expr(e2));
-		binops.set("<=",function(e1,e2) return me.expr(e1) <= me.expr(e2));
-		binops.set(">",function(e1,e2) return me.expr(e1) > me.expr(e2));
-		binops.set("<",function(e1,e2) return me.expr(e1) < me.expr(e2));
-		binops.set("||",function(e1,e2) return me.expr(e1) == true || me.expr(e2) == true);
-		binops.set("&&",function(e1,e2) return me.expr(e1) == true && me.expr(e2) == true);
+		binops.set("+",function(e1,e2) return expr(e1) + expr(e2));
+		binops.set("-",function(e1,e2) return expr(e1) - expr(e2));
+		binops.set("*",function(e1,e2) return expr(e1) * expr(e2));
+		binops.set("/",function(e1,e2) return expr(e1) / expr(e2));
+		binops.set("%",function(e1,e2) return expr(e1) % expr(e2));
+		binops.set("&",function(e1,e2) return expr(e1) & expr(e2));
+		binops.set("|",function(e1,e2) return expr(e1) | expr(e2));
+		binops.set("^",function(e1,e2) return expr(e1) ^ expr(e2));
+		binops.set("<<",function(e1,e2) return expr(e1) << expr(e2));
+		binops.set(">>",function(e1,e2) return expr(e1) >> expr(e2));
+		binops.set(">>>",function(e1,e2) return expr(e1) >>> expr(e2));
+		binops.set("==",function(e1,e2) return expr(e1) == expr(e2));
+		binops.set("!=",function(e1,e2) return expr(e1) != expr(e2));
+		binops.set(">=",function(e1,e2) return expr(e1) >= expr(e2));
+		binops.set("<=",function(e1,e2) return expr(e1) <= expr(e2));
+		binops.set(">",function(e1,e2) return expr(e1) > expr(e2));
+		binops.set("<",function(e1,e2) return expr(e1) < expr(e2));
+		binops.set("||",function(e1,e2) return expr(e1) == true || expr(e2) == true);
+		binops.set("&&",function(e1,e2) return expr(e1) == true && expr(e2) == true);
 		binops.set("=",assign);
-		binops.set("...",function(e1,e2) return new IntIterator(me.expr(e1),me.expr(e2)));
-		binops.set("is",function(e1,e2) return #if (haxe_ver >= 4.2) Std.isOfType #else Std.is #end (me.expr(e1), me.expr(e2)));
+		binops.set("...",function(e1,e2) return new IntIterator(expr(e1),expr(e2)));
+		binops.set("is",function(e1,e2) return #if (haxe_ver >= 4.2) Std.isOfType #else Std.is #end (expr(e1), expr(e2)));
 		assignOp("+=",function(v1:Dynamic,v2:Dynamic) return v1 + v2);
 		assignOp("-=",function(v1:Float,v2:Float) return v1 - v2);
 		assignOp("*=",function(v1:Float,v2:Float) return v1 * v2);
@@ -120,7 +121,11 @@ class Interp {
 		if (imports.exists(name))
 			error(ECustom('Invalid assign'));
 		
-		variables.set(name, v);
+		if (variables.exists(name)) {
+			variables.set(name, v);
+		} else {
+			error(EUnknownVariable(name));
+		}
 		
 		return v;
 	}
@@ -153,8 +158,7 @@ class Interp {
 	}
 
 	function assignOp( op, fop : Dynamic -> Dynamic -> Dynamic ) {
-		var me = this;
-		binops.set(op,function(e1,e2) return me.evalAssignOp(op,fop,e1,e2));
+		binops.set(op,function(e1,e2) return evalAssignOp(op,fop,e1,e2));
 	}
 
 	function evalAssignOp(op,fop,e1,e2) : Dynamic {
@@ -241,10 +245,22 @@ class Interp {
 	}
 
 	public function execute( expr : Expr ) : Dynamic {
-		depth = 0;
-		locals = new Map();
-		declared = new Array();
-		return exprReturn(expr);
+		try {
+			stack.stack.resize(0);
+			declared = new Array();
+			
+			return exprReturn(expr);
+		} catch (e:haxe.Exception) {
+			if (e is InterpException) {
+				throw e;
+			} else {
+				pushStack();
+				
+				throw new InterpException(stack, e.message);
+			}
+		}
+		
+		return null;
 	}
 
 	function exprReturn(e) : Dynamic {
@@ -268,6 +284,13 @@ class Interp {
 		for (k => v in h) h2.set(k, v);
 		return h2;
 	}
+	
+	function pushStack(?item:StackItem, ?locals:Map<String, {r:Dynamic}>) {
+		var last:Stack = stack.stack.shift();
+		
+		if (last != null) stack.stack.unshift({locals: last.locals, item: SFilePos(last.item, curExpr.origin, curExpr.line, curExpr.column)});
+		if (item != null) stack.stack.unshift({locals: locals ?? new Map(), item: item});
+	}
 
 	function restore( old : Int ) {
 		while( declared.length > old ) {
@@ -276,9 +299,14 @@ class Interp {
 		}
 	}
 
-	inline function error(e : #if hscriptPos ErrorDef #else Error #end, rethrow=false ) : Dynamic {
-		#if hscriptPos var e = new Error(e, curExpr.pmin, curExpr.pmax, curExpr.origin, curExpr.line); #end
-		if( rethrow ) this.rethrow(e) else throw e;
+	inline function error(e : Error, rethrow=false ) : Dynamic {
+		pushStack();
+		
+		throw new InterpException(stack, Printer.errorToString(e));
+		
+		// #if hscriptPos var e = new Error(e, curExpr.pmin, curExpr.pmax, curExpr.origin, curExpr.line); #end
+		//if ( rethrow ) this.rethrow(exception) else throw exception;
+		
 		return null;
 	}
 
@@ -301,11 +329,15 @@ class Interp {
 		return v;
 	}
 
-	public function expr( e : Expr ) : Dynamic {
+	public function expr( e : Expr, ?t : CType ) : Dynamic {
 		#if hscriptPos
 		curExpr = e;
 		var e = e.e;
 		#end
+		
+		if (stack.length == 0)
+			pushStack(SScript(curExpr.origin));
+		
 		switch( e ) {
 		case EImport(path, mode):
 			var id:String;
@@ -335,9 +367,9 @@ class Interp {
 			if( l != null )
 				return l.r;
 			return resolve(id);
-		case EVar(n,_,e):
+		case EVar(n,t,e):
 			declared.push({ n : n, old : locals.get(n) });
-			locals.set(n,{ r : (e == null)?null:expr(e) });
+			locals.set(n,{ r : (e == null)?null:expr(e, t) });
 			return null;
 		case EParent(e):
 			return expr(e);
@@ -375,12 +407,12 @@ class Interp {
 				args.push(expr(p));
 
 			switch( Tools.expr(e) ) {
-			case EField(e,f):
-				var obj = expr(e);
-				if( obj == null ) error(EInvalidAccess(f));
-				return fcall(obj,f,args);
-			default:
-				return call(null,expr(e),args);
+				case EField(e,f):
+					var obj = expr(e);
+					if ( obj == null ) error(EInvalidAccess(f));
+					return fcall(obj,f,args);
+				default:
+					return call(null,expr(e),args);
 			}
 		case EIf(econd,e1,e2):
 			return if( expr(econd) == true ) expr(e1) else if( e2 == null ) null else expr(e2);
@@ -412,9 +444,8 @@ class Interp {
 		case EReturn(e):
 			returnValue = e == null ? null : expr(e);
 			throw SReturn;
-		case EFunction(params,fexpr,name,_):
+		case EFunction(params,fexpr,name,_,id):
 			var capturedLocals = duplicate(locals);
-			var me = this;
 			var hasOpt = false, minParams = 0;
 			for( p in params )
 				if( p.opt )
@@ -443,20 +474,16 @@ class Interp {
 							args2.push(args[pos++]);
 					args = args2;
 				}
-				var old = me.locals, depth = me.depth;
-				me.depth++;
-				me.locals = me.duplicate(capturedLocals);
+				var old = locals;
+				pushStack(name == null ? SLocalFunction(id) : SMethod(curExpr.origin, name), duplicate(capturedLocals));
 				for( i in 0...params.length )
-					me.locals.set(params[i].name,{ r : args[i] });
+					locals.set(params[i].name,{ r : args[i] });
 				var r = null;
-				var oldDecl = declared.length;
 				if( inTry )
 					try {
-						r = me.exprReturn(fexpr);
+						r = exprReturn(fexpr);
 					} catch( e : Dynamic ) {
-						restore(oldDecl);
-						me.locals = old;
-						me.depth = depth;
+						stack.stack.shift();
 						#if neko
 						neko.Lib.rethrow(e);
 						#else
@@ -464,28 +491,26 @@ class Interp {
 						#end
 					}
 				else
-					r = me.exprReturn(fexpr);
-				restore(oldDecl);
-				me.locals = old;
-				me.depth = depth;
+					r = exprReturn(fexpr);
+				stack.stack.shift();
 				return r;
 			};
 			var f = Reflect.makeVarArgs(f);
 			if( name != null ) {
-				if( depth == 0 ) {
-					// global function
-					variables.set(name, f);
-				} else {
+				if( stack.length > 1 ) {
 					// function-in-function is a local function
 					declared.push( { n : name, old : locals.get(name) } );
 					var ref = { r : f };
 					locals.set(name, ref);
 					capturedLocals.set(name, ref); // allow self-recursion
+				} else {
+					// global function
+					variables.set(name, f);
 				}
 			}
 			return f;
 		case EArrayDecl(arr):
-			if( arr.length > 0 && Tools.expr(arr[0]).match(EBinop("=>", _)) ) {
+			if ( arr.length > 0 && Tools.expr(arr[0]).match(EBinop("=>", _)) ) { // infer from keys ...
 				var keys = [];
 				var values = [];
 				for( e in arr ) {
@@ -501,7 +526,45 @@ class Interp {
 					}
 				}
 				return makeMap(keys,values);
-			} else {
+			} else { // infer from type declaration ... (empty map)
+				switch (t) {
+					case CTPath(path, params): // hell
+						var fullPath:String = path.join('.');
+						
+						if (fullPath == 'Map') { // infer from parameters
+							if (params.length < 2) error(ECustom('Not enough type parameters for Map')); // we dont really care about the value type , but whatever
+							else if (params.length > 2) error(ECustom('Too many type parameters for Map'));
+							
+							switch (params[0]) {
+								case CTPath(path, _):
+									var fullPath:String = path.join('.');
+									
+									if (fullPath == 'String') {
+										return new Map<String, Dynamic>();
+									} else if (fullPath == 'Int') {
+										return new Map<Int, Dynamic>();
+									} else {
+										var type = (Tools.resolve(fullPath) ?? imports.get(fullPath));
+										
+										if (type is Class) {
+											return new haxe.ds.ObjectMap<Dynamic, Dynamic>();
+										} else if (type is Enum) {
+											return new haxe.ds.EnumValueMap<Dynamic, Dynamic>();
+										} else {
+											error(EUnknownType(type));
+										}
+									}
+								default:
+									error(ECustom('What'));
+							}
+						}
+						
+						var type = (Tools.resolve(fullPath) ?? imports.get(fullPath));
+						if (type != null && type is IMap)
+							return Type.createInstance(type, []);
+					default:
+				}
+				
 				var a = new Array();
 				for( e in arr )
 					a.push(expr(e));
@@ -758,7 +821,11 @@ class Interp {
 	}
 
 	function fcall( o : Dynamic, f : String, args : Array<Dynamic> ) : Dynamic {
-		return call(o, get(o, f), args);
+		var fun = get(o, f);
+		
+		if (!Reflect.isFunction(fun)) error(ECustom('Cannot call $fun'));
+		
+		return call(o, fun, args);
 	}
 
 	function call( o : Dynamic, f : Dynamic, args : Array<Dynamic> ) : Dynamic {

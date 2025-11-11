@@ -21,6 +21,7 @@
  */
 package insanity.backend;
 import insanity.backend.Expr;
+import insanity.backend.Exception;
 
 class Printer {
 
@@ -352,8 +353,8 @@ class Printer {
 		return new Printer().exprToString(e);
 	}
 
-	public static function errorToString( e : Expr.Error ) {
-		var message = switch( #if hscriptPos e.e #else e #end ) {
+	public static function errorToString( e : Error #if hscriptPos , ?p:ParserException #end ) {
+		var message = switch( e ) {
 			case EUnknownType(t): 'Type not found: $t';
 			case EInvalidChar(c): "Invalid character: '"+(StringTools.isEof(c) ? "EOF" : String.fromCharCode(c))+"' ("+c+")";
 			case EUnexpected(s): "Unexpected token: \""+s+"\"";
@@ -367,11 +368,8 @@ class Printer {
 			case ECustom(msg): msg;
 		};
 		#if hscriptPos
-		return e.origin + ":" + e.line + ": " + message;
-		#else
-		return message;
+		if (p != null) return (p.origin + ":" + p.line + ": " + message);
 		#end
+		return message;
 	}
-
-
 }
