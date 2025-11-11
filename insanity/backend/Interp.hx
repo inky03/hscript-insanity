@@ -104,6 +104,7 @@ class Interp {
 		binops.set("=",assign);
 		binops.set("...",function(e1,e2) return new IntIterator(expr(e1),expr(e2)));
 		binops.set("is",function(e1,e2) return #if (haxe_ver >= 4.2) Std.isOfType #else Std.is #end (expr(e1), expr(e2)));
+		binops.set("??",function(e1,e2) return expr(e1) ?? expr(e2));
 		assignOp("+=",function(v1:Dynamic,v2:Dynamic) return v1 + v2);
 		assignOp("-=",function(v1:Float,v2:Float) return v1 - v2);
 		assignOp("*=",function(v1:Float,v2:Float) return v1 * v2);
@@ -115,6 +116,7 @@ class Interp {
 		assignOp("<<=",function(v1,v2) return v1 << v2);
 		assignOp(">>=",function(v1,v2) return v1 >> v2);
 		assignOp(">>>=",function(v1,v2) return v1 >>> v2);
+		assignOp("??=",function(v1,v2) return v1 ?? v2);
 	}
 
 	function setVar( name : String, v : Dynamic ) {
@@ -139,7 +141,7 @@ class Interp {
 				setVar(id,v)
 			else
 				l.r = v;
-		case EField(e,f):
+		case EField(e,f,_):
 			v = set(expr(e),f,v);
 		case EArray(e, index):
 			var arr:Dynamic = expr(e);
@@ -171,7 +173,7 @@ class Interp {
 				setVar(id,v)
 			else
 				l.r = v;
-		case EField(e,f):
+		case EField(e,f,_):
 			var obj = expr(e);
 			v = fop(get(obj,f),expr(e2));
 			v = set(obj,f,v);
@@ -207,7 +209,7 @@ class Interp {
 			} else
 				if( l == null ) setVar(id,v + delta) else l.r = v + delta;
 			return v;
-		case EField(e,f):
+		case EField(e,f,_):
 			var obj = expr(e);
 			var v : Dynamic = get(obj,f);
 			if( prefix ) {
@@ -380,8 +382,8 @@ class Interp {
 				v = expr(e);
 			restore(old);
 			return v;
-		case EField(e,f):
-			return get(expr(e),f);
+		case EField(e,f,m):
+			return get(expr(e),f,m);
 		case EBinop(op,e1,e2):
 			var fop = binops.get(op);
 			if( fop == null ) error(EInvalidOp(op));
@@ -407,10 +409,13 @@ class Interp {
 				args.push(expr(p));
 
 			switch( Tools.expr(e) ) {
-				case EField(e,f):
+				case EField(e,f,m):
 					var obj = expr(e);
-					if ( obj == null ) error(EInvalidAccess(f));
-					return fcall(obj,f,args);
+					if ( obj == null ) {
+						if (m) return null;
+						error(EInvalidAccess(f));
+					}
+					return fcall(obj,f,args,m);
 				default:
 					return call(null,expr(e),args);
 			}
@@ -798,8 +803,14 @@ class Interp {
 		return null;
 	}
 
-	function get( o : Dynamic, f : String ) : Dynamic {
-		if ( o == null ) error(EInvalidAccess(f));
+	function get( o : Dynamic, f : String, maybe : Bool = false ) : Dynamic {
+		if ( o == null ) {
+			if (!maybe) {
+				error(EInvalidAccess(f));
+			} else {
+				return null;
+			}
+		}
 		return {
 			#if php
 				// https://github.com/HaxeFoundation/haxe/issues/4915
@@ -820,7 +831,7 @@ class Interp {
 		return v;
 	}
 
-	function fcall( o : Dynamic, f : String, args : Array<Dynamic> ) : Dynamic {
+	function fcall( o : Dynamic, f : String, args : Array<Dynamic>, maybe : Bool = false ) : Dynamic {
 		var fun = get(o, f);
 		
 		if (!Reflect.isFunction(fun)) error(ECustom('Cannot call $fun'));

@@ -48,7 +48,7 @@ class Script {
 		var fun = variables.get(variable);
 		
 		if (!Reflect.isFunction(fun)) {
-			trace('Variable $variable isn\'t a function');
+			trace('$variable isn\'t a function');
 			return null;
 		}
 		

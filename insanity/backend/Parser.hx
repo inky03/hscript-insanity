@@ -118,9 +118,10 @@ class Parser {
 			["|", "&", "^"],
 			["==", "!=", ">", "<", ">=", "<="],
 			["..."],
+			["??"],
 			["&&"],
 			["||"],
-			["=","+=","-=","*=","/=","%=","<<=",">>=",">>>=","|=","&=","^=","=>"],
+			["=","+=","-=","*=","/=","%=","<<=",">>=",">>>=","|=","&=","^=","=>","??="],
 			["->"],
 			["in","is"]
 		];
@@ -914,21 +915,9 @@ class Parser {
 			return makeBinop(op,e1,parseExpr());
 		case TId(op) if( opPriority.exists(op) ):
 			return parseExprNext(makeBinop(op,e1,parseExpr()));
-		case TDot:
+		case TDot | TQuestionDot:
 			var field = getIdent();
-			return parseExprNext(mk(EField(e1,field),pmin(e1)));
-		case TQuestionDot:
-			var field = getIdent();
-			var tmp = "__a_" + (uid++);
-			var e = mk(EBlock([
-				mk(EVar(tmp, null, e1), pmin(e1), pmax(e1)),
-				mk(ETernary(
-					mk(EBinop("==", mk(EIdent(tmp),pmin(e1),pmax(e1)), mk(EIdent("null"),pmin(e1),pmax(e1)))),
-					mk(EIdent("null"),pmin(e1),pmax(e1)),
-					mk(EField(mk(EIdent(tmp),pmin(e1),pmax(e1)),field),pmin(e1))
-				))
-			]),pmin(e1));
-			return parseExprNext(e);
+			return parseExprNext(mk(EField(e1,field,tk == TQuestionDot),pmin(e1)));
 		case TPOpen:
 			return parseExprNext(mk(ECall(e1,parseExprList(TPClose)),pmin(e1)));
 		case TBkOpen:
@@ -1502,6 +1491,7 @@ class Parser {
 			return tokens.pop();
 		#end
 		var char;
+		var colOffset:Int = this.columnOffset;
 		if( this.char < 0 )
 			char = readChar();
 		else {
@@ -1586,6 +1576,7 @@ class Parser {
 						}
 					default:
 						this.char = char;
+						this.columnOffset = colOffset;
 						var i = Std.int(n);
 						return TConst( (exp > 0) ? CFloat(n * 10 / exp) : ((i == n) ? CInt(i) : CFloat(n)) );
 					}
@@ -1608,6 +1599,7 @@ class Parser {
 							n = n * 10 + (char - 48);
 						default:
 							this.char = char;
+							this.columnOffset = colOffset;
 							return TConst( CFloat(n/exp) );
 						}
 					}
@@ -1618,6 +1610,7 @@ class Parser {
 					return TOp("...");
 				default:
 					this.char = char;
+					this.columnOffset = colOffset;
 					return TDot;
 				}
 			case "{".code: return TBrOpen;
@@ -1627,9 +1620,18 @@ class Parser {
 			case "'".code, '"'.code: return TConst( CString(readString(char)) );
 			case "?".code:
 				char = readChar();
-				if( char == ".".code )
+				if (char == ".".code) {
 					return TQuestionDot;
+				} else if (char == '?'.code) {
+					char = readChar();
+					if (char == "=".code) {
+						return TOp('??=');
+					} else {
+						return TOp('??');
+					}
+				}
 				this.char = char;
+				this.columnOffset = colOffset;
 				return TQuestion;
 			case ":".code: return TDoubleDot;
 			case '='.code:
@@ -1639,6 +1641,7 @@ class Parser {
 				else if ( char == '>'.code )
 					return TOp("=>");
 				this.char = char;
+				this.columnOffset = colOffset;
 				return TOp("=");
 			case '@'.code:
 				char = readChar();
@@ -1648,6 +1651,7 @@ class Parser {
 						char = readChar();
 						if( !idents[char] ) {
 							this.char = char;
+							this.columnOffset = colOffset;
 							return TMeta(id);
 						}
 						id += String.fromCharCode(char);
@@ -1662,6 +1666,7 @@ class Parser {
 						char = readChar();
 						if( !idents[char] ) {
 							this.char = char;
+							this.columnOffset = colOffset;
 							return preprocess(id);
 						}
 						id += String.fromCharCode(char);
@@ -1684,6 +1689,7 @@ class Parser {
 							if( op == "//" || op == "/*" )
 								return tokenComment(op,char);
 							this.char = char;
+							this.columnOffset = colOffset;
 							return TOp(pop);
 						}
 					}
