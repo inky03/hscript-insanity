@@ -38,7 +38,8 @@ class Interp {
 	var locals (get, never) : Map<String, {r : Dynamic}>;
 	var binops : Map<String, Expr -> Expr -> Dynamic >;
 	
-	var stack:CallStack;
+	public var callStackDepth : Int = 200;
+	var stack : CallStack;
 	
 	var inTry : Bool;
 	var declared : Array<{ n : String, old : { r : Dynamic } }>;
@@ -290,8 +291,14 @@ class Interp {
 	function pushStack(?item:StackItem, ?locals:Map<String, {r:Dynamic}>) {
 		var last:Stack = stack.stack.shift();
 		
-		if (last != null) stack.stack.unshift({locals: last.locals, item: SFilePos(last.item, curExpr.origin, curExpr.line, curExpr.column)});
-		if (item != null) stack.stack.unshift({locals: locals ?? new Map(), item: item});
+		if (last != null)
+			stack.stack.unshift({locals: last.locals, item: SFilePos(last.item, curExpr.origin, curExpr.line, curExpr.column)});
+		if (item != null) {
+			stack.stack.unshift({locals: locals ?? new Map(), item: item});
+			
+			if (stack.length > callStackDepth)
+				error(ECustom('Stack overflow'));
+		}
 	}
 
 	function restore( old : Int ) {
