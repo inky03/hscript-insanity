@@ -544,7 +544,7 @@ class Parser {
 	}
 
 	function mkLambda(args,eret,p) {
-		return mk(EFunction(args, mk(EMeta(":lambda",[],mk(EReturn(eret),pmin(eret))),p), ++ fid),p);
+		return mk(EFunction(args, mk(EReturn(eret),pmin(eret)), ++ fid),p);
 	}
 
 	function parseMetaArgs() {
@@ -955,14 +955,16 @@ class Parser {
 					break;
 				}
 				var arg : Argument = { name : name };
-				args.push(arg);
-				if( opt ) arg.opt = true;
 				if( allowTypes ) {
 					if( maybe(TDoubleDot) )
 						arg.t = parseType();
-					if( maybe(TOp("=")) )
+					if( maybe(TOp("=")) ) {
 						arg.value = parseExpr();
+						opt = true;
+					}
 				}
+				if( opt ) arg.opt = true;
+				args.push(arg);
 				tk = token();
 				switch( tk ) {
 				case TComma:

@@ -27,6 +27,7 @@ class Printer {
 
 	var buf : StringBuf;
 	var tabs : String;
+	var level : Int;
 
 	public function new() {
 	}
@@ -34,6 +35,7 @@ class Printer {
 	public function exprToString( e : Expr ) {
 		buf = new StringBuf();
 		tabs = "";
+		level = 0;
 		expr(e);
 		return buf.toString();
 	}
@@ -41,6 +43,7 @@ class Printer {
 	public function typeToString( t : CType ) {
 		buf = new StringBuf();
 		tabs = "";
+		level = 0;
 		type(t);
 		return buf.toString();
 	}
@@ -125,8 +128,9 @@ class Printer {
 			return;
 		}
 		switch( #if hscriptPos e.e #else e #end ) {
-		case EImport(path, alias):
-			add(' import $path${alias == null ? '' : 'as $alias'}; ');
+		case EImport(path, INormal): add('import $path');
+		case EImport(path, IAsName(alias)): add('import $path as $alias');
+		case EImport(path, IAll): add('import $path.*');
 		case EConst(c): addConst(c);
 		case EIdent(v):
 			add(v);
@@ -143,19 +147,24 @@ class Printer {
 			if( el.length == 0 ) {
 				add("{}");
 			} else {
-				tabs += "\t";
-				add("{\n");
+				if (level ++ > 0) {
+					add("{\n");
+					tabs += "\t";
+				}
 				for( e in el ) {
 					add(tabs);
 					expr(e);
 					add(";\n");
 				}
-				tabs = tabs.substr(1);
-				add("}");
+				if (-- level > 0) {
+					tabs = tabs.substr(1);
+					add(tabs);
+					add("}");
+				}
 			}
-		case EField(e, f):
+		case EField(e, f, maybe):
 			expr(e);
-			add("." + f);
+			add(maybe ? '?.$f' : '.$f');
 		case EBinop(op, e1, e2):
 			expr(e1);
 			add(" " + op + " ");
@@ -228,9 +237,13 @@ class Printer {
 			var first = true;
 			for( a in params ) {
 				if( first ) first = false else add(", ");
-				if( a.opt ) add("?");
+				if( a.opt && a.value == null ) add("?");
 				add(a.name);
 				addType(a.t);
+				if ( a.value != null ) {
+					add(' = ');
+					expr(a.value);
+				}
 			}
 			add(")");
 			addType(ret);

@@ -304,10 +304,8 @@ class Interp {
 	inline function error(e : Error, rethrow=false ) : Dynamic {
 		pushStack();
 		
-		throw new InterpException(stack, Printer.errorToString(e));
-		
-		// #if hscriptPos var e = new Error(e, curExpr.pmin, curExpr.pmax, curExpr.origin, curExpr.line); #end
-		//if ( rethrow ) this.rethrow(exception) else throw exception;
+		var exception:InterpException = new InterpException(stack, Printer.errorToString(e));
+		if ( rethrow ) this.rethrow(exception) else throw exception;
 		
 		return null;
 	}
@@ -415,7 +413,7 @@ class Interp {
 						if (m) return null;
 						error(EInvalidAccess(f));
 					}
-					return fcall(obj,f,args,m);
+					return fcall(obj,f,args);
 				default:
 					return call(null,expr(e),args);
 			}
@@ -458,7 +456,7 @@ class Interp {
 				else
 					minParams++;
 			var f = function(args:Array<Dynamic>) {
-				if( ( (args == null) ? 0 : args.length ) != params.length ) {
+				if( args?.length ?? 0 != params.length ) {
 					if( args.length < minParams ) {
 						var str = "Invalid number of parameters. Got " + args.length + ", required " + minParams;
 						if( name != null ) str += " for function '" + name+"'";
@@ -473,8 +471,9 @@ class Interp {
 							if( extraParams > 0 ) {
 								args2.push(args[pos++]);
 								extraParams--;
-							} else
-								args2.push(null);
+							} else {
+								args2.push(p.value == null ? null : expr(p.value));
+							}
 						} else
 							args2.push(args[pos++]);
 					args = args2;
@@ -537,7 +536,7 @@ class Interp {
 						var fullPath:String = path.join('.');
 						
 						if (fullPath == 'Map') { // infer from parameters
-							if (params.length < 2) error(ECustom('Not enough type parameters for Map')); // we dont really care about the value type , but whatever
+							if (params == null || params.length < 2) error(ECustom('Not enough type parameters for Map')); // we dont really care about the value type , but whatever
 							else if (params.length > 2) error(ECustom('Too many type parameters for Map'));
 							
 							switch (params[0]) {
@@ -831,7 +830,7 @@ class Interp {
 		return v;
 	}
 
-	function fcall( o : Dynamic, f : String, args : Array<Dynamic>, maybe : Bool = false ) : Dynamic {
+	function fcall( o : Dynamic, f : String, args : Array<Dynamic> ) : Dynamic {
 		var fun = get(o, f);
 		
 		if (!Reflect.isFunction(fun)) error(ECustom('Cannot call $fun'));
