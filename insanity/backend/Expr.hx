@@ -71,6 +71,7 @@ enum Expr {
 	EForGen( it : Expr, e : Expr );
 	ECast( e : Expr, ?t : CType );
 	EImport( path : String, mode : ImportMode );
+	EUsing( path : String );
 }
 
 typedef Argument = { name : String, ?t : CType, ?opt : Bool, ?value : Expr };

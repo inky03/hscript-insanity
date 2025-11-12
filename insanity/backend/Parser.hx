@@ -629,9 +629,32 @@ class Parser {
 		var p1 = tokenMin;
 		#end
 		
-		if (id != 'import') decl = true;
+		if (id != 'import' && id != 'using') decl = true;
 		
 		return switch( id ) {
+		case "using":
+			if (decl)
+				error(ECustom('import and using may not appear after a declaration'), #if hscriptPos p1, tokenMax #else 0, 0 #end);
+			
+			var path:Array<String> = [getIdent()];
+			
+			while (true) {
+				var t = token();
+				if (t != TDot) {
+					push(t);
+					break;
+				}
+				
+				t = token();
+				switch (t) {
+					case TId(id):
+						path.push(id);
+					default:
+						unexpected(t);
+				}
+			}
+			
+			mk(EUsing(path.join('.')));
 		case "import":
 			if (decl)
 				error(ECustom('import and using may not appear after a declaration'), #if hscriptPos p1, tokenMax #else 0, 0 #end);

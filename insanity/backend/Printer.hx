@@ -128,6 +128,7 @@ class Printer {
 			return;
 		}
 		switch( #if hscriptPos e.e #else e #end ) {
+		case EUsing(path): add('using $path');
 		case EImport(path, INormal): add('import $path');
 		case EImport(path, IAsName(alias)): add('import $path as $alias');
 		case EImport(path, IAll): add('import $path.*');

@@ -36,8 +36,10 @@ private enum Stop {
 }
 
 class Interp {
+	public var usings : Array<Class<Dynamic>>;
 	public var imports : Map<String, Dynamic>;
 	public var variables : Map<String,Dynamic>;
+	
 	var locals (get, never) : Map<String, {r : Dynamic}>;
 	var binops : Map<String, Expr -> Expr -> Dynamic >;
 	
@@ -62,6 +64,7 @@ class Interp {
 
 	private function resetVariables(){
 		imports = new Map();
+		usings = new Array();
 		
 		for (type in Tools.listTypes('', true)) // import all bottom level classes
 			imports.set(type.name, type.resolve());
@@ -366,14 +369,10 @@ class Interp {
 		for (type in Tools.listTypes(path, wildcard)) {
 			moduleExists = true;
 			
-			var t:Dynamic = type.resolve();
-			
-			if (t != null) {
-				if (as == null || type.name == mod) {
-					imported.push([as ?? type.name, t]);
-					
-					if (!wildcard) break;
-				}
+			if (as == null || type.name == mod) {
+				imported.push([as ?? type.name, type.resolve()]);
+				
+				if (!wildcard) break;
 			}
 		}
 		
@@ -414,6 +413,20 @@ class Interp {
 		
 		return null;
 	}
+	
+	function usingType(path:String):Void {
+		for (type in Tools.listTypes(path)) {
+			var t:Dynamic = type.resolve();
+			if (!usings.contains(t)) usings.push(type.resolve());
+			return;
+		}
+		
+		var t:Dynamic = Tools.resolve(path);
+		if (t is Class) {
+			if (!usings.contains(t)) usings.push(t);
+			return;
+		}
+	}
 
 	public function expr( e : Expr, ?t : CType ) : Dynamic {
 		#if hscriptPos
@@ -425,6 +438,8 @@ class Interp {
 			pushStack(SScript(curExpr.origin));
 		
 		switch( e ) {
+		case EUsing(path):
+			usingType(path);
 		case EImport(path, mode):
 			switch (mode) {
 				case INormal: importType(path);
@@ -908,7 +923,19 @@ class Interp {
 	function fcall( o : Dynamic, f : String, args : Array<Dynamic> ) : Dynamic {
 		var fun = get(o, f);
 		
-		if (!Reflect.isFunction(fun)) error(ECustom('Cannot call $fun'));
+		if (!Reflect.isFunction(fun)) {
+			for (t in usings) {
+				var fun = get(t, f, true);
+				if (Reflect.isFunction(fun)) {
+					try {
+						args.unshift(o);
+						return Reflect.callMethod(t, fun, args);
+					} catch (e:Dynamic) {}
+				}
+			}
+			
+			error(ECustom('Cannot call $fun'));
+		}
 		
 		return call(o, fun, args);
 	}
