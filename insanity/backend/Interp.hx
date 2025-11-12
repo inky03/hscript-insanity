@@ -20,11 +20,14 @@
  * DEALINGS IN THE SOFTWARE.
  */
 package insanity.backend;
+
 import insanity.backend.Expr;
 import insanity.backend.Exception;
 import insanity.backend.CallStack;
 import haxe.PosInfos;
 import haxe.Constraints.IMap;
+
+using insanity.backend.macro.TypeRegistry;
 
 private enum Stop {
 	SBreak;
@@ -52,14 +55,19 @@ class Interp {
 	public function new() {
 		stack = new CallStack();
 		
-		imports = new Map();
 		declared = new Array();
 		resetVariables();
 		initOps();
 	}
 
 	private function resetVariables(){
+		imports = new Map();
+		
+		for (type in Tools.listTypes('', true)) // import all bottom level classes
+			imports.set(type.name, type.resolve());
+		
 		variables = new Map<String,Dynamic>();
+		
 		variables.set("null",null);
 		variables.set("true",true);
 		variables.set("false",false);
@@ -121,7 +129,7 @@ class Interp {
 	}
 
 	function setVar( name : String, v : Dynamic ) {
-		if (imports.exists(name))
+		if (imports.get(name) != null)
 			error(ECustom('Invalid assign'));
 		
 		if (variables.exists(name)) {
@@ -326,14 +334,39 @@ class Interp {
 	}
 
 	function resolve( id : String ) : Dynamic {
-		if (imports.exists(id))
-			return imports.get(id);
+		if (imports.exists(id)) {
+			if (imports.get(id) == null) {
+				error(ECustom('Module $id does not define $id'));
+			} else {
+				return imports.get(id);
+			}
+		}
 		
 		var v = variables.get(id);
 		if( v == null && !variables.exists(id) )
 			error(EUnknownVariable(id));
 		
 		return v;
+	}
+	
+	function importType(path:String, wildcard:Bool = false) {
+		var success:Bool = false;
+		for (type in Tools.listTypes(path, wildcard)) {
+			var t:Dynamic = type.resolve();
+			if (t != null) {
+				imports.set(type.name, t);
+				success = true;
+			}
+		}
+		
+		if (success) {
+			var mod:String = path.substr(path.lastIndexOf('.') + 1); // "import" module (only for error testing)
+			
+			if (!imports.exists(mod))
+				imports.set(mod, null);
+		} else if (!wildcard) {
+			error(EUnknownType(path));
+		}
 	}
 
 	public function expr( e : Expr, ?t : CType ) : Dynamic {
@@ -347,22 +380,29 @@ class Interp {
 		
 		switch( e ) {
 		case EImport(path, mode):
-			var id:String;
-			
 			switch (mode) {
 				case INormal:
-					id = path.substr(path.lastIndexOf('.') + 1);
+					importType(path);
+					
 				case IAsName(alias):
-					id = alias;
+					var id:String = path.substr(path.lastIndexOf('.') + 1);
+					var moduleExists:Bool = false;
+					
+					for (type in Tools.listTypes(path)) {
+						var t:Dynamic = type.resolve();
+						if (t != null && type.name == id) {
+							imports.set(alias, t);
+							return null;
+						}
+						
+						moduleExists = true;
+					}
+					
+					error(moduleExists ? ECustom('Module $id does not define type $id') : EUnknownType(path));
+					
 				case IAll:
-					trace('Wildcard is currently unsupported');
-					return null;
+					importType(path, true);
 			}
-			
-			var type:Dynamic = Tools.resolve(path);
-			if (type == null) error(EUnknownType(path));
-			
-			imports.set(id, type);
 		case EConst(c):
 			switch( c ) {
 			case CInt(v): return v;

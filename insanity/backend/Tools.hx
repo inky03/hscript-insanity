@@ -21,6 +21,7 @@
  */
 package insanity.backend;
 import insanity.backend.Expr;
+import insanity.backend.macro.TypeRegistry;
 
 class Tools {
 
@@ -135,5 +136,25 @@ class Tools {
 		type ??= Type.resolveEnum(path);
 		
 		return type;
+	}
+	
+	public static inline function listTypes(path:String, fromPack:Bool = false):Array<TypeInfo> {
+		var typeInfos:Array<TypeInfo> = [];
+		
+		if (fromPack) {
+			typeInfos = TypeRegistry.fromPackage(path);
+		} else {
+			typeInfos = (TypeRegistry.fromModule(path) ?? TypeRegistry.fromPath(path));
+		}
+		
+		if (typeInfos == null) return [];
+		
+		var types:Dynamic = [];
+		for (type in typeInfos) {
+			if (type.kind == 'class' || type.kind == 'enum')
+				types.push(type);
+		}
+		
+		return types;
 	}
 }

@@ -23,7 +23,7 @@ class Script {
 	
 	public function parse(string:String):Expr {
 		try {
-			program = parser.parseString(string, name);
+			program = parser.parseScript(string, name);
 		} catch (e:haxe.Exception) {
 			trace('Failed to initialize script program!\n' + e.details());
 		}

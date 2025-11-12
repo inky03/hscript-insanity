@@ -176,7 +176,7 @@ class Parser {
 			idents[identChars.charCodeAt(i)] = true;
 	}
 
-	public function parseString( s : String, ?origin : String = "hscript", ?position : Int = 0 ) {
+	public function parseScript( s : String, ?origin : String = "hscript", ?position : Int = 0 ) {
 		initParser(origin, position);
 		input = s;
 		readPos = 0;
