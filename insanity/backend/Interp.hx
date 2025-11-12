@@ -71,7 +71,7 @@ class Interp {
 		usings.resize(0);
 		variables.clear();
 		
-		for (type in Tools.listTypes('', true)) // import all bottom level classes
+		for (type in Tools.listTypes('', true, true)) // import all bottom level classes
 			imports.set(type.name, type.resolve());
 		
 		variables.set('null', null);
@@ -369,20 +369,17 @@ class Interp {
 		var imported:Array<Array<Dynamic>> = [];
 		var moduleExists:Bool = false;
 		
-		for (type in Tools.listTypes(path, wildcard)) {
+		var types = Tools.listTypes(path, wildcard, wildcard);
+		if (types != null) {
 			moduleExists = true;
 			
-			if (as == null || type.name == mod) {
-				imported.push([as ?? type.name, type.resolve()]);
-				
-				if (!wildcard) break;
+			for (type in types) {
+				if (as == null || type.name == mod) {
+					imported.push([as ?? type.name, type.resolve()]);
+					
+					if (!wildcard) break;
+				}
 			}
-		}
-		
-		if (imported.length == 0) {
-			var t:Dynamic = Tools.resolve(path);
-			if (t != null)
-				imported.push([as ?? mod, t]);
 		}
 		
 		if (imported.length > 0) {
@@ -405,13 +402,20 @@ class Interp {
 			
 			return imported;
 		} else if (!wildcard) {
-			var dot:Int = path.lastIndexOf('.');
-			if (field == null && dot > 0) { // pretend last dot is field and try again ...
-				var test:Dynamic = importType(path.substr(0, dot), as, mod);
-				if (test != null) return test;
+			if (moduleExists) {
+				if (as != null)
+					ECustom('Module $mod does not define type $mod');
+				
+				return imported;
+			} else {
+				var dot:Int = path.lastIndexOf('.');
+				if (field == null && dot > 0) { // pretend last dot is field and try again ...
+					var test:Dynamic = importType(path.substr(0, dot), as, mod);
+					if (test != null) return test;
+				}
+				
+				EUnknownType(path);
 			}
-			
-			error(moduleExists ? ECustom('Module $mod does not define type $mod') : EUnknownType(path));
 		}
 		
 		return null;

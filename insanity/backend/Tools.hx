@@ -20,8 +20,10 @@
  * DEALINGS IN THE SOFTWARE.
  */
 package insanity.backend;
+
 import insanity.backend.Expr;
-import insanity.backend.macro.TypeRegistry;
+
+using insanity.backend.macro.TypeRegistry;
 
 class Tools {
 
@@ -138,21 +140,33 @@ class Tools {
 		return type;
 	}
 	
-	public static inline function listTypes(path:String, fromPack:Bool = false):Array<TypeInfo> {
+	public static inline function listTypes(path:String, fromPack:Bool = false, canIgnoreWarnings:Bool = false):Array<TypeInfo> {
 		var typeInfos:Array<TypeInfo> = [];
 		
 		if (fromPack) {
 			typeInfos = TypeRegistry.fromPackage(path);
 		} else {
-			typeInfos = (TypeRegistry.fromModule(path) ?? TypeRegistry.fromPath(path));
+			typeInfos = (TypeRegistry.fromModule(path) ?? TypeRegistry.fromPath(path) ?? TypeRegistry.fromCompilePath(path));
 		}
 		
-		if (typeInfos == null) return [];
+		if (typeInfos == null) return null;
 		
 		var types:Dynamic = [];
 		for (type in typeInfos) {
-			if (type.kind == 'class' || type.kind == 'enum')
+			if (!type.isInterface && (type.kind == 'class' || type.kind == 'enum')) {
 				types.push(type);
+			} else if (typeInfos.length == 1 && !canIgnoreWarnings) {
+				if (type.kind == 'typedef') {
+					if (type.typedefType != null) {
+						types.push(type);
+					} else {
+						trace('(${type.fullPath()}) this typedef\'s target type is currently unsupported');
+					}
+					continue;
+				}
+				
+				trace('(${type.fullPath()}) ${type.isInterface ? 'interface' : type.kind} import is currently unsupported');
+			}
 		}
 		
 		return types;
