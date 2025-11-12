@@ -64,6 +64,7 @@ class ParserException extends haxe.Exception {
 #end
 
 enum Error {
+	EUnknownField( o : Dynamic, f : String );
 	EUnknownType( t : String );
 	EInvalidChar( c : Int );
 	EUnexpected( s : String );

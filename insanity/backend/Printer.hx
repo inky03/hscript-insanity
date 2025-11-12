@@ -369,6 +369,7 @@ class Printer {
 	public static function errorToString( e : Error #if hscriptPos , ?p:ParserException #end ) {
 		var message = switch( e ) {
 			case EUnknownType(t): 'Type not found: $t';
+			case EUnknownField(o, f): '$o has no field $f';
 			case EInvalidChar(c): "Invalid character: '"+(StringTools.isEof(c) ? "EOF" : String.fromCharCode(c))+"' ("+c+")";
 			case EUnexpected(s): "Unexpected token: \""+s+"\"";
 			case EUnterminatedString: "Unterminated string";

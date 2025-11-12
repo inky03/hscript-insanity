@@ -129,8 +129,15 @@ class Interp {
 	}
 
 	function setVar( name : String, v : Dynamic ) {
-		if (imports.get(name) != null)
-			error(ECustom('Invalid assign'));
+		var iv = imports.get(name);
+		if (iv != null) {
+			if (iv is Array) {
+				Reflect.setProperty(iv[0], iv[1], v);
+				return v;
+			} else {
+				error(ECustom('Invalid assign'));
+			}
+		}
 		
 		if (variables.exists(name)) {
 			variables.set(name, v);
@@ -335,10 +342,12 @@ class Interp {
 
 	function resolve( id : String ) : Dynamic {
 		if (imports.exists(id)) {
-			if (imports.get(id) == null) {
+			var v = imports.get(id);
+			if (v == null) {
 				error(ECustom('Module $id does not define $id'));
 			} else {
-				return imports.get(id);
+				if (v is Array) return Reflect.getProperty(v[0], v[1]);
+				return v;
 			}
 		}
 		
@@ -349,24 +358,61 @@ class Interp {
 		return v;
 	}
 	
-	function importType(path:String, wildcard:Bool = false) {
-		var success:Bool = false;
+	function importType(path:String, wildcard:Bool = false, ?as:String, ?field:String):Dynamic {
+		var mod:String = (path.substr(path.lastIndexOf('.') + 1));
+		var imported:Array<Array<Dynamic>> = [];
+		var moduleExists:Bool = false;
+		
 		for (type in Tools.listTypes(path, wildcard)) {
+			moduleExists = true;
+			
 			var t:Dynamic = type.resolve();
+			
 			if (t != null) {
-				imports.set(type.name, t);
-				success = true;
+				if (as == null || type.name == mod) {
+					imported.push([as ?? type.name, t]);
+					
+					if (!wildcard) break;
+				}
 			}
 		}
 		
-		if (success) {
-			var mod:String = path.substr(path.lastIndexOf('.') + 1); // "import" module (only for error testing)
-			
-			if (!imports.exists(mod))
-				imports.set(mod, null);
-		} else if (!wildcard) {
-			error(EUnknownType(path));
+		if (imported.length == 0) {
+			var t:Dynamic = Tools.resolve(path);
+			if (t != null)
+				imported.push([as ?? mod, t]);
 		}
+		
+		if (imported.length > 0) {
+			if (as != null && field == null && as.charAt(0) != as.charAt(0).toUpperCase())
+				error(ECustom('Type aliases must start with an uppercase letter'));
+			
+			if (field != null) {
+				var t:Dynamic = imported[0][1];
+				var f:Dynamic = Reflect.getProperty(t, field);
+				if (f == null) error(EUnknownField(t, field));
+				imports.set(as ?? field, [t, field]);
+				
+				return f;
+			} else if (as == null && !imports.exists(mod)) { // module "importing" (only for error testing)
+				imports.set(mod, null);
+			}
+			
+			for (t in imported)
+				imports.set(t[0], t[1]);
+			
+			return imported;
+		} else if (!wildcard) {
+			var dot:Int = path.lastIndexOf('.');
+			if (field == null && dot > 0) { // pretend last dot is field and try again ...
+				var test:Dynamic = importType(path.substr(0, dot), as, mod);
+				if (test != null) return test;
+			}
+			
+			error(moduleExists ? ECustom('Module $mod does not define type $mod') : EUnknownType(path));
+		}
+		
+		return null;
 	}
 
 	public function expr( e : Expr, ?t : CType ) : Dynamic {
@@ -381,27 +427,9 @@ class Interp {
 		switch( e ) {
 		case EImport(path, mode):
 			switch (mode) {
-				case INormal:
-					importType(path);
-					
-				case IAsName(alias):
-					var id:String = path.substr(path.lastIndexOf('.') + 1);
-					var moduleExists:Bool = false;
-					
-					for (type in Tools.listTypes(path)) {
-						var t:Dynamic = type.resolve();
-						if (t != null && type.name == id) {
-							imports.set(alias, t);
-							return null;
-						}
-						
-						moduleExists = true;
-					}
-					
-					error(moduleExists ? ECustom('Module $id does not define type $id') : EUnknownType(path));
-					
-				case IAll:
-					importType(path, true);
+				case INormal: importType(path);
+				case IAsName(alias): importType(path, alias);
+				case IAll: importType(path, true);
 			}
 		case EConst(c):
 			switch( c ) {

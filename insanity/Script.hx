@@ -1,5 +1,6 @@
 package insanity;
 
+import insanity.backend.Exception;
 import insanity.backend.Parser;
 import insanity.backend.Interp;
 import insanity.backend.Expr;
@@ -8,15 +9,16 @@ class Script {
 	public var name:String;
 	
 	var parser:Parser = new Parser();
-	var interp:Interp = new Interp();
+	var interp:Interp = null;
 	var program:Expr = null;
 	
 	public var variables(get, never):Map<String, Dynamic>;
 	inline function get_variables():Map<String, Dynamic> { return interp.variables; }
 	
 	public function new(string:String, name:String = 'hscript'):Void {
-		this.name = name;
 		parser.allowTypes = true;
+		
+		this.name = name;
 		
 		parse(string);
 	}
@@ -25,26 +27,30 @@ class Script {
 		try {
 			program = parser.parseScript(string, name);
 		} catch (e:haxe.Exception) {
-			trace('Failed to initialize script program!\n' + e.details());
+			onParsingError(e);
+			program = null;
 		}
 		
 		return program;
 	}
 	
-	public function execute(?expr:Expr):Dynamic {
+	public function start(?expr:Expr):Dynamic {
 		try {
-			if (program == null) throw 'Uninitialized';
+			if (program == null) throw 'Program is uninitialized';
+			
+			interp ??= new Interp();
 			return interp.execute(program);
 		} catch (e:haxe.Exception) {
-			trace('Script program halted!\n' + e.details());
-			// trace(Type.typeof(e));
-			// trace('Failed to execute program: $e');
+			onProgramError(e);
+			interp = null;
 		}
 		
 		return null;
 	}
 	
 	public function call(variable:String, ?args:Array<Dynamic>):Dynamic {
+		if (interp == null) throw 'Interpreter is uninitialized';
+		
 		var fun = variables.get(variable);
 		
 		if (!Reflect.isFunction(fun)) {
@@ -52,11 +58,13 @@ class Script {
 			return null;
 		}
 		
-		try {
-			return Reflect.callMethod(interp, fun, args ?? []);
-		} catch (e:haxe.Exception) {
-			trace('Error when calling function!\n' + e.details());
-			return null;
-		}
+		return Reflect.callMethod(interp, fun, args ?? []);
+	}
+	
+	public dynamic function onParsingError(e:haxe.Exception):Void {
+		trace('Failed to initialize script program!\n' + e.details());
+	}
+	public dynamic function onProgramError(e:haxe.Exception):Void {
+		trace('Script program stopped unexpectedly!\n' + e.details());
 	}
 }

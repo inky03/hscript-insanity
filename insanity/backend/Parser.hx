@@ -650,6 +650,7 @@ class Parser {
 				switch (t) {
 					case TId(id):
 						if (mode == IAll) unexpected(t);
+						
 						path.push(id);
 					case TOp("*"):
 						mode = IAll;
@@ -664,8 +665,6 @@ class Parser {
 				var t = token();
 				switch (t) {
 					case TId(id):
-						if (id.charAt(0) != id.charAt(0).toUpperCase())
-							error(ECustom('Type aliases must start with an uppercase letter'), #if hscriptPos p1, tokenMax #else 0, 0 #end);
 						mode = IAsName(id);
 					default:
 						unexpected(t);
