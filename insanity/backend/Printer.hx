@@ -238,7 +238,8 @@ class Printer {
 			var first = true;
 			for( a in params ) {
 				if( first ) first = false else add(", ");
-				if( a.opt && a.value == null ) add("?");
+				if ( a.rest ) add('...');
+				if ( a.opt && a.value == null ) add("?");
 				add(a.name);
 				addType(a.t);
 				if ( a.value != null ) {

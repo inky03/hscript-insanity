@@ -539,13 +539,16 @@ class Interp {
 			throw SReturn;
 		case EFunction(params,fexpr,name,_,id):
 			var capturedLocals = duplicate(locals);
-			var hasOpt = false, minParams = 0;
+			var hasOpt = false, hasRest = false, minParams = 0;
 			for( p in params )
-				if( p.opt )
+				if (p.opt) {
 					hasOpt = true;
-				else
+				} else if (p.rest) {
+					hasRest = true;
+				} else {
 					minParams++;
-			var f = function(args:Array<Dynamic>) {
+				}
+			var f = Reflect.makeVarArgs(function(args:Array<Dynamic>) {
 				if( args?.length ?? 0 != params.length ) {
 					if( args.length < minParams ) {
 						var str = "Invalid number of parameters. Got " + args.length + ", required " + minParams;
@@ -556,8 +559,11 @@ class Interp {
 					var args2 = [];
 					var extraParams = args.length - minParams;
 					var pos = 0;
-					for( p in params )
-						if( p.opt ) {
+					for( p in params ) {
+						if (p.rest) {
+							if (pos < args.length)
+								args2.push(args[pos++]);
+						} else if( p.opt ) {
 							if( extraParams > 0 ) {
 								args2.push(args[pos++]);
 								extraParams--;
@@ -566,12 +572,20 @@ class Interp {
 							}
 						} else
 							args2.push(args[pos++]);
+					}
+					if (hasRest)
+						args2 = args2.concat(args.slice(params.length));
 					args = args2;
 				}
 				var old = locals;
 				pushStack(name == null ? SLocalFunction(id) : SMethod(curExpr.origin, name), duplicate(capturedLocals));
-				for( i in 0...params.length )
-					locals.set(params[i].name,{ r : args[i] });
+				for( i in 0...params.length ) {
+					if (i == params.length - 1 && hasRest) {
+						locals.set(params[i].name, {r: args.slice(params.length - 1)});
+					} else {
+						locals.set(params[i].name, {r: args[i]});
+					}
+				}
 				var r = null;
 				if( inTry )
 					try {
@@ -588,8 +602,7 @@ class Interp {
 					r = exprReturn(fexpr);
 				stack.stack.shift();
 				return r;
-			};
-			var f = Reflect.makeVarArgs(f);
+			});
 			if( name != null ) {
 				if( stack.length > 1 ) {
 					// function-in-function is a local function

@@ -74,7 +74,7 @@ enum Expr {
 	EUsing( path : String );
 }
 
-typedef Argument = { name : String, ?t : CType, ?opt : Bool, ?value : Expr };
+typedef Argument = { name : String, ?t : CType, ?opt : Bool, ?value : Expr, ?rest : Bool };
 
 typedef Metadata = Array<{ name : String, params : Array<Expr> }>;
 

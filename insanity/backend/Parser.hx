@@ -959,42 +959,53 @@ class Parser {
 
 	function parseFunctionArgs() {
 		var args = new Array();
+		var hasRest = false;
 		var tk = token();
 		if( tk != TPClose ) {
 			var done = false;
 			while( !done ) {
-				var name = null, opt = false;
+				var name = null, opt = false, rest = false;
 				switch( tk ) {
-				case TQuestion:
-					opt = true;
-					tk = token();
-				default:
+					case TQuestion:
+						opt = true;
+						tk = token();
+					case TOp('...'):
+						rest = true;
+						tk = token();
+					default:
 				}
+				
 				switch( tk ) {
-				case TId(id): name = id;
-				default:
-					unexpected(tk);
-					break;
+					case TId(id):
+						if (hasRest) error(ECustom('Rest should only be used for the last function argument') #if hscriptPos , tokenMin, tokenMax #end);
+						hasRest = rest;
+						name = id;
+					default:
+						unexpected(tk);
+						break;
 				}
-				var arg : Argument = { name : name };
+				
+				var arg : Argument = { name : name, rest : rest };
 				if( allowTypes ) {
 					if( maybe(TDoubleDot) )
 						arg.t = parseType();
 					if( maybe(TOp("=")) ) {
+						if (rest) error(ECustom('Rest argument cannot have default value') #if hscriptPos , tokenMin, tokenMax #end);
 						arg.value = parseExpr();
-						opt = true;
+						arg.opt = true;
 					}
 				}
-				if( opt ) arg.opt = true;
+				
 				args.push(arg);
 				tk = token();
+				
 				switch( tk ) {
-				case TComma:
-					tk = token();
-				case TPClose:
-					done = true;
-				default:
-					unexpected(tk);
+					case TComma:
+						tk = token();
+					case TPClose:
+						done = true;
+					default:
+						unexpected(tk);
 				}
 			}
 		}
