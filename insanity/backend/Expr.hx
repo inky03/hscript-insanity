@@ -24,7 +24,7 @@ package insanity.backend;
 enum Const {
 	CInt( v : Int );
 	CFloat( f : Float );
-	CString( s : String );
+	CString( s : String, ?interp : Bool );
 }
 
 #if hscriptPos

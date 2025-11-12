@@ -316,22 +316,22 @@ class Parser {
 		// parse object
 		var fl = new Array();
 		while( true ) {
-			var tk = token();
+			var tk = token(false);
 			var id = null;
 			switch( tk ) {
-			case TId(i): id = i;
-			case TConst(c):
-				if( !allowJSON )
+				case TId(i): id = i;
+				case TConst(c):
+					if( !allowJSON )
+						unexpected(tk);
+					switch( c ) {
+					case CString(s): id = s;
+					default: unexpected(tk);
+					}
+				case TBrClose:
+					break;
+				default:
 					unexpected(tk);
-				switch( c ) {
-				case CString(s): id = s;
-				default: unexpected(tk);
-				}
-			case TBrClose:
-				break;
-			default:
-				unexpected(tk);
-				break;
+					break;
 			}
 			ensure(TDoubleDot);
 			fl.push({ name : id, e : parseExpr() });
@@ -346,6 +346,45 @@ class Parser {
 		}
 		return parseExprNext(mk(EObject(fl),p1));
 	}
+	
+	function interpolateString(s:String) {
+		var se = mk(EConst(CString(s)));
+		
+		while (true) {
+			var e:Expr = null;
+			
+			var c = StringTools.fastCodeAt(input, readPos); // this is so Stupid
+			if (idents[c]) {
+				var ident:String = '';
+				while (true) {
+					var c = readChar();
+					if (!idents[c] || StringTools.isEof(c)) {
+						readPos --;
+						break;
+					} else {
+						ident += String.fromCharCode(c);
+					}
+				}
+				e = mk(EIdent(ident.toString()));
+			} else {
+				ensure(TBrOpen);
+				e = parseExpr();
+				ensure(TBrClose);
+			}
+			
+			var r = parseString("'".code, true); // grab next bit of string
+			
+			switch (r) {
+				case TConst(CString(s, i)):
+					se = mk(EBinop('+', mk(EBinop('+', se, e)), mk(EConst(CString(s)))));
+					
+					if (i == null || !i) break;
+				default:
+			}
+		}
+		
+		return parseExprNext(mk(EParent(se)));
+	}
 
 	function parseExpr() {
 		var tk = token();
@@ -358,6 +397,8 @@ class Parser {
 			if( e == null )
 				e = mk(EIdent(id));
 			return parseExprNext(e);
+		case TConst(CString(s, true)):
+			return interpolateString(s);
 		case TConst(c):
 			return parseExprNext(mk(EConst(c)));
 		case TPOpen:
@@ -397,7 +438,7 @@ class Parser {
 			}
 			return unexpected(tk);
 		case TBrOpen:
-			tk = token();
+			tk = token(false);
 			switch( tk ) {
 			case TBrClose:
 				return parseExprNext(mk(EObject([]),p1));
@@ -1441,7 +1482,7 @@ class Parser {
 		return StringTools.fastCodeAt(input, readPos++);
 	}
 
-	function readString( until ) {
+	function parseString( until:Int, interpolate:Bool = false ) {
 		var c = 0;
 		var b = new StringBuf();
 		var esc = false;
@@ -1489,11 +1530,22 @@ class Parser {
 					b.addChar(k);
 				default: invalidChar(c);
 				}
-			} else if( c == 92 )
+			} else if( c == 92 ) {
 				esc = true;
-			else if( c == until )
+			} else if ( c == until ) {
 				break;
-			else {
+			} else if ( interpolate && c == '$'.code) {
+				var next = readChar();
+				if (idents[next] || next == '{'.code) {
+					readPos --;
+					return TConst( CString(b.toString(), true) );
+				} else if (next == '$'.code) {
+					b.addChar(c);
+				} else {
+					b.addChar(c);
+					b.addChar(next);
+				}
+			} else {
 				if( c == 10 ) {
 					columnOffset = p1;
 					line++;
@@ -1501,10 +1553,10 @@ class Parser {
 				b.addChar(c);
 			}
 		}
-		return b.toString();
+		return TConst( CString(b.toString()) );
 	}
 
-	function token() {
+	function token(interpolateStrings:Bool = true) {
 		#if hscriptPos
 		var t = tokens.pop();
 		if( t != null ) {
@@ -1515,12 +1567,12 @@ class Parser {
 		oldTokenMin = tokenMin;
 		oldTokenMax = tokenMax;
 		tokenMin = (this.char < 0) ? currentPos : currentPos - 1;
-		var t = _token();
+		var t = _token(interpolateStrings);
 		tokenMax = (this.char < 0) ? currentPos - 1 : currentPos - 2;
 		return t;
 	}
 
-	function _token() {
+	function _token(interpolateStrings:Bool = true) {
 		#else
 		if( !tokens.isEmpty() )
 			return tokens.pop();
@@ -1652,7 +1704,7 @@ class Parser {
 			case "}".code: return TBrClose;
 			case "[".code: return TBkOpen;
 			case "]".code: return TBkClose;
-			case "'".code, '"'.code: return TConst( CString(readString(char)) );
+			case "'".code, '"'.code: return parseString(char, interpolateStrings && char == "'".code);
 			case "?".code:
 				char = readChar();
 				if (char == ".".code) {

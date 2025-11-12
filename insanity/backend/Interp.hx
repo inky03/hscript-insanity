@@ -58,26 +58,29 @@ class Interp {
 		stack = new CallStack();
 		
 		declared = new Array();
-		resetVariables();
+		setDefaults();
 		initOps();
 	}
 
-	private function resetVariables(){
-		imports = new Map();
-		usings = new Array();
+	public function setDefaults() {
+		imports ??= new Map();
+		usings ??= new Array();
+		variables ??= new Map<String, Dynamic>();
+		
+		imports.clear();
+		usings.resize(0);
+		variables.clear();
 		
 		for (type in Tools.listTypes('', true)) // import all bottom level classes
 			imports.set(type.name, type.resolve());
 		
-		variables = new Map<String,Dynamic>();
-		
-		variables.set("null",null);
-		variables.set("true",true);
-		variables.set("false",false);
-		variables.set("trace", Reflect.makeVarArgs(function(el) {
+		variables.set('null', null);
+		variables.set('true', true);
+		variables.set('false', false);
+		variables.set('trace', Reflect.makeVarArgs(function(el) {
 			var inf = posInfos();
 			var v = el.shift();
-			if( el.length > 0 ) inf.customParams = el;
+			if (el.length > 0) inf.customParams = el;
 			haxe.Log.trace(Std.string(v), inf);
 		}));
 	}
