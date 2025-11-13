@@ -147,3 +147,8 @@ enum ImportMode {
 	IAsName(alias:String);
 	IAll;
 }
+
+enum Mirror {
+	MProperty(t:Dynamic, f:String);
+	MEnumValue(t:Dynamic, i:Int);
+}

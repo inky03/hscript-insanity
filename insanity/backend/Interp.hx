@@ -339,16 +339,32 @@ class Interp {
 		throw e;
 		#end
 	}
+	
+	function createEnum(t:Enum<Dynamic>, i:Int, ?args:Array<Dynamic>):EnumValue {
+		try {
+			return Type.createEnumIndex(t, i, args);
+		} catch (e:haxe.Exception) {
+			throw 'Failed to construct enum of type ${Type.getEnumName(t)}';
+		}
+	}
 
-	function resolve( id : String ) : Dynamic {
+	function resolve(id:String, calling:Bool = false) : Dynamic {
 		if (imports.exists(id)) {
-			var v = imports.get(id);
+			var v:Dynamic = imports.get(id);
+			
 			if (v == null) {
-				error(ECustom('Module $id does not define $id'));
-			} else {
-				if (v is Array) return Reflect.getProperty(v[0], v[1]);
-				return v;
+				error(ECustom('Module $id does not define type $id'));
+			} else if (v is Mirror) {
+				switch (v) {
+					case MProperty(t, f): 
+						return Reflect.getProperty(t, f);
+					case MEnumValue(t, i):
+						if (calling) return Reflect.makeVarArgs(function(params:Array<Dynamic>) return createEnum(t, i, params));
+						return createEnum(t, i);
+				}
 			}
+			
+			return v;
 		}
 		
 		var v = variables.get(id);
@@ -358,7 +374,23 @@ class Interp {
 		return v;
 	}
 	
-	function importType(path:Array<String>, mode:ImportMode):Void {
+	function importType(name:String, t:Dynamic) {
+		if (t is Class) {
+			imports.set(name, t);
+		} else if (t is Enum) {
+			imports.set(name, t);
+			importEnumValues(t);
+		} else {
+			throw 'Invalid import type $t';
+		}
+	}
+	
+	function importEnumValues(t:Enum<Dynamic>) {
+		for (i => v in Type.getEnumConstructs(t))
+			imports.set(v, MEnumValue(t, i));
+	}
+	
+	function importPath(path:Array<String>, mode:ImportMode):Void {
 		if (mode == IAll) {
 			var fullPath:String = path.join('.');
 			var types:Array<TypeInfo> = Tools.listTypes(fullPath, true);
@@ -393,23 +425,38 @@ class Interp {
 							}
 						}
 						
-						if (t == null || !Type.getClassFields(t).contains(field)) {
-							error(ECustom('Module ${path[i]} does not define ${field.isTypeIdentifier() ? 'type' : 'field'} $field'));
-						} else {
+						if (t is Class) {
+							if (!Type.getClassFields(t).contains(field))
+								error(ECustom('Module ${path[i]} does not define field $field'));
+							
 							switch (mode) {
-								case IAsName(alias): imports.set(alias, [t, field]);
-								default: imports.set(field, [t, field]);
+								case IAsName(alias): imports.set(alias, MProperty(t, field));
+								default: imports.set(field, MProperty(t, field));
 							}
+						} else if (t is Enum) {
+							var i:Int = Type.getEnumConstructs(t).indexOf(field);
+							
+							if (i >= 0) {
+								switch (mode) {
+									case IAsName(alias): return imports.set(alias, MEnumValue(t, i));
+									default: return imports.set(field, MEnumValue(t, i));
+								}
+							} else {
+								error(EUnknownField(path[i], field));
+							}
+						} else {
+							error(ECustom('Module ${path[i]} does not define type $field'));
 						}
-						
-						return;
 					}
 					
 					switch (mode) {
 						case IAsName(alias):
 							for (type in types) {
-								if (type.name == path[i])
-									return imports.set(alias, type.resolve());
+								if (type.name == path[i]) {
+									importType(alias, type.resolve());
+									
+									return;
+								}
 							}
 							
 							error(ECustom('Module ${path[i]} does not define ${path[i]}'));
@@ -418,7 +465,7 @@ class Interp {
 							imports.set(path[i], null);
 							
 							for (type in types)
-								imports.set(type.name, type.resolve());
+								importType(type.name, type.resolve());
 					}
 					
 					return;
@@ -444,7 +491,7 @@ class Interp {
 				if (types != null && types.length > 0) {
 					for (type in types) {
 						var t = type.resolve();
-						if (!usings.contains(t)) usings.push(t);
+						if (t is Class && !usings.contains(t)) usings.push(t);
 						imports.set(type.name, t);
 					}
 					
@@ -461,7 +508,7 @@ class Interp {
 		error(EUnknownType(path.join('.')));
 	}
 
-	public function expr( e : Expr, ?t : CType ) : Dynamic {
+	public function expr( e : Expr, ?t : CType, calling:Bool = false ) : Dynamic {
 		curExpr = e;
 		var e = e.e;
 		
@@ -472,7 +519,7 @@ class Interp {
 		case EUsing(path):
 			usingType(path);
 		case EImport(path, mode):
-			importType(path, mode);
+			importPath(path, mode);
 		case EConst(c):
 			switch( c ) {
 			case CInt(v): return v;
@@ -483,7 +530,7 @@ class Interp {
 			var l = locals.get(id);
 			if( l != null )
 				return l.r;
-			return resolve(id);
+			return resolve(id, calling);
 		case EVar(n,t,e):
 			declared.push({ n : n, old : locals.get(n) });
 			locals.set(n,{ r : (e == null)?null:expr(e, t) });
@@ -522,17 +569,17 @@ class Interp {
 			var args = new Array();
 			for( p in params )
 				args.push(expr(p));
-
+			
 			switch( Tools.expr(e) ) {
 				case EField(e,f,m):
-					var obj = expr(e);
+					var obj = expr(e, true);
 					if ( obj == null ) {
 						if (m) return null;
 						error(EInvalidAccess(f));
 					}
 					return fcall(obj,f,args);
 				default:
-					return call(null,expr(e),args);
+					return call(null,expr(e, true),args);
 			}
 		case EIf(econd,e1,e2):
 			return if( expr(econd) == true ) expr(e1) else if( e2 == null ) null else expr(e2);
