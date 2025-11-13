@@ -666,6 +666,8 @@ class Interp {
 							else if (params.length > 2) error(ECustom('Too many type parameters for Map'));
 							
 							switch (params[0]) {
+								case CTAnon(_):
+									return new haxe.ds.ObjectMap<Dynamic, Dynamic>();
 								case CTPath(path, _):
 									var fullPath:String = path.join('.');
 									
@@ -674,24 +676,26 @@ class Interp {
 									} else if (fullPath == 'Int') {
 										return new Map<Int, Dynamic>();
 									} else {
-										var type = (Tools.resolve(fullPath) ?? imports.get(fullPath));
+										var type:TypeInfo = null;
+										var r = (Tools.resolve(fullPath) ?? imports.get(fullPath));
+										if (r is Class) {
+											type = TypeRegistry.fromCompilePath(Type.getClassName(r))[0];
+										} else if (r == null) {
+											error(EUnknownType(fullPath));
+										}
 										
-										if (type is Class) {
-											return new haxe.ds.ObjectMap<Dynamic, Dynamic>();
-										} else if (type is Enum) {
+										if (/*Reflect.isEnumValue(r)*/false) { // todo resolve enum values??
 											return new haxe.ds.EnumValueMap<Dynamic, Dynamic>();
-										} else {
-											error(EUnknownType(type));
+										} else if (type?.kind == 'class') {
+											return new haxe.ds.ObjectMap<Dynamic, Dynamic>();
 										}
 									}
 								default:
-									error(ECustom('What'));
 							}
 						}
 						
-						var type = (Tools.resolve(fullPath) ?? imports.get(fullPath));
-						if (type != null && type is IMap)
-							return Type.createInstance(type, []);
+						var p = new Printer();
+						error(ECustom('Map of type <${p.typeToString(params[0])}, ${p.typeToString(params[1])}> is not accepted'));
 					default:
 				}
 				
