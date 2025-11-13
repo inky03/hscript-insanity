@@ -494,15 +494,10 @@ class Checker {
 	}
 
 	inline function edef( e : Expr ) {
-		#if hscriptPos
 		return e.e;
-		#else
-		return e;
-		#end
 	}
 
 	function punion( e1 : Expr, e2 : Expr ) : Expr {
-		#if hscriptPos
 		return {
 			pmin : e1.pmin < e2.pmin ? e1.pmin : e2.pmin,
 			pmax : e1.pmax > e2.pmax ? e1.pmax : e2.pmax,
@@ -510,14 +505,10 @@ class Checker {
 			line : e1.line < e2.line ? e1.line : e2.line,
 			e : null,
 		};
-		#else
-		return e1;
-		#end
 	}
 
 	inline function error( msg : String, curExpr : Expr ) {
-		var e = ECustom(msg);
-		#if hscriptPos var e = new Error(e, curExpr.pmin, curExpr.pmax, curExpr.origin, curExpr.line); #end
+		var e = new Error(ECustom(msg), curExpr.pmin, curExpr.pmax, curExpr.origin, curExpr.line);
 		if( !isCompletion ) throw e;
 	}
 
@@ -841,16 +832,13 @@ class Checker {
 	}
 
 	public function abstractCast( t1 : TType, t2 : TType, e : Expr ) {
-		#if !hscriptPos
 		return false;
-		#else
 		var tf1 = follow(t1);
 		var tf2 = follow(t2);
 		return getAbstractCast(tf1,tf2,e,false) || getAbstractCast(tf2,tf1,e,true);
 		#end
 	}
 
-	#if hscriptPos
 	function getAbstractCast( from : TType, to : TType, e : Expr, isFrom : Bool ) {
 		switch( from ) {
 		case TAbstract(a, args) if( a.impl != null ):
@@ -879,7 +867,6 @@ class Checker {
 		}
 		return false;
 	}
-	#end
 
 	public function apply( t : TType, params : Array<TType>, args : Array<TType> ) {
 		if( args.length != params.length ) throw "Invalid number of type parameters";
@@ -1027,7 +1014,6 @@ class Checker {
 			return null;
 		case TAbstract(a,pl) if( a.forwards.exists(f) ):
 			return getField(apply(a.t, a.params, pl), f, e, forWrite);
-		#if hscriptPos
 		case TAbstract(a, pl) if( a.impl != null ):
 			var cf = a.impl.statics.get(f);
 			if( cf == null )
@@ -1055,7 +1041,6 @@ class Checker {
 			default:
 			}
 			return null;
-		#end
 		default:
 			return null;
 		}
@@ -1089,11 +1074,7 @@ class Checker {
 	}
 
 	function mk(e,p) : Expr {
-		#if hscriptPos
 		return { e : e, pmin : p.pmin, pmax : p.pmax, origin : p.origin, line : p.line };
-		#else
-		return e;
-		#end
 	}
 
 	function isString( t : TType ) {
@@ -1157,9 +1138,7 @@ class Checker {
 			var union = punion(path[0].e,path[path.length-1].e);
 			var t = resolveGlobal(name, union, Value);
 			if( t != null ) {
-				#if hscriptPos
 				if( union.e != null ) path[path.length-1].e.e = union.e;
-				#end
 				return readPath(t,fields,forWrite);
 			}
 			fields.unshift(path.pop());
@@ -1197,7 +1176,6 @@ class Checker {
 		case "trace":
 			return TDynamic;
 		default:
-			#if hscriptPos
 			switch( withType ) {
 			// enum constructor resolution
 			case WithType(et = TEnum(e, args)):
@@ -1269,7 +1247,6 @@ class Checker {
 					}
 				}
 			}
-			#end
 		}
 		return null;
 	}

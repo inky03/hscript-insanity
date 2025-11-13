@@ -27,6 +27,7 @@ import insanity.backend.CallStack;
 import haxe.PosInfos;
 import haxe.Constraints.IMap;
 
+using insanity.backend.Tools;
 using insanity.backend.macro.TypeRegistry;
 
 private enum Stop {
@@ -49,10 +50,8 @@ class Interp {
 	var inTry : Bool;
 	var declared : Array<{ n : String, old : { r : Dynamic } }>;
 	var returnValue : Dynamic;
-
-	#if hscriptPos
+	
 	var curExpr : Expr;
-	#end
 
 	public function new() {
 		stack = new CallStack();
@@ -86,11 +85,7 @@ class Interp {
 	}
 
 	public function posInfos(): PosInfos {
-		#if hscriptPos
-			if (curExpr != null)
-				return cast { fileName : curExpr.origin, lineNumber : curExpr.line };
-		#end
-		return cast { fileName : "hscript", lineNumber : 0 };
+		return cast { fileName : (curExpr?.origin ?? 'hscript'), lineNumber : (curExpr?.line ?? 0) };
 	}
 	
 	function get_locals():Map<String, {r: Dynamic}> { return stack.last().locals; }
@@ -217,10 +212,9 @@ class Interp {
 	}
 
 	function increment( e : Expr, prefix : Bool, delta : Int ) : Dynamic {
-		#if hscriptPos
 		curExpr = e;
 		var e = e.e;
-		#end
+		
 		switch(e) {
 		case EIdent(id):
 			var l = locals.get(id);
@@ -364,82 +358,112 @@ class Interp {
 		return v;
 	}
 	
-	function importType(path:String, wildcard:Bool = false, ?as:String, ?field:String):Dynamic {
-		var mod:String = (path.substr(path.lastIndexOf('.') + 1));
-		var imported:Array<Array<Dynamic>> = [];
-		var moduleExists:Bool = false;
-		
-		var types = Tools.listTypes(path, wildcard, wildcard);
-		if (types != null) {
-			moduleExists = true;
+	function importType(path:Array<String>, mode:ImportMode):Void {
+		if (mode == IAll) {
+			var fullPath:String = path.join('.');
+			var types:Array<TypeInfo> = Tools.listTypes(fullPath, true);
 			
-			for (type in types) {
-				if (as == null || type.name == mod) {
-					imported.push([as ?? type.name, type.resolve()]);
+			if (types == null) return;
+			
+			imports.set(fullPath.substr(fullPath.lastIndexOf('.') + 1), null);
+			for (type in types) imports.set(type.name, type.resolve());
+			
+			return;
+		}
+		
+		var fields:Array<String> = [];
+		
+		var i:Int = path.length;
+		while (i -- > 0) {
+			var fullPath:String = path.slice(0, i + 1).join('.');
+			
+			if (path[i].isTypeIdentifier()) {
+				var types:Array<TypeInfo> = Tools.listTypes(fullPath);
+				
+				if (types != null) {
+					var field:String = fields.shift();
+					if (fields.length > 0) error(EUnexpected(field));
 					
-					if (!wildcard) break;
+					if (field != null) {
+						var t:Dynamic = null;
+						for (type in types) {
+							if (type.name == path[i]) {
+								t = type.resolve();
+								break;
+							}
+						}
+						
+						if (t == null || !Type.getClassFields(t).contains(field)) {
+							error(ECustom('Module ${path[i]} does not define ${field.isTypeIdentifier() ? 'type' : 'field'} $field'));
+						} else {
+							switch (mode) {
+								case IAsName(alias): imports.set(alias, [t, field]);
+								default: imports.set(field, [t, field]);
+							}
+						}
+						
+						return;
+					}
+					
+					switch (mode) {
+						case IAsName(alias):
+							for (type in types) {
+								if (type.name == path[i])
+									return imports.set(alias, type.resolve());
+							}
+							
+							error(ECustom('Module ${path[i]} does not define ${path[i]}'));
+							
+						default:
+							imports.set(path[i], null);
+							
+							for (type in types)
+								imports.set(type.name, type.resolve());
+					}
+					
+					return;
 				}
 			}
+			
+			fields.unshift(path[i]);
 		}
 		
-		if (imported.length > 0) {
-			if (as != null && field == null && as.charAt(0) != as.charAt(0).toUpperCase())
-				error(ECustom('Type aliases must start with an uppercase letter'));
-			
-			if (field != null) {
-				var t:Dynamic = imported[0][1];
-				var f:Dynamic = Reflect.getProperty(t, field);
-				if (f == null) error(EUnknownField(t, field));
-				imports.set(as ?? field, [t, field]);
-				
-				return f;
-			} else if (as == null && !imports.exists(mod)) { // module "importing" (only for error testing)
-				imports.set(mod, null);
-			}
-			
-			for (t in imported)
-				imports.set(t[0], t[1]);
-			
-			return imported;
-		} else if (!wildcard) {
-			if (moduleExists) {
-				if (as != null)
-					ECustom('Module $mod does not define type $mod');
-				
-				return imported;
-			} else {
-				var dot:Int = path.lastIndexOf('.');
-				if (field == null && dot > 0) { // pretend last dot is field and try again ...
-					var test:Dynamic = importType(path.substr(0, dot), as, mod);
-					if (test != null) return test;
-				}
-				
-				EUnknownType(path);
-			}
-		}
-		
-		return null;
+		error(EUnknownType(path.join('.')));
 	}
 	
-	function usingType(path:String):Void {
-		for (type in Tools.listTypes(path)) {
-			var t:Dynamic = type.resolve();
-			if (!usings.contains(t)) usings.push(type.resolve());
-			return;
+	function usingType(path:Array<String>):Void {
+		var tf:String = null;
+		
+		var i:Int = path.length;
+		while (i -- > 0) {
+			var fullPath:String = path.slice(0, i + 1).join('.');
+			
+			if (path[i].isTypeIdentifier()) {
+				var types:Array<TypeInfo> = Tools.listTypes(fullPath);
+				
+				if (types != null && types.length > 0) {
+					for (type in types) {
+						var t = type.resolve();
+						if (!usings.contains(t)) usings.push(t);
+						imports.set(type.name, t);
+					}
+					
+					return;
+				}
+				
+				if (tf != null) error(ECustom('Module ${path[i]} does not define type $tf'));
+			}
+			
+			if (tf != null) break;
+			tf = path[i];
 		}
 		
-		var t:Dynamic = Tools.resolve(path);
-		if (t is Class) {
-			if (!usings.contains(t)) usings.push(t);
-			return;
-		}
+		error(EUnknownType(path.join('.')));
 	}
 
 	public function expr( e : Expr, ?t : CType ) : Dynamic {
-		#if hscriptPos
 		curExpr = e;
 		var e = e.e;
-		#end
 		
 		if (stack.length == 0)
 			pushStack(SScript(curExpr.origin));
@@ -448,11 +472,7 @@ class Interp {
 		case EUsing(path):
 			usingType(path);
 		case EImport(path, mode):
-			switch (mode) {
-				case INormal: importType(path);
-				case IAsName(alias): importType(path, alias);
-				case IAll: importType(path, true);
-			}
+			importType(path, mode);
 		case EConst(c):
 			switch( c ) {
 			case CInt(v): return v;
@@ -528,9 +548,7 @@ class Interp {
 		case EForGen(it,e):
 			Tools.getKeyIterator(it, function(vk,vv,it) {
 				if( vk == null ) {
-					#if hscriptPos
 					curExpr = it;
-					#end
 					error(ECustom("Invalid for expression"));
 					return;
 				}
@@ -633,9 +651,7 @@ class Interp {
 						keys.push(expr(eKey));
 						values.push(expr(eValue));
 					default:
-						#if hscriptPos
 						curExpr = e;
-						#end
 						error(ECustom("Invalid map key=>value expression"));
 					}
 				}

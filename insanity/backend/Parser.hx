@@ -20,8 +20,11 @@
  * DEALINGS IN THE SOFTWARE.
  */
 package insanity.backend;
+
 import insanity.backend.Expr;
 import insanity.backend.Exception;
+
+using insanity.backend.Tools;
 
 enum Token {
 	TEof;
@@ -92,20 +95,13 @@ class Parser {
 	var idents : Array<Bool>;
 	var fid : Int = 0;
 	var uid : Int = 0;
-
-	#if hscriptPos
+	
 	var tokenMin : Int;
 	var tokenMax : Int;
 	var oldTokenMin : Int;
 	var oldTokenMax : Int;
 	var tokens : List<{ min : Int, max : Int, t : Token }>;
-	#else
-	static inline var p1 = 0;
-	static inline var tokenMin = 0;
-	static inline var tokenMax = 0;
-	var tokens : haxe.ds.GenericStack<Token>;
-	#end
-
+	
 	public function new() {
 		line = 1;
 		opChars = "+*/-=!><&|^%~";
@@ -139,12 +135,8 @@ class Parser {
 	inline function get_currentPos() return readPos + offset;
 
 	public inline function error( err, pmin, pmax ) {
-		if( !resumeErrors )
-		#if hscriptPos
-		throw new ParserException(err, pmin, pmax, origin, line);
-		#else
-		throw err;
-		#end
+		if ( !resumeErrors )
+			throw new ParserException(err, pmin, pmax, origin, line);
 	}
 
 	public function invalidChar(c) {
@@ -157,14 +149,10 @@ class Parser {
 		decl = false;
 		preprocStack = [];
 		this.origin = origin;
-		#if hscriptPos
 		readPos = 0;
 		tokenMin = oldTokenMin = pos;
 		tokenMax = oldTokenMax = pos;
 		tokens = new List();
-		#else
-		tokens = new haxe.ds.GenericStack<Token>();
-		#end
 		offset = pos;
 		char = -1;
 		ops = new Array();
@@ -196,13 +184,9 @@ class Parser {
 	}
 
 	inline function push(tk) {
-		#if hscriptPos
 		tokens.push( { t : tk, min : tokenMin, max : tokenMax } );
 		tokenMin = oldTokenMin;
 		tokenMax = oldTokenMax;
-		#else
-		tokens.add(tk);
-		#end
 	}
 
 	inline function ensure(tk) {
@@ -234,31 +218,18 @@ class Parser {
 	}
 
 	inline function expr(e:Expr) {
-		#if hscriptPos
 		return e.e;
-		#else
-		return e;
-		#end
 	}
 
 	inline function pmin(e:Expr) {
-		#if hscriptPos
-		return e == null ? 0 : e.pmin;
-		#else
-		return 0;
-		#end
+		return (e?.pmin ?? 0);
 	}
 
 	inline function pmax(e:Expr) {
-		#if hscriptPos
-		return e == null ? 0 : e.pmax;
-		#else
-		return 0;
-		#end
+		return (e?.pmax ?? 0);
 	}
 
 	inline function mk(e,pmin=-1,pmax=-1) : Expr {
-		#if hscriptPos
 		if( e == null ) return null;
 		
 		if (pmin < 0) pmin = tokenMin;
@@ -267,9 +238,6 @@ class Parser {
 		var column:Int = ((pmin < columnOffset ? pmax : pmin) - columnOffset);
 		
 		return { e : e, pmin : pmin, pmax : pmax, origin : origin, line : line , column : column };
-		#else
-		return e;
-		#end
 	}
 
 	function isBlock(e) {
@@ -388,9 +356,8 @@ class Parser {
 
 	function parseExpr() {
 		var tk = token();
-		#if hscriptPos
 		var p1 = tokenMin;
-		#end
+		
 		switch( tk ) {
 		case TId(id):
 			var e = parseStructure(id);
@@ -500,7 +467,7 @@ class Parser {
 			if( op == "<" ) {
 				var start = readPos - 1;
 				var ident = getIdent();
-				if( #if hscriptPos tokens.length != 0 #else !tokens.isEmpty() #end )
+				if( tokens.length != 0 )
 					throw "assert";
 				if( readPos == start + ident.length + 1 ) {
 					var endTag = "</"+ident+">";
@@ -514,10 +481,8 @@ class Parser {
 						char = -1;
 						start--;
 						var end = readPos - 1;
-						#if hscriptPos
-						tokenMin = start + offset;
-						tokenMax = end + offset;
-						#end
+						tokenMin = (start + offset);
+						tokenMax = (end + offset);
 						var str = input.substr(start,end - start + 1);
 						return mk(EMeta(":markup",[],mk(EConst(CString(str)))));
 					}
@@ -666,16 +631,14 @@ class Parser {
 	}
 
 	function parseStructure(id) {
-		#if hscriptPos
 		var p1 = tokenMin;
-		#end
 		
 		if (id != 'import' && id != 'using') decl = true;
 		
 		return switch( id ) {
 		case "using":
 			if (decl)
-				error(ECustom('import and using may not appear after a declaration'), #if hscriptPos p1, tokenMax #else 0, 0 #end);
+				error(ECustom('import and using may not appear after a declaration'), p1, tokenMax);
 			
 			var path:Array<String> = [getIdent()];
 			
@@ -695,13 +658,17 @@ class Parser {
 				}
 			}
 			
-			mk(EUsing(path.join('.')));
+			mk(EUsing(path));
 		case "import":
 			if (decl)
-				error(ECustom('import and using may not appear after a declaration'), #if hscriptPos p1, tokenMax #else 0, 0 #end);
+				error(ECustom('import and using may not appear after a declaration'), p1, tokenMax);
 			
 			var path:Array<String> = [getIdent()];
 			var mode:ImportMode = INormal;
+			var tid:String = null;
+			
+			if (path[0].isTypeIdentifier())
+				tid = path[0];
 			
 			while (true) {
 				var t = token();
@@ -715,27 +682,36 @@ class Parser {
 					case TId(id):
 						if (mode == IAll) unexpected(t);
 						
+						if (tid != null || id.isTypeIdentifier())
+							tid = id;
+						
 						path.push(id);
 					case TOp("*"):
+						if (tid != null) unexpected(t);
+						
 						mode = IAll;
 					default:
 						unexpected(t);
 				}
 			}
 			
-			var finalPath:String = path.join('.');
-			
 			if (mode != IAll && maybe(TId('as'))) {
+				if (tid == null) // no type identifier found
+					error(ECustom('Module name must start with an uppercase letter'), p1, tokenMax);
+				
 				var t = token();
 				switch (t) {
 					case TId(id):
+						if (!id.isTypeIdentifier() && tid.isTypeIdentifier())
+							error(ECustom('Type aliases must start with an uppercase letter'), p1, tokenMax);
+						
 						mode = IAsName(id);
 					default:
 						unexpected(t);
 				}
 			}
 			
-			mk(EImport(finalPath, mode));
+			mk(EImport(path, mode));
 		case "if":
 			ensure(TPOpen);
 			var cond = parseExpr();
@@ -1018,7 +994,7 @@ class Parser {
 				
 				switch( tk ) {
 					case TId(id):
-						if (hasRest) error(ECustom('Rest should only be used for the last function argument') #if hscriptPos , tokenMin, tokenMax #end);
+						if (hasRest) error(ECustom('Rest should only be used for the last function argument'), tokenMin, tokenMax);
 						hasRest = rest;
 						name = id;
 					default:
@@ -1031,7 +1007,7 @@ class Parser {
 					if( maybe(TDoubleDot) )
 						arg.t = parseType();
 					if( maybe(TOp("=")) ) {
-						if (rest) error(ECustom('Rest argument cannot have default value') #if hscriptPos , tokenMin, tokenMax #end);
+						if (rest) error(ECustom('Rest argument cannot have default value'), tokenMin, tokenMax);
 						arg.value = parseExpr();
 						arg.opt = true;
 					}
@@ -1106,11 +1082,7 @@ class Parser {
 						case TOp(op):
 							if( op == ">" ) break;
 							if( op.charCodeAt(0) == ">".code ) {
-								#if hscriptPos
 								tokens.add({ t : TOp(op.substr(1)), min : tokenMax - op.length - 1, max : tokenMax });
-								#else
-								tokens.add(TOp(op.substr(1)));
-								#end
 								break;
 							}
 						default:
@@ -1147,7 +1119,7 @@ class Parser {
 						switch arg.value {
 							case null:
 							case v:
-								error(ECustom('Default values not allowed in function types'), #if hscriptPos v.pmin, v.pmax #else 0, 0 #end);
+								error(ECustom('Default values not allowed in function types'), v.pmin, v.pmax);
 						}
 
 						CTNamed(arg.name, if (arg.opt) CTOpt(arg.t) else arg.t);
@@ -1336,14 +1308,12 @@ class Parser {
 				}
 			}
 			
-			var finalPath:String = path.join('.');
-			
 			if (mode != IAll && maybe(TId('as'))) {
 				var t = token();
 				switch (t) {
 					case TId(id):
 						if (id.charAt(0) != id.charAt(0).toUpperCase())
-							error(ECustom('Type aliases must start with an uppercase letter'), #if hscriptPos tokenMin, tokenMax #else 0, 0 #end);
+							error(ECustom('Type aliases must start with an uppercase letter'), tokenMin, tokenMax);
 						mode = IAsName(id);
 					default:
 						unexpected(t);
@@ -1351,7 +1321,7 @@ class Parser {
 			}
 			
 			ensure(TSemicolon);
-			return DImport(finalPath, mode);
+			return DImport(path, mode);
 		case "class":
 			var name = getIdent();
 			var params = parseParams();
@@ -1488,9 +1458,8 @@ class Parser {
 		var esc = false;
 		var old = line;
 		var s = input;
-		#if hscriptPos
 		var p1 = currentPos - 1;
-		#end
+		
 		while( true ) {
 			var c = readChar();
 			if( StringTools.isEof(c) ) {
@@ -1557,7 +1526,6 @@ class Parser {
 	}
 
 	function token(interpolateStrings:Bool = true) {
-		#if hscriptPos
 		var t = tokens.pop();
 		if( t != null ) {
 			tokenMin = t.min;
@@ -1573,10 +1541,6 @@ class Parser {
 	}
 
 	function _token(interpolateStrings:Bool = true) {
-		#else
-		if( !tokens.isEmpty() )
-			return tokens.pop();
-		#end
 		var char;
 		var colOffset:Int = this.columnOffset;
 		if( this.char < 0 )
@@ -1594,15 +1558,11 @@ class Parser {
 			case 0:
 				return TEof;
 			case 32,9,13: // space, tab, CR
-				#if hscriptPos
 				tokenMin++;
-				#end
 			case 10:
 				columnOffset = currentPos;
 				line++; // LF
-				#if hscriptPos
 				tokenMin++;
-				#end
 			case 48,49,50,51,52,53,54,55,56,57: // 0...9
 				var n = (char - 48) * 1.0;
 				var exp = 0.;

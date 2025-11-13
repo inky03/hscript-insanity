@@ -27,7 +27,6 @@ enum Const {
 	CString( s : String, ?interp : Bool );
 }
 
-#if hscriptPos
 typedef Expr = {
 	var e : ExprDef;
 	var pmin : Int;
@@ -37,10 +36,6 @@ typedef Expr = {
 	var line : Int;
 }
 enum ExprDef {
-#else
-typedef ExprDef = Expr;
-enum Expr {
-#end
 	EConst( c : Const );
 	EIdent( v : String );
 	EVar( n : String, ?t : CType, ?e : Expr );
@@ -70,8 +65,8 @@ enum Expr {
 	ECheckType( e : Expr, t : CType );
 	EForGen( it : Expr, e : Expr );
 	ECast( e : Expr, ?t : CType );
-	EImport( path : String, mode : ImportMode );
-	EUsing( path : String );
+	EImport( path : Array<String>, mode : ImportMode );
+	EUsing( path : Array<String> );
 }
 
 typedef Argument = { name : String, ?t : CType, ?opt : Bool, ?value : Expr, ?rest : Bool };
@@ -90,7 +85,7 @@ enum CType {
 
 enum ModuleDecl {
 	DPackage( path : Array<String> );
-	DImport( path : String, mode : ImportMode );
+	DImport( path : Array<String>, mode : ImportMode );
 	DClass( c : ClassDecl );
 	DTypedef( c : TypeDecl );
 }

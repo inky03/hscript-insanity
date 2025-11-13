@@ -20,10 +20,10 @@
  * DEALINGS IN THE SOFTWARE.
  */
 package insanity.backend;
+
 import insanity.backend.Expr.Error;
-#if hscriptPos
 import insanity.backend.Expr.ErrorDef;
-#end
+
 import haxe.macro.Expr;
 
 class Macro {

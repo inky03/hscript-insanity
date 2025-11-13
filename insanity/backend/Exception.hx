@@ -39,7 +39,6 @@ class InterpException extends Exception {
 	}
 }
 
-#if hscriptPos
 class ParserException extends haxe.Exception {
 	public var e:Error;
 	public var pmin:Int;
@@ -61,7 +60,6 @@ class ParserException extends haxe.Exception {
 		return Printer.errorToString(this.e, this);
 	}
 }
-#end
 
 enum Error {
 	EUnknownField( o : Dynamic, f : String );
