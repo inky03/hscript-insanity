@@ -354,13 +354,13 @@ class Parser {
 		return parseExprNext(mk(EParent(se)));
 	}
 
-	function parseExpr() {
+	function parseExpr(?type) {
 		var tk = token();
 		var p1 = tokenMin;
 		
 		switch( tk ) {
 		case TId(id):
-			var e = parseStructure(id);
+			var e = parseStructure(id, type);
 			if( e == null )
 				e = mk(EIdent(id));
 			return parseExprNext(e);
@@ -630,7 +630,7 @@ class Parser {
 		}
 	}
 
-	function parseStructure(id) {
+	function parseStructure(id, ?type) {
 		var p1 = tokenMin;
 		
 		if (id != 'import' && id != 'using') decl = true;
@@ -743,7 +743,7 @@ class Parser {
 
 			switch (tk)
 			{
-				case TOp("="): e = parseExpr();
+				case TOp("="): e = parseExpr(t);
 				case TOp(_): unexpected(tk);
 				case TComma | TSemicolon: push(tk);
 				// Above case should be enough but semicolon is not mandatory after }
@@ -918,7 +918,7 @@ class Parser {
 			} else {
 				push(tk);
 				var e = parseExpr();
-				mk(ECast(e,null), p1, tokenMax);
+				mk(ECast(e,type), p1, tokenMax);
 			}
 		default:
 			null;

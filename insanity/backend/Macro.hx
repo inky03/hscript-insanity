@@ -21,8 +21,7 @@
  */
 package insanity.backend;
 
-import insanity.backend.Expr.Error;
-import insanity.backend.Expr.ErrorDef;
+import insanity.backend.Expr;
 
 import haxe.macro.Expr;
 

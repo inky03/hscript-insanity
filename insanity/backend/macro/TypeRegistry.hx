@@ -1,10 +1,13 @@
 package insanity.backend.macro;
 
 #if macro
+import haxe.macro.Compiler;
 import haxe.macro.Context;
 import haxe.macro.Expr;
 import haxe.macro.Type;
 import haxe.macro.TypeTools;
+import haxe.macro.ExprTools;
+import haxe.macro.TypedExprTools;
 #end
 
 import insanity.backend.Tools;
@@ -29,11 +32,13 @@ typedef TypeMap = {
 }
 
 class TypeRegistry {
-	static macro function build() {
-		var cls:String = 'insanity.backend.macro.TypeRegistry';
-		
+	static var _name:String = 'insanity.backend.macro.TypeRegistry';
+	
+	static macro function buildRegistry() {
 		Context.onAfterTyping(function(types) {
-			var self = TypeTools.getClass(Context.getType(cls));
+			var self = TypeTools.getClass(Context.getType(_name));
+			if (self.meta.has('types')) return;
+			
 			var _c:Map<String, Dynamic> = [];
 			var map:Array<Dynamic> = [];
 			
@@ -56,21 +61,21 @@ class TypeRegistry {
 			}
 			
 			for (type in types) {
-				map.push(switch (type) {
-					case TClassDecl(r): makeTypeInfo('class', r.get());
-					case TEnumDecl(r): makeTypeInfo('enum', r.get());
-					case TTypeDecl(r): makeTypeInfo('typedef', r.get());
-					case TAbstract(r): makeTypeInfo('abstract', r.get());
-				});
+				switch (type) {
+					case TClassDecl(r): map.push(makeTypeInfo('class', r.get()));
+					case TEnumDecl(r): map.push(makeTypeInfo('enum', r.get()));
+					case TTypeDecl(r): map.push(makeTypeInfo('typedef', r.get()));
+					case TAbstract(r): map.push(makeTypeInfo('abstract', r.get()));
+				};
 			}
 			
 			self.meta.remove('types');
-            self.meta.add('types', [macro $v {map}], self.pos);
+			self.meta.add('types', [macro $v {map}], self.pos);
 			// Context.info('types registered !!', Context.currentPos());
 		});
 		
 		return macro {
-			var meta:Array<TypeInfo> = cast haxe.rtti.Meta.getType($p {cls.split('.')}).types[0];
+			var meta:Array<TypeInfo> = cast haxe.rtti.Meta.getType($p {_name.split('.')}).types[0];
 			var map:TypeMap = { byPackage: [], byModule: [], byPath: [], byCompilePath: [], all: [] };
 			
 			for (info in meta) {
@@ -93,7 +98,7 @@ class TypeRegistry {
 		}
 	}
 	
-	static var _types(default, null):TypeMap #if (!macro) = build() #end ;
+	static var _types(default, null):TypeMap #if (!macro) = buildRegistry() #end ;
 	
 	public inline static function fromPath(path:String):Array<TypeInfo> { return _types.byPath.get(path); }
 	public inline static function fromModule(path:String):Array<TypeInfo> { return _types.byModule.get(path); }

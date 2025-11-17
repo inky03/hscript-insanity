@@ -23,6 +23,7 @@ package insanity.backend;
 
 import insanity.backend.Expr;
 
+using insanity.backend.types.Abstract;
 using insanity.backend.macro.TypeRegistry;
 
 class Tools {
@@ -132,6 +133,7 @@ class Tools {
 	public static inline function resolve(path:String):Dynamic {
 		var type:Dynamic = Type.resolveClass(path);
 		type ??= Type.resolveEnum(path);
+		type ??= AbstractTools.resolve(path);
 		
 		return type;
 	}
@@ -147,11 +149,12 @@ class Tools {
 		
 		if (typeInfos == null) return null;
 		
+		var mainAttraction:Dynamic = (TypeRegistry.fromPath(path) ?? TypeRegistry.fromCompilePath(path));
 		var types:Dynamic = [];
 		for (type in typeInfos) {
-			if (!type.isInterface && (type.kind == 'class' || type.kind == 'enum')) {
+			if (!type.isInterface && (type.kind == 'class' || type.kind == 'enum' || type.kind == 'abstract')) {
 				types.push(type);
-			} else if (typeInfos.length == 1 && !canIgnoreWarnings) {
+			} else if (mainAttraction != null && type == mainAttraction[0] && !canIgnoreWarnings) {
 				if (type.kind == 'typedef') {
 					if (type.typedefType != null) {
 						types.push(type);
