@@ -811,7 +811,7 @@ class Interp {
 				a.push(expr(e));
 			return cnew(cl,a);
 		case EThrow(e):
-			throw expr(e);
+			throw new InterpException(stack, expr(e));
 		case ETry(e,n,_,ecatch):
 			var old = declared.length;
 			var oldTry = inTry;
