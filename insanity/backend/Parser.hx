@@ -914,6 +914,7 @@ class Parser {
 				var e = parseExpr();
 				ensure(TComma);
 				var t = parseType();
+				ensure(TPClose);
 				mk(ECast(e,t), p1, tokenMax);
 			} else {
 				push(tk);

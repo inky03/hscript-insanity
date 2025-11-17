@@ -18,9 +18,9 @@ typedef TypeInfo = {
 	var module:String;
 	var pack:Array<String>;
 	
-	var ?isInterface:Bool;
-	
+	var ?abstractImpl:TypeInfo;
 	var ?typedefType:TypeInfo;
+	var ?isInterface:Bool;
 }
 
 typedef TypeMap = {
@@ -45,29 +45,32 @@ class TypeRegistry {
 			function findTypeInfo(m:String, s:String) {
 				return _c['$m.$s'];
 			}
-			function makeTypeInfo(k:String, d:Dynamic) {
-				var info:TypeInfo = (findTypeInfo(d.module, d.name) ?? {kind: k, module: d.module, name: d.name, pack: d.pack});
-				if (k == 'typedef') {
-					info.typedefType = switch (d.type) {
-						case TInst(r, _): makeTypeInfo('class', r.get());
-						default: null;
+			function getTypeInfo(type:haxe.macro.ModuleType) {
+				function makeTypeInfo(k:String, d:Dynamic) {
+					var info:TypeInfo = (findTypeInfo(d.module, d.name) ?? {kind: k, module: d.module, name: d.name, pack: d.pack});
+					if (k == 'typedef') {
+						info.typedefType = switch (d.type) {
+							case TInst(r, _): makeTypeInfo('class', r.get());
+							default: null;
+						}
 					}
+					if (d.isInterface) {
+						info.isInterface = true;
+					}
+					_c['${d.module}.${d.name}'] = info;
+					return info;
 				}
-				if (d.isInterface) {
-					info.isInterface = true;
-				}
-				_c['${d.module}.${d.name}'] = info;
-				return info;
-			}
-			
-			for (type in types) {
-				switch (type) {
-					case TClassDecl(r): map.push(makeTypeInfo('class', r.get()));
-					case TEnumDecl(r): map.push(makeTypeInfo('enum', r.get()));
-					case TTypeDecl(r): map.push(makeTypeInfo('typedef', r.get()));
-					case TAbstract(r): map.push(makeTypeInfo('abstract', r.get()));
+				
+				return switch (type) {
+					case TClassDecl(r): return makeTypeInfo('class', r.get());
+					case TEnumDecl(r): return makeTypeInfo('enum', r.get());
+					case TTypeDecl(r): return makeTypeInfo('typedef', r.get());
+					case TAbstract(r): return makeTypeInfo('abstract', r.get());
 				};
 			}
+			
+			for (type in types)
+				map.push(getTypeInfo(type));
 			
 			self.meta.remove('types');
 			self.meta.add('types', [macro $v {map}], self.pos);
@@ -100,10 +103,25 @@ class TypeRegistry {
 	
 	static var _types(default, null):TypeMap #if (!macro) = buildRegistry() #end ;
 	
-	public inline static function fromPath(path:String):Array<TypeInfo> { return _types.byPath.get(path); }
-	public inline static function fromModule(path:String):Array<TypeInfo> { return _types.byModule.get(path); }
-	public inline static function fromPackage(path:String):Array<TypeInfo> { return _types.byPackage.get(path); }
-	public inline static function fromCompilePath(path:String):Array<TypeInfo> { return _types.byCompilePath.get(path); }
+	public inline static function fromPath(path:String, moduleCheck:Bool = true):Array<TypeInfo> {
+		var t = _types.byPath.get(path);
+		
+		if (t == null && moduleCheck) {
+			var name = path.substring(path.lastIndexOf('.'));
+			return fromPath(path + name, false);
+		}
+		
+		return t;
+	}
+	public inline static function fromModule(path:String):Array<TypeInfo> {
+		return _types.byModule.get(path);
+	}
+	public inline static function fromPackage(path:String):Array<TypeInfo> {
+		return _types.byPackage.get(path);
+	}
+	public inline static function fromCompilePath(path:String):Array<TypeInfo> {
+		return _types.byCompilePath.get(path);
+	}
 	
 	public static function compilePath(info:TypeInfo):String {
 		var typePath:Array<String> = info.pack.copy();

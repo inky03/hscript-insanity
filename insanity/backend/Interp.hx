@@ -27,13 +27,20 @@ import insanity.backend.CallStack;
 import haxe.PosInfos;
 import haxe.Constraints.IMap;
 
+using StringTools;
 using insanity.backend.Tools;
+using insanity.backend.types.Abstract;
 using insanity.backend.macro.TypeRegistry;
 
-private enum Stop {
+enum Stop {
 	SBreak;
 	SContinue;
 	SReturn;
+}
+
+typedef Variable = {
+	var r:Dynamic;
+	var ?a:InsanityAbstract;
 }
 
 class Interp {
@@ -41,14 +48,14 @@ class Interp {
 	public var imports : Map<String, Dynamic>;
 	public var variables : Map<String,Dynamic>;
 	
-	var locals (get, never) : Map<String, {r : Dynamic}>;
+	var locals (get, never) : Map<String, Variable>;
 	var binops : Map<String, Expr -> Expr -> Dynamic >;
 	
 	public var callStackDepth : Int = 200;
 	var stack : CallStack;
 	
 	var inTry : Bool;
-	var declared : Array<{ n : String, old : { r : Dynamic } }>;
+	var declared : Array<{ n : String, old : Variable }>;
 	var returnValue : Dynamic;
 	
 	var curExpr : Expr;
@@ -88,7 +95,7 @@ class Interp {
 		return cast { fileName : (curExpr?.origin ?? 'hscript'), lineNumber : (curExpr?.line ?? 0) };
 	}
 	
-	function get_locals():Map<String, {r: Dynamic}> { return stack.last().locals; }
+	function get_locals():Map<String, Variable> { return stack.last().locals; }
 
 	function initOps() {
 		binops = new Map();
@@ -132,12 +139,16 @@ class Interp {
 	function setVar( name : String, v : Dynamic ) {
 		var iv = imports.get(name);
 		if (iv != null) {
-			if (iv is Array) {
-				Reflect.setProperty(iv[0], iv[1], v);
-				return v;
-			} else {
-				error(ECustom('Invalid assign'));
+			if (iv is Mirror) {
+				switch (iv) {
+					case MProperty(t, f): 
+						Reflect.setProperty(t, f, v);
+						return v;
+					default:
+				}
 			}
+			
+			error(ECustom('Invalid assign'));
 		}
 		
 		if (variables.exists(name)) {
@@ -303,7 +314,7 @@ class Interp {
 		return h2;
 	}
 	
-	function pushStack(?item:StackItem, ?locals:Map<String, {r:Dynamic}>) {
+	function pushStack(?item:StackItem, ?locals:Map<String, Variable>) {
 		var last:Stack = stack.stack.shift();
 		
 		if (last != null)
@@ -398,7 +409,11 @@ class Interp {
 			if (types == null) return;
 			
 			imports.set(fullPath.substr(fullPath.lastIndexOf('.') + 1), null);
-			for (type in types) imports.set(type.name, type.resolve());
+			for (type in types) {
+				if (type.name.indexOf('_Impl_') > -1 || type.name.startsWith('InsanityAbstract_')) continue;
+				
+				importType(type.name, type.kind == 'abstract' ? AbstractTools.resolve(type.compilePath()) : type.resolve());
+			}
 			
 			return;
 		}
@@ -464,8 +479,11 @@ class Interp {
 						default:
 							imports.set(path[i], null);
 							
-							for (type in types)
-								importType(type.name, type.resolve());
+							for (type in types) {
+								if (type.name.indexOf('_Impl_') > -1) continue;
+								
+								importType(type.name, type.kind == 'abstract' ? AbstractTools.resolve(type.compilePath()) : type.resolve());
+							}
 					}
 					
 					return;
@@ -528,12 +546,23 @@ class Interp {
 			}
 		case EIdent(id):
 			var l = locals.get(id);
-			if( l != null )
+			if( l != null ) {
+				if (l.a != null)
+					return l.a;
 				return l.r;
+			}
 			return resolve(id, calling);
 		case EVar(n,t,e):
+			var ne:Dynamic = (e == null ? null : expr(e, t));
+			
 			declared.push({ n : n, old : locals.get(n) });
-			locals.set(n,{ r : (e == null)?null:expr(e, t) });
+			
+			if (AbstractTools.isAbstract(ne)) {
+				locals.set(n,{ r : ne.__a, a: ne });
+			} else {
+				locals.set(n,{ r : ne });
+			}
+			
 			return null;
 		case EParent(e):
 			return expr(e);
@@ -609,7 +638,7 @@ class Interp {
 		case EReturn(e):
 			returnValue = e == null ? null : expr(e);
 			throw SReturn;
-		case EFunction(params,fexpr,name,_,id):
+		case EFunction(params,fexpr,name,ret,id):
 			var capturedLocals = duplicate(locals);
 			var hasOpt = false, hasRest = false, minParams = 0;
 			for( p in params )
@@ -655,13 +684,13 @@ class Interp {
 					if (i == params.length - 1 && hasRest) {
 						locals.set(params[i].name, {r: args.slice(params.length - 1)});
 					} else {
-						locals.set(params[i].name, {r: args[i]});
+						locals.set(params[i].name, {r: tryCast(args[i], params[i].t)});
 					}
 				}
 				var r = null;
 				if( inTry )
 					try {
-						r = exprReturn(fexpr);
+						r = tryCast(exprReturn(fexpr), ret);
 					} catch( e : Dynamic ) {
 						stack.stack.shift();
 						#if neko
@@ -670,8 +699,9 @@ class Interp {
 						throw e;
 						#end
 					}
-				else
-					r = exprReturn(fexpr);
+				else {
+					r = tryCast(exprReturn(fexpr), ret);
+				}
 				stack.stack.shift();
 				return r;
 			});
@@ -813,10 +843,43 @@ class Interp {
 			return val;
 		case EMeta(meta, args, e):
 			return exprMeta(meta, args, e);
-		case ECheckType(e,_), ECast(e,_):
+		case ECast(e, t):
+			return tryCast(expr(e), t);
+		case ECheckType(e,_):
 			return expr(e);
 		}
 		return null;
+	}
+	
+	function tryCast(e, ?type):Dynamic {
+		switch (type) {
+			case CTPath(p, _):
+				var path = p.join('.');
+				var t = imports.get(path);
+				
+				if (t == null) {
+					var info = TypeRegistry.fromPath(path);
+					if (info != null)
+						t = info[0].compilePath().resolve();
+				}
+				
+				if (t == null) throw 'Type not found: $path';
+				
+				if (Type.getSuperClass(t) == InsanityAbstract) {
+					return Type.createInstance(t, [t.resolveFrom(e)]);
+				} else {
+					var c:Dynamic = Type.getClass(e);
+					if (c != null && Type.getSuperClass(c) == InsanityAbstract) {
+						var r = e.resolveTo(Type.getClassName(t));
+						if (r == null) throw 'Can\'t cast ${c.impl} to $path';
+						else return r;
+					}
+				}
+				
+			default:
+		}
+		
+		return e;
 	}
 
 	function exprMeta(meta,args,e) : Dynamic {
@@ -1002,6 +1065,9 @@ class Interp {
 	}
 
 	function set( o : Dynamic, f : String, v : Dynamic ) : Dynamic {
+		if (AbstractTools.isAbstract(v))
+			v = v.__a;
+		
 		if( o == null ) error(EInvalidAccess(f));
 		Reflect.setProperty(o,f,v);
 		return v;
@@ -1009,6 +1075,9 @@ class Interp {
 
 	function fcall( o : Dynamic, f : String, args : Array<Dynamic> ) : Dynamic {
 		var fun = get(o, f);
+		
+		for (i => arg in args)
+			args[i] = (AbstractTools.isAbstract(arg) ? arg.__a : arg);
 		
 		if (!Reflect.isFunction(fun)) {
 			for (t in usings) {
@@ -1028,6 +1097,9 @@ class Interp {
 	}
 
 	function call( o : Dynamic, f : Dynamic, args : Array<Dynamic> ) : Dynamic {
+		for (i => arg in args)
+			args[i] = (AbstractTools.isAbstract(arg) ? arg.__a : arg);
+		
 		return Reflect.callMethod(o,f,args);
 	}
 

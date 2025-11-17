@@ -3,11 +3,11 @@ package insanity.backend.types;
 using insanity.backend.macro.TypeRegistry;
 
 class AbstractTools {
-	public static function resolve(path:String):Class<HScriptAbstract> {
+	public static function resolve(path:String):Class<InsanityAbstract> {
 		var t = (TypeRegistry.fromPath(path) ?? TypeRegistry.fromCompilePath(path));
 		
 		if (t != null) {
-			var a = Type.resolveClass('insanity.backend._abstract._Abstract_${StringTools.replace(t[0].compilePath(), '.', '_')}');
+			var a = Type.resolveClass(t[0].pack.join('.') + (t[0].pack.length > 0 ? '.' : '') + 'InsanityAbstract_' + StringTools.replace(t[0].compilePath(), '.', '_'));
 			
 			if (a != null)
 				return cast a;
@@ -37,7 +37,7 @@ class AbstractTools {
 		}
 		
 		if (vv is Class) {
-			if (Type.getSuperClass(vv) == HScriptAbstract) {
+			if (Type.getSuperClass(vv) == InsanityAbstract) {
 				return (vv.impl ?? 'unknown');
 			} else {
 				return Type.getClassName(vv);
@@ -47,7 +47,7 @@ class AbstractTools {
 		return 'unknown';
 	}
 	
-	public static function getEnumConstructs(a:Class<HScriptAbstract>):Array<String> {
+	public static function getEnumConstructs(a:Class<InsanityAbstract>):Array<String> {
 		var a:Dynamic = a;
 		
 		if (a.isEnum) return a._enumConstructors.copy();
@@ -56,7 +56,7 @@ class AbstractTools {
 		return null;
 	}
 	
-	public static function createEnum(a:Class<HScriptAbstract>, n:String):String {
+	public static function createEnum(a:Class<InsanityAbstract>, n:String):String {
 		var a:Dynamic = a;
 		
 		if (a.isEnum)
@@ -65,9 +65,13 @@ class AbstractTools {
 		throw '${a?.impl ?? a} is not an enum abstract';
 		return null;
 	}
+	
+	public static function isAbstract(o:Dynamic):Bool {
+		return Reflect.hasField(o, '__a');
+	}
 }
 
-class HScriptAbstract {
+class InsanityAbstract {
 	var value(get, set):Dynamic;
 	var __a(default, null):Dynamic;
 	

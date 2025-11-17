@@ -13,8 +13,6 @@ using haxe.macro.ComplexTypeTools;
 
 class AbstractMacro {
 	static function build():Array<Field> {
-		var pack = 'insanity.backend._abstract';
-		
 		var t = Context.getLocalType();
 		var fields = Context.getBuildFields();
 		var imports = Context.getLocalImports();
@@ -42,11 +40,11 @@ class AbstractMacro {
 		var fullPath = ab.pack.copy(); fullPath.push(ab.name);
 		var isEnum = ab.meta.has(':enum');
 		
-		var cls = macro class extends HScriptAbstract {
+		var cls = macro class extends InsanityAbstract {
 			public static var impl(default, never):String = $v {fullPath.join('.')};
 		}
-		cls.pack = pack.split('.');
-		cls.name = '_Abstract_${fullPath.join('_')}';
+		cls.pack = ab.pack;
+		cls.name = 'InsanityAbstract_${fullPath.join('_')}';
 		cls.meta.push({name: ':keep', pos: Context.currentPos()});
 		cls.fields.push({
 			name: 'isEnum', pos: Context.currentPos(), access: [APublic, AStatic],
@@ -186,7 +184,7 @@ class AbstractMacro {
 		var implStr = macro $v {implPath.join('.')};
 		
 		function afield(expr, typeIsAbstract) {
-			var t = {name: cls.name, pack: cls.pack};
+			var t = {name: cls.name, pack: ab.pack};
 			var newExpr = (typeIsAbstract ? macro new $t($expr) : macro $expr);
 			
 			return newExpr;
@@ -259,11 +257,17 @@ class AbstractMacro {
 							stuff.push(macro $p {[arg.name]});
 						}
 						
+						var isSetter = (props.contains(name) && StringTools.startsWith(name, 'set_'));
+						var setterField = StringTools.replace(name, 'set_', '');
+						
 						cls.fields.push({
 							name: name, pos: Context.currentPos(), access: [AStatic, APublic],
 							kind: FFun({
 								args: args, params: [],
-								expr: func(macro {
+								expr: func(isSetter ? macro {
+									var cls = Type.resolveClass($implStr);
+									$p {[setterField]} = Reflect.callMethod(cls, Reflect.field(cls, $v{name}), $a{stuff});
+								} : macro {
 									var cls = Type.resolveClass($implStr);
 									Reflect.callMethod(cls, Reflect.field(cls, $v{name}), $a{stuff});
 								}, matchAbstract(f.ret))
@@ -311,11 +315,47 @@ class AbstractMacro {
 								stuff.push(macro $p {[arg.name]});
 							}
 							
+							var setterExpr = null;
+							var isSetter = StringTools.startsWith(name, 'set_');
+							if (isSetter) {
+								function transformThis(expr) {
+									return switch(expr.expr) {
+										case EVars(a):
+											var vars = macro $expr;
+											switch(vars.expr) {
+												case EVars(a):
+													for (i => v in a) {
+														a[i] = {
+															type: macro:Dynamic,
+															namePos: v.namePos,
+															name: v.name,
+															meta: v.meta,
+															isStatic: v.isStatic,
+															isFinal: v.isFinal,
+															expr: v.expr
+														}
+													}
+												default:
+											}
+											vars;
+										case EConst(CIdent('this')):
+											{expr: EConst(CIdent('__a')), pos: expr.pos};
+										default:
+											// trace(expr);
+											ExprTools.map(expr, transformThis);
+									}
+								}
+								
+								setterExpr = macro ${f.expr};
+								setterExpr = setterExpr.map(transformThis);
+								// trace(setterExpr.toString());
+							}
+							
 							cls.fields.push({
 								name: name, pos: Context.currentPos(), access: [APublic],
 								kind: FFun({
 									args: args, params: [],
-									expr: func(macro {
+									expr: func(isSetter ? setterExpr : macro {
 										var cls = Type.resolveClass($implStr);
 										Reflect.callMethod(cls, Reflect.field(cls, $v{name}), $a{stuff});
 									}, matchAbstract(f.ret))
@@ -378,7 +418,7 @@ class AbstractMacro {
 			kind: FProp('default', 'never', macro:Array<Dynamic>, (isEnum ? macro $a {enumIndex} : null))
 		});
 		
-		Context.defineModule('$pack.${cls.name}', [cls], imports);
+		Context.defineModule(ab.pack.join('.') + (ab.pack.length > 0 ? '.' : '') + cls.name, [cls], imports);
 		
 		return fields;
 	}
