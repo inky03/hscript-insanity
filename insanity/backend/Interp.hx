@@ -358,6 +358,15 @@ class Interp {
 			throw 'Failed to construct enum of type ${Type.getEnumName(t)}';
 		}
 	}
+	
+	function createAbstractEnum(t:Class<InsanityAbstract>, i:Int):Class<InsanityAbstract> {
+		try {
+			return AbstractTools.createEnumIndex(t, i);
+		} catch (e:haxe.Exception) {
+			var t:Dynamic = t;
+			throw 'Failed to construct enum of type ${t.impl}';
+		}
+	}
 
 	function resolve(id:String, calling:Bool = false) : Dynamic {
 		if (imports.exists(id)) {
@@ -372,6 +381,8 @@ class Interp {
 					case MEnumValue(t, i):
 						if (calling) return Reflect.makeVarArgs(function(params:Array<Dynamic>) return createEnum(t, i, params));
 						return createEnum(t, i);
+					case MAbstractEnumValue(t, i):
+						return createAbstractEnum(t, i);
 				}
 			}
 			
@@ -387,6 +398,13 @@ class Interp {
 	
 	function importType(name:String, t:Dynamic) {
 		if (t is Class) {
+			if (Type.getSuperClass(t) == InsanityAbstract && t.isEnum) {
+				for (i => construct in AbstractTools.getEnumConstructs(t))
+					imports.set(construct, MAbstractEnumValue(t, i));
+				imports.set(name, t);
+				return;
+			}
+			
 			imports.set(name, t);
 		} else if (t is Enum) {
 			imports.set(name, t);
@@ -1076,8 +1094,10 @@ class Interp {
 	function fcall( o : Dynamic, f : String, args : Array<Dynamic> ) : Dynamic {
 		var fun = get(o, f);
 		
-		for (i => arg in args)
-			args[i] = (AbstractTools.isAbstract(arg) ? arg.__a : arg);
+		if (o != Std || f != 'string') { // dirty solution but Yeah what ever
+			for (i => arg in args)
+				args[i] = (AbstractTools.isAbstract(arg) ? arg.__a : arg);
+		}
 		
 		if (!Reflect.isFunction(fun)) {
 			for (t in usings) {
@@ -1097,8 +1117,10 @@ class Interp {
 	}
 
 	function call( o : Dynamic, f : Dynamic, args : Array<Dynamic> ) : Dynamic {
-		for (i => arg in args)
-			args[i] = (AbstractTools.isAbstract(arg) ? arg.__a : arg);
+		if (f != Std.string) {
+			for (i => arg in args)
+				args[i] = (AbstractTools.isAbstract(arg) ? arg.__a : arg);
+		}
 		
 		return Reflect.callMethod(o,f,args);
 	}

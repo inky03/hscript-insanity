@@ -151,4 +151,5 @@ enum ImportMode {
 enum Mirror {
 	MProperty(t:Dynamic, f:String);
 	MEnumValue(t:Dynamic, i:Int);
+	MAbstractEnumValue(t:Dynamic, i:Int);
 }

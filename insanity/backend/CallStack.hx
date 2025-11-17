@@ -1,7 +1,9 @@
 package insanity.backend;
 
+import insanity.backend.Interp;
+
 typedef Stack = {
-	var locals : Map<String,{ r : Dynamic }>;
+	var locals : Map<String, Variable>;
 	var item : StackItem;
 }
 

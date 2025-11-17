@@ -56,11 +56,19 @@ class AbstractTools {
 		return null;
 	}
 	
-	public static function createEnum(a:Class<InsanityAbstract>, n:String):String {
+	public static function createEnum(a:Class<InsanityAbstract>, n:String):Class<InsanityAbstract> {
 		var a:Dynamic = a;
 		
-		if (a.isEnum)
-			return Type.createInstance(a, [a._enumValues[a._enumMap.get(n) ?? -1]]);
+		if (a.isEnum) return Type.createInstance(a, [a._enumValues[a._enumMap.get(n) ?? -1]]);
+		
+		throw '${a?.impl ?? a} is not an enum abstract';
+		return null;
+	}
+	
+	public static function createEnumIndex(a:Class<InsanityAbstract>, i:Int):Class<InsanityAbstract> {
+		var a:Dynamic = a;
+		
+		if (a.isEnum) return Type.createInstance(a, [a._enumValues[i]]);
 		
 		throw '${a?.impl ?? a} is not an enum abstract';
 		return null;
