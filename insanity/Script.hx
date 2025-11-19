@@ -36,7 +36,7 @@ class Script {
 		return program;
 	}
 	
-	public function start(?expr:Expr):Dynamic {
+	public function start(?expr:Expr):Any {
 		try {
 			if (program == null) throw 'Program is uninitialized';
 			
@@ -49,7 +49,7 @@ class Script {
 		return null;
 	}
 	
-	public function call(variable:String, ?args:Array<Dynamic>):Dynamic {
+	public function call(variable:String, ...args:Any):Any {
 		if (interp == null) throw 'Interpreter is uninitialized';
 		
 		var fun = variables.get(variable);
@@ -59,7 +59,7 @@ class Script {
 			return null;
 		}
 		
-		return Reflect.callMethod(interp, fun, args ?? []);
+		return Reflect.callMethod(interp, fun, [for (arg in args) arg]);
 	}
 	
 	public function setDefaults():Void {
