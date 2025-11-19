@@ -1,0 +1,9 @@
+{
+	"name": "hscript-insanity",
+	"url": "https://github.com/inky03/hscript-insanity",
+	"description": "Experimental feature extension fork of HaxeFoundation/hscript",
+	"license": "MIT",
+	"version": "0.0.1",
+	"releasenote": "Hi!!",
+	"contributors": ["emi3"]
+}
