@@ -8,6 +8,8 @@ import insanity.backend.CallStack;
 class InterpException extends Exception {
 	var customStack:CallStack;
 	
+	var fullStack:Bool = #if debug true #else false #end ;
+	
 	public function new(stack:CallStack, message:String, ?previous:Exception) {
 		super(message, previous);
 		
@@ -19,20 +21,20 @@ class InterpException extends Exception {
 		b.add('Exception: ${toString()}$customStack');
 		
 		var stack:haxe.CallStack = stack.copy();
-		#if (!debug)
-		while (true) {
-			switch (stack[0]) {
-				case FilePos(s, file, line, col):
-					if (StringTools.startsWith(file, 'insanity/')) { // bit of a dirty solution but whatever
-						stack.asArray().shift();
-					} else {
+		if (!fullStack) {
+			while (true) {
+				switch (stack[0]) {
+					case FilePos(s, file, line, col):
+						if (StringTools.startsWith(file, 'insanity/')) { // bit of a dirty solution but whatever
+							stack.asArray().shift();
+						} else {
+							break;
+						}
+					default:
 						break;
-					}
-				default:
-					break;
+				}
 			}
 		}
-		#end
 		b.add(Std.string(stack));
 		
 		return b.toString();

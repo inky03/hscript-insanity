@@ -334,7 +334,7 @@ class Interp {
 		}
 	}
 
-	inline function error(e : Error, rethrow=false ) : Dynamic {
+	function error(e : Error, rethrow=false ) : Dynamic {
 		pushStack();
 		
 		var exception:InterpException = new InterpException(stack, Printer.errorToString(e));

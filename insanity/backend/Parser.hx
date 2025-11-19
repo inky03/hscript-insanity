@@ -1229,7 +1229,7 @@ class Parser {
 
 	// ------------------------ module -------------------------------
 
-	public function parseModule( content : String, ?origin : String = "hscript", ?position = 0 ) {
+	public function parseModule(content:String, ?origin:String = "hscript", position:Int = 0, ?pack:Array<String>) {
 		initParser(origin, position);
 		input = content;
 		readPos = 0;
@@ -1240,7 +1240,15 @@ class Parser {
 			var tk = token();
 			if( tk == TEof ) break;
 			push(tk);
-			decls.push(parseModuleDecl());
+			decls.push(parseModuleDecl(decls));
+		}
+		var fullPack = pack.join('.');
+		var thisPack = (switch(decls[0]) {
+			case DPackage(path): path;
+			default: [];
+		}).join('.');
+		if (thisPack != fullPack) {
+			throw new haxe.Exception('"package${thisPack.length > 0 ? ' ' : ''}$thisPack;" in $origin should be "package${fullPack.length > 0 ? ' ' : ''}$fullPack;"');
 		}
 		return decls;
 	}
@@ -1266,7 +1274,7 @@ class Parser {
 		return {};
 	}
 
-	function parseModuleDecl() : ModuleDecl {
+	function parseModuleDecl(?decls:Array<ModuleDecl>) : ModuleDecl {
 		var meta = parseMetadata();
 		var ident = getIdent();
 		var isPrivate = false, isExtern = false;
@@ -1281,14 +1289,52 @@ class Parser {
 			}
 			ident = getIdent();
 		}
-		switch( ident ) {
-		case "package":
-			var path = parsePath();
+		if (ident != 'package' && ident != 'import' && ident != 'using') decl = true;
+		
+		return switch( ident ) {
+		case "using":
+			if (decl)
+				error(ECustom('import and using may not appear after a declaration'), tokenMin, tokenMax);
+			
+			var path:Array<String> = [getIdent()];
+			
+			while (true) {
+				var t = token();
+				if (t != TDot) {
+					push(t);
+					break;
+				}
+				
+				t = token();
+				switch (t) {
+					case TId(id):
+						path.push(id);
+					default:
+						unexpected(t);
+				}
+			}
+			
 			ensure(TSemicolon);
+			
+			return DUsing(path);
+		case "package":
+			if (decls != null && decls.length > 0) error(EUnexpected(ident), tokenMin, tokenMax);
+			
+			var noPath = maybe(TSemicolon);
+			var path = (noPath ? [] : parsePath());
+			if (!noPath) ensure(TSemicolon);
+			
 			return DPackage(path);
 		case "import":
+			if (decl)
+				error(ECustom('import and using may not appear after a declaration'), tokenMin, tokenMax);
+			
 			var path:Array<String> = [getIdent()];
 			var mode:ImportMode = INormal;
+			var tid:String = null;
+			
+			if (path[0].isTypeIdentifier())
+				tid = path[0];
 			
 			while (true) {
 				var t = token();
@@ -1301,8 +1347,14 @@ class Parser {
 				switch (t) {
 					case TId(id):
 						if (mode == IAll) unexpected(t);
+						
+						if (tid != null || id.isTypeIdentifier())
+							tid = id;
+						
 						path.push(id);
 					case TOp("*"):
+						if (tid != null) unexpected(t);
+						
 						mode = IAll;
 					default:
 						unexpected(t);
@@ -1310,11 +1362,15 @@ class Parser {
 			}
 			
 			if (mode != IAll && maybe(TId('as'))) {
+				if (tid == null) // no type identifier found
+					error(ECustom('Module name must start with an uppercase letter'), tokenMin, tokenMax);
+				
 				var t = token();
 				switch (t) {
 					case TId(id):
-						if (id.charAt(0) != id.charAt(0).toUpperCase())
+						if (!id.isTypeIdentifier() && tid.isTypeIdentifier())
 							error(ECustom('Type aliases must start with an uppercase letter'), tokenMin, tokenMax);
+						
 						mode = IAsName(id);
 					default:
 						unexpected(t);
@@ -1322,6 +1378,7 @@ class Parser {
 			}
 			
 			ensure(TSemicolon);
+			
 			return DImport(path, mode);
 		case "class":
 			var name = getIdent();
