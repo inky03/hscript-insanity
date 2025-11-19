@@ -317,8 +317,12 @@ class Interp {
 	function pushStack(?item:StackItem, ?locals:Map<String, Variable>) {
 		var last:Stack = stack.stack.shift();
 		
-		if (last != null)
-			stack.stack.unshift({locals: last.locals, item: SFilePos(last.item, curExpr.origin, curExpr.line, curExpr.column)});
+		if (last != null) {
+			stack.stack.unshift({locals: last.locals, item: switch (last.item) {
+				case SFilePos(item, _, _): SFilePos(item, curExpr.origin, curExpr.line, curExpr.column);
+				default: SFilePos(last.item, curExpr.origin, curExpr.line, curExpr.column);
+			}});
+		}
 		if (item != null) {
 			stack.stack.unshift({locals: locals ?? new Map(), item: item});
 			
@@ -787,10 +791,10 @@ class Interp {
 									}
 								default:
 							}
-						}
 						
-						var p = new Printer();
-						error(ECustom('Map of type <${p.typeToString(params[0])}, ${p.typeToString(params[1])}> is not accepted'));
+							var p = new Printer();
+							error(ECustom('Map of type <${p.typeToString(params[0])}, ${p.typeToString(params[1])}> is not accepted'));
+						}
 					default:
 				}
 				
@@ -811,7 +815,7 @@ class Interp {
 				a.push(expr(e));
 			return cnew(cl,a);
 		case EThrow(e):
-			throw new InterpException(stack, expr(e));
+			error(ECustom(Std.string(expr(e))));
 		case ETry(e,n,_,ecatch):
 			var old = declared.length;
 			var oldTry = inTry;
@@ -884,7 +888,7 @@ class Interp {
 				if (t == null) throw 'Type not found: $path';
 				
 				if (Type.getSuperClass(t) == InsanityAbstract) {
-					return Type.createInstance(t, [t.resolveFrom(e)]);
+					return Type.createInstance(t, [e]);
 				} else {
 					var c:Dynamic = Type.getClass(e);
 					if (c != null && Type.getSuperClass(c) == InsanityAbstract) {

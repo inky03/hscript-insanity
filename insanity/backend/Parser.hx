@@ -235,7 +235,7 @@ class Parser {
 		if (pmin < 0) pmin = tokenMin;
 		if (pmax < 0) pmax = tokenMax;
 		
-		var column:Int = ((pmin < columnOffset ? pmax : pmin) - columnOffset);
+		var column:Int = ((pmin < columnOffset ? pmax : pmin) - columnOffset + 1);
 		
 		return { e : e, pmin : pmin, pmax : pmax, origin : origin, line : line , column : column };
 	}

@@ -29,7 +29,7 @@ class AbstractMacro {
 					case KAbstractImpl(a):
 						ab = a.get();
 						
-						if (ab.meta.has(':coreType') || ab.meta.has(':forward.Variance') || ab.type == null || ab.pack[1] == 'Contraints')
+						if (ab.meta.has(':coreType') || ab.type == null || ab.pack[1] == 'Contraints')
 							return fields;
 					default:
 						return fields;
@@ -137,9 +137,9 @@ class AbstractMacro {
 		var t = toComplex(tt);
 		var st = macro $v {ComplexTypeTools.toString(t)};
 		var castExpr = (isEnum ?
-			macro if (!_enumValues.contains(v) && !_enumMap.exists(v)) throw('Can\'t cast ' + v + ' to ' + impl)
+			macro if (!_enumValues.contains(v) && !_enumMap.exists(v)) throw('Can\'t cast ' + AbstractTools.resolveName(v) + ' to ' + impl)
 			:
-			macro if (AbstractTools.resolveName(v) != $st) throw('Can\'t cast ' + v + ' to ' + impl)
+			macro if (AbstractTools.resolveName(v) != $st) throw('Can\'t cast ' + AbstractTools.resolveName(v) + ' to ' + impl)
 		);
 		
 		var enumI = 0;
@@ -392,7 +392,7 @@ class AbstractMacro {
 			name: 'set_value', pos: Context.currentPos(), access: [APrivate, AOverride],
 			kind: FFun({args: [{name: 'v', type: macro:Dynamic}], params: [], expr: macro {
 				var r = resolveFrom(v);
-				if (r == null) throw ('Can\'t cast ' + v + ' to ' + impl);
+				if (r == null) throw ('Can\'t cast ' + AbstractTools.resolveName(v) + ' to ' + impl);
 				return __a = r;
 			}})
 		});

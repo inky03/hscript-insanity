@@ -18,6 +18,7 @@ class Script {
 	public function new(string:String, name:String = 'hscript'):Void {
 		parser.allowTypes = true;
 		parser.allowJSON = true;
+		interp = new Interp();
 		
 		this.name = name;
 		
@@ -39,7 +40,6 @@ class Script {
 		try {
 			if (program == null) throw 'Program is uninitialized';
 			
-			interp ??= new Interp();
 			setDefaults();
 			return interp.execute(program);
 		} catch (e:haxe.Exception) {
