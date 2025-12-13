@@ -565,6 +565,7 @@ class Interp {
 			case CInt(v): return v;
 			case CFloat(f): return f;
 			case CString(s): return s;
+			case CReg(p, m): return new EReg(p, m);
 			}
 		case EIdent(id):
 			var l = locals.get(id);

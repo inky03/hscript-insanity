@@ -1509,7 +1509,40 @@ class Parser {
 	inline function readChar() {
 		return StringTools.fastCodeAt(input, readPos++);
 	}
-
+	
+	inline function parseEscape(c:Int, b:StringBuf, old:Int) {
+		var p1 = (currentPos - 1);
+		switch (c) {
+			case 'n'.code: b.addChar('\n'.code);
+			case 'r'.code: b.addChar('\r'.code);
+			case 't'.code: b.addChar('\t'.code);
+			case "'".code, '"'.code, '\\'.code: b.addChar(c);
+			case '/'.code: if( allowJSON ) b.addChar(c) else invalidChar(c);
+			case "u".code:
+				if( !allowJSON ) invalidChar(c);
+				var k = 0;
+				for( i in 0...4 ) {
+					k <<= 4;
+					var char = readChar();
+					switch( char ) {
+					case 48,49,50,51,52,53,54,55,56,57: // 0-9
+						k += char - 48;
+					case 65,66,67,68,69,70: // A-F
+						k += char - 55;
+					case 97,98,99,100,101,102: // a-f
+						k += char - 87;
+					default:
+						if( StringTools.isEof(char) ) {
+							line = old;
+							error(EUnterminatedString, p1, p1);
+						}
+						invalidChar(char);
+					}
+				}
+				b.addChar(k);
+			default: invalidChar(c);
+		}
+	}
 	function parseString( until:Int, interpolate:Bool = false ) {
 		var c = 0;
 		var b = new StringBuf();
@@ -1527,36 +1560,7 @@ class Parser {
 			}
 			if( esc ) {
 				esc = false;
-				switch( c ) {
-				case 'n'.code: b.addChar('\n'.code);
-				case 'r'.code: b.addChar('\r'.code);
-				case 't'.code: b.addChar('\t'.code);
-				case "'".code, '"'.code, '\\'.code: b.addChar(c);
-				case '/'.code: if( allowJSON ) b.addChar(c) else invalidChar(c);
-				case "u".code:
-					if( !allowJSON ) invalidChar(c);
-					var k = 0;
-					for( i in 0...4 ) {
-						k <<= 4;
-						var char = readChar();
-						switch( char ) {
-						case 48,49,50,51,52,53,54,55,56,57: // 0-9
-							k += char - 48;
-						case 65,66,67,68,69,70: // A-F
-							k += char - 55;
-						case 97,98,99,100,101,102: // a-f
-							k += char - 87;
-						default:
-							if( StringTools.isEof(char) ) {
-								line = old;
-								error(EUnterminatedString, p1, p1);
-							}
-							invalidChar(char);
-						}
-					}
-					b.addChar(k);
-				default: invalidChar(c);
-				}
+				parseEscape(c, b, old);
 			} else if( c == 92 ) {
 				esc = true;
 			} else if ( c == until ) {
@@ -1581,6 +1585,51 @@ class Parser {
 			}
 		}
 		return TConst( CString(b.toString()) );
+	}
+	
+	function parseRegex() {
+		var c = 0;
+		var old = line;
+		var p1 = currentPos - 1;
+		var esc = false;
+		
+		var p = new StringBuf();
+		var m = new StringBuf();
+		
+		while (true) {
+			var c = readChar();
+			
+			if (StringTools.isEof(c) || c == 10) {
+				line = old;
+				error(EUnterminatedRegex, p1, p1);
+				break;
+			}
+			
+			if (esc) {
+				esc = false;
+				parseEscape(c, p, old);
+			} else if (c == '\\'.code) {
+				esc = true;
+			} else if (c == '/'.code) {
+				while (true) {
+					var c = readChar();
+					if (c < 97 || c > 122) break;
+					
+					switch (c) {
+						case 'i'.code, 'g'.code, 'm'.code, 's'.code, 'u'.code:
+							m.addChar(c);
+						default:
+							error(ECustom('Invalid regular expression option'), p1, p1);
+					}
+				}
+				break;
+			} else {
+				p.addChar(c);
+			}
+		}
+		
+		readPos --;
+		return TConst(CReg(p.toString(), m.toString()));
 	}
 
 	function token(interpolateStrings:Bool = true) {
@@ -1718,6 +1767,10 @@ class Parser {
 					this.columnOffset = colOffset;
 					return TDot;
 				}
+			case "~".code:
+				char = readChar();
+				if (char == "/".code) return parseRegex();
+				invalidChar(char);
 			case "{".code: return TBrOpen;
 			case "}".code: return TBrClose;
 			case "[".code: return TBkOpen;
@@ -1955,6 +2008,7 @@ class Parser {
 		case CInt(v): Std.string(v);
 		case CFloat(f): Std.string(f);
 		case CString(s): s; // TODO : escape + quote
+		case CReg(p, m): '~/$p/$m';
 		}
 	}
 

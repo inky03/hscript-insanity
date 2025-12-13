@@ -70,6 +70,7 @@ enum Error {
 	EUnexpected( s : String );
 	EUnterminatedString;
 	EUnterminatedComment;
+	EUnterminatedRegex;
 	EInvalidPreprocessor( msg : String );
 	EUnknownVariable( v : String );
 	EInvalidIterator( v : String );

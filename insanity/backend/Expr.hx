@@ -25,6 +25,7 @@ enum Const {
 	CInt( v : Int );
 	CFloat( f : Float );
 	CString( s : String, ?interp : Bool );
+	CReg( pattern : String, modifiers : String );
 }
 
 typedef Expr = {

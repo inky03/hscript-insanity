@@ -126,11 +126,16 @@ trace('hello $test ${'can also be nested!! $$${test + 3210}'}');
 ```
 
 
+### Regex
+
+haxe's [special regex syntax](https://haxe.org/manual/std-regex.html) can now be used to make a new regular expression in hscript (instead of `new EReg`)
+
+
 ### Call stack
 
 script interpreter exceptions now throw an `InterpException`, which contains more detailed error info more akin to Haxe's exception call stack
 
-also imposes a limit for the call stack before a crash (200 by default, can be adjusted with `callStackDepth` in an `Interp` instance)
+also imposes a limit for the call stack before a Stack overflow exception (200 by default, can be adjusted with `callStackDepth` in an `Interp` instance)
 
 ```
 Exception: ouch...

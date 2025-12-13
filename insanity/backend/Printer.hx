@@ -119,6 +119,7 @@ class Printer {
 		case CInt(i): add(i);
 		case CFloat(f): add(f);
 		case CString(s): add('"'); add(s.split('"').join('\\"').split("\n").join("\\n").split("\r").join("\\r").split("\t").join("\\t")); add('"');
+		case CReg(p, m): add('~/'); add(p); add('/'); add(m);
 		}
 	}
 
@@ -376,6 +377,7 @@ class Printer {
 			case EUnexpected(s): "Unexpected token: \""+s+"\"";
 			case EUnterminatedString: "Unterminated string";
 			case EUnterminatedComment: "Unterminated comment";
+			case EUnterminatedRegex: "Unterminated regular expression";
 			case EInvalidPreprocessor(str): "Invalid preprocessor (" + str + ")";
 			case EUnknownVariable(v): "Unknown identifier: "+v;
 			case EInvalidIterator(v): "Invalid iterator: "+v;
