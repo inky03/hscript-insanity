@@ -15,10 +15,9 @@ class Script {
 	public var variables(get, never):Map<String, Dynamic>;
 	inline function get_variables():Map<String, Dynamic> { return interp.variables; }
 	
-	public function new(string:String, name:String = 'hscript'):Void {
-		parser.allowTypes = true;
-		parser.allowJSON = true;
-		interp = new Interp();
+	public function new(string:String, name:String = 'hscript', ?environment:Environment):Void {
+		parser.allowTypes = parser.allowJSON = true;
+		interp = new Interp(environment);
 		
 		this.name = name;
 		
@@ -59,7 +58,7 @@ class Script {
 			return null;
 		}
 		
-		return Reflect.callMethod(interp, fun, [for (arg in args) arg]);
+		return Reflect.callMethod(interp, fun, args.toArray());
 	}
 	
 	public function setDefaults():Void {

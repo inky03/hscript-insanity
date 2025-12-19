@@ -20,6 +20,7 @@
  * DEALINGS IN THE SOFTWARE.
  */
 package insanity.backend;
+
 import insanity.backend.Expr;
 import insanity.backend.Exception;
 

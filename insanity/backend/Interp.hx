@@ -27,10 +27,14 @@ import insanity.backend.CallStack;
 import haxe.PosInfos;
 import haxe.Constraints.IMap;
 
+import insanity.custom.InsanityReflect as Reflect;
+import insanity.custom.InsanityType as Type;
+
 using StringTools;
 using insanity.backend.Tools;
+using insanity.backend.TypeCollection;
 using insanity.backend.types.Abstract;
-using insanity.backend.macro.TypeRegistry;
+using insanity.backend.types.Scripted;
 
 enum Stop {
 	SBreak;
@@ -41,12 +45,15 @@ enum Stop {
 typedef Variable = {
 	var r:Dynamic;
 	var ?a:InsanityAbstract;
+	var ?access:Array<FieldAccess>;
 }
 
 class Interp {
 	public var usings : Array<Class<Dynamic>>;
 	public var imports : Map<String, Dynamic>;
 	public var variables : Map<String,Dynamic>;
+	
+	public var environment : Environment;
 	
 	var locals (get, never) : Map<String, Variable>;
 	var binops : Map<String, Expr -> Expr -> Dynamic >;
@@ -60,7 +67,8 @@ class Interp {
 	
 	var curExpr : Expr;
 
-	public function new() {
+	public function new(?environment:Environment) {
+		this.environment = environment;
 		stack = new CallStack();
 		
 		declared = new Array();
@@ -77,8 +85,7 @@ class Interp {
 		usings.resize(0);
 		variables.clear();
 		
-		for (type in Tools.listTypes('', true, true)) // import all bottom level classes
-			imports.set(type.name, type.resolve());
+		importPath([''], IAll); // import all bottom level classes
 		
 		variables.set('null', null);
 		variables.set('true', true);
@@ -272,6 +279,31 @@ class Interp {
 			return error(EInvalidOp((delta > 0)?"++":"--"));
 		}
 	}
+	
+	public function executeModule(decls:Array<ModuleDecl>, path:String):Void {
+		try {
+			if (stack.length == 0)
+				pushStack(SModule(path));
+			
+			for (decl in decls) {
+				switch (decl) {
+					default:
+					case DUsing(path):
+						usingType(path);
+					case DImport(path, mode):
+						importPath(path, mode);
+				}
+			}
+		} catch (e:haxe.Exception) {
+			if (e is InterpException) {
+				throw e;
+			} else {
+				pushStack();
+				
+				throw new InterpException(stack, e.message);
+			}
+		}
+	}
 
 	public function execute( expr : Expr ) : Dynamic {
 		try {
@@ -400,8 +432,12 @@ class Interp {
 		return v;
 	}
 	
-	function importType(name:String, t:Dynamic) {
-		if (t is Class) {
+	function importType(name:String, t:Dynamic, enumValueImport:Bool = true) {
+		if (t == null) return;
+		
+		if (t is InsanityType) {
+			imports.set(name, t);
+		} else if (t is Class) {
 			if (Type.getSuperClass(t) == InsanityAbstract && t.isEnum) {
 				for (i => construct in AbstractTools.getEnumConstructs(t))
 					imports.set(construct, MAbstractEnumValue(t, i));
@@ -412,7 +448,9 @@ class Interp {
 			imports.set(name, t);
 		} else if (t is Enum) {
 			imports.set(name, t);
-			importEnumValues(t);
+			
+			if (enumValueImport)
+				importEnumValues(t);
 		} else {
 			throw 'Invalid import type $t';
 		}
@@ -426,15 +464,16 @@ class Interp {
 	function importPath(path:Array<String>, mode:ImportMode):Void {
 		if (mode == IAll) {
 			var fullPath:String = path.join('.');
-			var types:Array<TypeInfo> = Tools.listTypes(fullPath, true);
+			var types:Array<TypeInfo> = Tools.listTypesEx(fullPath, true, [TypeCollection.main, environment?.types]);
 			
 			if (types == null) return;
 			
 			imports.set(fullPath.substr(fullPath.lastIndexOf('.') + 1), null);
 			for (type in types) {
+				if (type.module != type.name) continue;
 				if (type.name.indexOf('_Impl_') > -1 || type.name.startsWith('InsanityAbstract_')) continue;
 				
-				importType(type.name, type.kind == 'abstract' ? AbstractTools.resolve(type.compilePath()) : type.resolve());
+				importType(type.name, type.kind == 'abstract' ? AbstractTools.resolve(type.compilePath()) : type.resolve(environment), false);
 			}
 			
 			return;
@@ -447,7 +486,7 @@ class Interp {
 			var fullPath:String = path.slice(0, i + 1).join('.');
 			
 			if (path[i].isTypeIdentifier()) {
-				var types:Array<TypeInfo> = Tools.listTypes(fullPath);
+				var types:Array<TypeInfo> = Tools.listTypesEx(fullPath, [TypeCollection.main, environment?.types]);
 				
 				if (types != null) {
 					var field:String = fields.shift();
@@ -457,7 +496,7 @@ class Interp {
 						var t:Dynamic = null;
 						for (type in types) {
 							if (type.name == path[i]) {
-								t = type.resolve();
+								t = type.resolve(environment);
 								break;
 							}
 						}
@@ -490,7 +529,7 @@ class Interp {
 						case IAsName(alias):
 							for (type in types) {
 								if (type.name == path[i]) {
-									importType(alias, type.resolve());
+									importType(alias, type.resolve(environment));
 									
 									return;
 								}
@@ -504,7 +543,7 @@ class Interp {
 							for (type in types) {
 								if (type.name.indexOf('_Impl_') > -1) continue;
 								
-								importType(type.name, type.kind == 'abstract' ? AbstractTools.resolve(type.compilePath()) : type.resolve());
+								importType(type.name, type.kind == 'abstract' ? AbstractTools.resolve(type.compilePath()) : type.resolve(environment));
 							}
 					}
 					
@@ -526,7 +565,7 @@ class Interp {
 			var fullPath:String = path.slice(0, i + 1).join('.');
 			
 			if (path[i].isTypeIdentifier()) {
-				var types:Array<TypeInfo> = Tools.listTypes(fullPath);
+				var types:Array<TypeInfo> = Tools.listTypesEx(fullPath, [TypeCollection.main, environment?.types]);
 				
 				if (types != null && types.length > 0) {
 					for (type in types) {
@@ -546,6 +585,89 @@ class Interp {
 		}
 		
 		error(EUnknownType(path.join('.')));
+	}
+	
+	public function buildFunction(?name:String, params:Array<Argument>, fexpr:Expr, ?ret:CType, ?id:Int, ?functionLocals:Map<String, Variable>) {
+		var capturedLocals = (functionLocals ?? duplicate(locals));
+		
+		var hasOpt = false, hasRest = false, minParams = 0;
+		
+		for( p in params ) {
+			if (p.opt) {
+				hasOpt = true;
+			} else if (p.rest) {
+				hasRest = true;
+			} else {
+				minParams++;
+			}
+		}
+		
+		var f = Reflect.makeVarArgs(function(args:Array<Dynamic>) {
+			if( args?.length ?? 0 != params.length ) {
+				if( args.length < minParams ) {
+					var str = "Invalid number of parameters. Got " + args.length + ", required " + minParams;
+					if( name != null ) str += " for function '" + name+"'";
+					error(ECustom(str));
+				}
+				// make sure mandatory args are forced
+				var args2 = [];
+				var extraParams = args.length - minParams;
+				var pos = 0;
+				for( p in params ) {
+					if (p.rest) {
+						if (pos < args.length)
+							args2.push(args[pos++]);
+					} else if( p.opt ) {
+						if( extraParams > 0 ) {
+							args2.push(args[pos++]);
+							extraParams--;
+						} else {
+							args2.push(p.value == null ? null : expr(p.value));
+						}
+					} else
+						args2.push(args[pos++]);
+				}
+				if (hasRest)
+					args2 = args2.concat(args.slice(params.length));
+				args = args2;
+			}
+			var old = locals;
+			pushStack(name == null ? SLocalFunction(id) : SMethod(curExpr.origin, name), duplicate(capturedLocals));
+			for( i in 0...params.length ) {
+				if (i == params.length - 1 && hasRest) {
+					locals.set(params[i].name, {r: args.slice(params.length - 1)});
+				} else {
+					locals.set(params[i].name, {r: tryCast(args[i], params[i].t)});
+				}
+			}
+			var r = null;
+			try {
+				r = tryCast(exprReturn(fexpr), ret);
+			} catch( e : Dynamic ) {
+				// if (e is String) e = new InterpException(stack, e);
+				stack.stack.shift();
+				#if neko
+				neko.Lib.rethrow(e);
+				#else
+				throw e;
+				#end
+			}
+			stack.stack.shift();
+			return r;
+		});
+		
+		if (name != null) {
+			if (stack.length > 1) { // function-in-function is a local function
+				declared.push( { n : name, old : locals.get(name) } );
+				var ref = { r : f };
+				locals.set(name, ref);
+				capturedLocals.set(name, ref); // allow self-recursion
+			} else { // global function
+				variables.set(name, f);
+			}
+		}
+		
+		return f;
 	}
 
 	public function expr( e : Expr, ?t : CType, calling:Bool = false ) : Dynamic {
@@ -662,85 +784,7 @@ class Interp {
 			returnValue = e == null ? null : expr(e);
 			throw SReturn;
 		case EFunction(params,fexpr,name,ret,id):
-			var capturedLocals = duplicate(locals);
-			var hasOpt = false, hasRest = false, minParams = 0;
-			for( p in params )
-				if (p.opt) {
-					hasOpt = true;
-				} else if (p.rest) {
-					hasRest = true;
-				} else {
-					minParams++;
-				}
-			var f = Reflect.makeVarArgs(function(args:Array<Dynamic>) {
-				if( args?.length ?? 0 != params.length ) {
-					if( args.length < minParams ) {
-						var str = "Invalid number of parameters. Got " + args.length + ", required " + minParams;
-						if( name != null ) str += " for function '" + name+"'";
-						error(ECustom(str));
-					}
-					// make sure mandatory args are forced
-					var args2 = [];
-					var extraParams = args.length - minParams;
-					var pos = 0;
-					for( p in params ) {
-						if (p.rest) {
-							if (pos < args.length)
-								args2.push(args[pos++]);
-						} else if( p.opt ) {
-							if( extraParams > 0 ) {
-								args2.push(args[pos++]);
-								extraParams--;
-							} else {
-								args2.push(p.value == null ? null : expr(p.value));
-							}
-						} else
-							args2.push(args[pos++]);
-					}
-					if (hasRest)
-						args2 = args2.concat(args.slice(params.length));
-					args = args2;
-				}
-				var old = locals;
-				pushStack(name == null ? SLocalFunction(id) : SMethod(curExpr.origin, name), duplicate(capturedLocals));
-				for( i in 0...params.length ) {
-					if (i == params.length - 1 && hasRest) {
-						locals.set(params[i].name, {r: args.slice(params.length - 1)});
-					} else {
-						locals.set(params[i].name, {r: tryCast(args[i], params[i].t)});
-					}
-				}
-				var r = null;
-				if( inTry )
-					try {
-						r = tryCast(exprReturn(fexpr), ret);
-					} catch( e : Dynamic ) {
-						stack.stack.shift();
-						#if neko
-						neko.Lib.rethrow(e);
-						#else
-						throw e;
-						#end
-					}
-				else {
-					r = tryCast(exprReturn(fexpr), ret);
-				}
-				stack.stack.shift();
-				return r;
-			});
-			if( name != null ) {
-				if( stack.length > 1 ) {
-					// function-in-function is a local function
-					declared.push( { n : name, old : locals.get(name) } );
-					var ref = { r : f };
-					locals.set(name, ref);
-					capturedLocals.set(name, ref); // allow self-recursion
-				} else {
-					// global function
-					variables.set(name, f);
-				}
-			}
-			return f;
+			return buildFunction(name, params, fexpr, ret, id);
 		case EArrayDecl(arr):
 			if ( arr.length > 0 && Tools.expr(arr[0]).match(EBinop("=>", _)) ) { // infer from keys ...
 				var keys = [];
@@ -777,9 +821,9 @@ class Interp {
 										return new Map<Int, Dynamic>();
 									} else {
 										var type:TypeInfo = null;
-										var r = (Tools.resolve(fullPath) ?? imports.get(fullPath));
+										var r = (Tools.resolve(fullPath, environment) ?? imports.get(fullPath));
 										if (r is Class) {
-											type = TypeRegistry.fromCompilePath(Type.getClassName(r))[0];
+											type = TypeCollection.main.fromCompilePath(Type.getClassName(r))[0];
 										} else if (r == null) {
 											error(EUnknownType(fullPath));
 										}
@@ -881,12 +925,12 @@ class Interp {
 				var t = imports.get(path);
 				
 				if (t == null) {
-					var info = TypeRegistry.fromPath(path);
+					var info = TypeCollection.main.fromPath(path);
 					if (info != null)
 						t = info[0].compilePath().resolve();
 				}
 				
-				if (t == null) throw 'Type not found: $path';
+				if (t == null) return e; // throw 'Type not found: $path';
 				
 				if (Type.getSuperClass(t) == InsanityAbstract) {
 					return Type.createInstance(t, [e]);
