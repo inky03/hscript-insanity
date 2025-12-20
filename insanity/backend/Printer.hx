@@ -130,6 +130,7 @@ class Printer {
 			return;
 		}
 		switch( e.e ) {
+			case EDecl(d): add('decl'); // TODO
 			case EUsing(path): add('using ${path.join('.')}');
 			case EImport(path, INormal): add('import ${path.join('.')}');
 			case EImport(path, IAsName(alias)): add('import ${path.join('.')} as $alias');

@@ -713,6 +713,12 @@ class Parser {
 			}
 			
 			mk(EImport(path, mode));
+		case "class":
+			push(TId(id));
+			var decl = parseModuleDecl();
+			if (!maybe(TSemicolon)) push(TSemicolon);
+			
+			mk(EDecl(decl));
 		case "if":
 			ensure(TPOpen);
 			var cond = parseExpr();

@@ -158,16 +158,7 @@ class ScriptedMacro {
 		}
 		setFields(cls);
 		
-		if (!hasConstructor) {
-			fields.push({
-				pos: pos, access: [APublic], name: '__constructSuper',
-				kind: FFun({
-					args: [],
-					expr: macro { },
-					ret: macro:Void
-				})
-			});
-		} if (!hasToString) {
+		if (!hasToString) {
 			fields.push({
 				pos: pos, access: [APublic], name: 'toString',
 				kind: FFun({
@@ -185,9 +176,12 @@ class ScriptedMacro {
 				expr: macro {
 					__base = base;
 					__interp = new insanity.backend.Interp(base.interp.environment);
+					__interp.pushStack(insanity.backend.CallStack.StackItem.SModule(base.module?.path ?? base.name));
+					
 					__interp.setDefaults();
-					__interp.variables.set('this', this);
-					__interp.pushStack(insanity.backend.CallStack.StackItem.SModule(base.module.path));
+					for (u in base.interp.usings) __interp.usings.push(u);
+					for (k => i in base.interp.imports) __interp.imports.set(k, i);
+					// for (k => v in base.interp.variables) __interp.variables.set(k, v);
 					
 					__fields = [];
 					var constructor:Dynamic = null;
@@ -253,12 +247,17 @@ class ScriptedMacro {
 							locals.set(field, {r: Reflect.field(this, field)});
 					}
 					
-					__interp.locals.set('super', {r: insanity.backend.Expr.Mirror.MSuper(locals, __constructSuper)});
+					var superConstructor = ${hasConstructor ? macro {__constructSuper;} : macro {null;}};
+					
+					__interp.locals.set('super', {r: insanity.backend.Expr.Mirror.MSuper(locals, superConstructor)});
 					setSuperFields(base.extending);
 					setFields(base);
 					
-					if (constructor != null)
+					if (constructor != null) {
 						Reflect.callMethod(this, constructor, arguments);
+					} else {
+						throw '${base.path} does not have a constructor';
+					}
 				},
 				ret: macro:Void
 			})

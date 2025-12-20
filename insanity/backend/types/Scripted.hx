@@ -45,9 +45,9 @@ class InsanityScriptedClass implements InsanityType {
 	var initializing:Bool = false;
 	public var initialized:Bool = false;
 	
-	public function new(decl:ClassDecl, module:Module) {
+	public function new(decl:ClassDecl, ?module:Module) {
 		this.name = decl.name;
-		this.pack = module.pack;
+		this.pack = (module?.pack ?? []);
 		this.module = module;
 		this.decl = decl;
 		
@@ -56,13 +56,28 @@ class InsanityScriptedClass implements InsanityType {
 		interp = new Interp();
 	}
 	
-	public function init(?env:Environment):Void {
+	public function init(?env:Environment, ?baseInterp:Interp):Void {
 		initializing = true;
 		
 		interp.environment = env;
-		interp.setDefaults();
-		interp.executeModule(module.decls, module.path);
-		for (type in module.types) interp.imports.set(type.name, type);
+		
+		if (baseInterp != null) {
+			interp.usings.resize(0);
+			interp.imports.clear();
+			interp.variables.clear();
+			for (u in baseInterp.usings) interp.usings.push(u);
+			for (k => i in baseInterp.imports) interp.imports.set(k, i);
+			for (k => v in baseInterp.variables) interp.variables.set(k, v);
+		} else {
+			interp.setDefaults();
+		}
+		
+		if (module != null) {
+			interp.executeModule(module.decls, module.path);
+			for (type in module.types) interp.imports.set(type.name, type);
+		} else {
+			interp.pushStack(insanity.backend.CallStack.StackItem.SModule(module?.path ?? name));
+		}
 		
 		var overridingFields:Array<String> = [];
 		var knownFields:Array<String> = [];
@@ -205,7 +220,7 @@ interface InsanityType extends ICustomReflection extends ICustomClassType {
 	public var name:String;
 	public var pack:Array<String>;
 	
-	public function init(?env:Environment):Void;
+	public function init(?env:Environment, ?baseInterp:Interp):Void;
 }
 
 class InsanityDummyClass implements IInsanityScripted {

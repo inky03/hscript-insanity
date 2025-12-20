@@ -31,7 +31,7 @@ class Tools {
 
 	public static function iter( e : Expr, f : Expr -> Void ) {
 		switch( expr(e) ) {
-		case EConst(_), EIdent(_), EImport(_, _), EUsing(_):
+		case EConst(_), EIdent(_), EImport(_, _), EUsing(_), EDecl(_):
 		case EVar(_, _, e): if( e != null ) f(e);
 		case EParent(e): f(e);
 		case EBlock(el): for( e in el ) f(e);
@@ -69,7 +69,7 @@ class Tools {
 
 	public static function map( e : Expr, f : Expr -> Expr ) {
 		var edef = switch( expr(e) ) {
-		case EConst(_), EIdent(_), EBreak, EContinue, EImport(_, _), EUsing(_): expr(e);
+		case EConst(_), EIdent(_), EBreak, EContinue, EImport(_, _), EUsing(_), EDecl(_): expr(e);
 		case EVar(n, t, e): EVar(n, t, if( e != null ) f(e) else null);
 		case EParent(e): EParent(f(e));
 		case EBlock(el): EBlock([for( e in el ) f(e)]);

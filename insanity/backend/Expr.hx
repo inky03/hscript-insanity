@@ -37,6 +37,7 @@ typedef Expr = {
 	var line : Int;
 }
 enum ExprDef {
+	EDecl( t : ModuleDecl );
 	EConst( c : Const );
 	EIdent( v : String );
 	EVar( n : String, ?t : CType, ?e : Expr, ?get : String, ?set : String );

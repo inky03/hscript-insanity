@@ -40,7 +40,7 @@ you can also edit the `variables` map in a Script to expose certain variables on
 > this feature is experimental and currently very unfinished. <br>
 > currently only CLASS types are supported (ENUMS and ABSTRACTS will be supported later)
 
-you can define custom modules from string and use them in scripts !!
+you can load custom modules from string and use them in scripts !!
 
 ```hx
 var path:String = 'test/source/TestModule.hxs';
@@ -58,6 +58,23 @@ start() it to initialize all added modules and make them usable in new Scripts !
 var path:String = 'test/scripts/TestScript.hxs';
 var script:Script = new Script(File.getContent(path), path, environment);
 script.start();
+```
+
+you can also define types in a script itself, for example:
+
+```hx
+class TestClass {
+	public function new() {
+		trace('hi!!');
+	}
+}
+
+var instance:TestClass = new TestClass();
+
+/*
+do note that classes defined in scripts have certain limitations,
+such as (maybe expectedly) not being importable in other scripts !
+*/
 ```
 
 if you want to make a haxe class extendable in scripted classes, extend your class and add the `IScripted` interface like the following:

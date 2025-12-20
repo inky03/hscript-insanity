@@ -660,6 +660,19 @@ class Interp {
 		error(EUnknownType(path.join('.')));
 	}
 	
+	public function startDecl(decl:ModuleDecl) {
+		switch (decl) {
+			case DClass(m):
+				if (variables.exists(m.name)) return;
+				
+				var cls = new InsanityScriptedClass(m);
+				cls.init(environment, this);
+				
+				imports.set(m.name, cls);
+			default:
+		}
+	}
+	
 	public function buildFunction(?name:String, params:Array<Argument>, fexpr:Expr, ?ret:CType, ?id:Int, ?functionLocals:Map<String, Variable>, su:Bool = false) {
 		var capturedLocals = duplicate(locals);
 		
@@ -775,6 +788,8 @@ class Interp {
 			pushStack(SScript(curExpr.origin));
 		
 		switch( e ) {
+		case EDecl(decl):
+			startDecl(decl);
 		case EUsing(path):
 			usingType(path);
 		case EImport(path, mode):
