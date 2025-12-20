@@ -695,7 +695,7 @@ class Parser {
 				}
 			}
 			
-			if (mode != IAll && maybe(TId('as'))) {
+			if (mode != IAll && (maybe(TId('as')) || maybe(TId('in')))) {
 				if (tid == null) // no type identifier found
 					error(ECustom('Module name must start with an uppercase letter'), p1, tokenMax);
 				
@@ -1361,7 +1361,7 @@ class Parser {
 				}
 			}
 			
-			if (mode != IAll && maybe(TId('as'))) {
+			if (mode != IAll && (maybe(TId('as')) || maybe(TId('in')))) {
 				if (tid == null) // no type identifier found
 					error(ECustom('Module name must start with an uppercase letter'), tokenMin, tokenMax);
 				
