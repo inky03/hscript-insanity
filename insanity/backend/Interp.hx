@@ -55,7 +55,7 @@ typedef Variable = {
 class Interp {
 	public var usings : Array<Class<Dynamic>>;
 	public var imports : Map<String, Dynamic>;
-	public var variables : Map<String,Dynamic>;
+	public var variables : Map<String, Dynamic>;
 	
 	public var environment : Environment;
 	
@@ -710,6 +710,7 @@ class Interp {
 			
 			if (functionLocals != null) {
 				old = duplicate(locals);
+				locals.clear();
 				for (loc => value in functionLocals)
 					locals.set(loc, value);
 			}
@@ -801,11 +802,13 @@ class Interp {
 		case EParent(e):
 			return expr(e);
 		case EBlock(exprs):
+			var loc = Lambda.count(locals);
 			var old = declared.length;
 			var v = null;
 			for( e in exprs )
 				v = expr(e);
-			restore(old);
+			if (loc > 0)
+				restore(old);
 			return v;
 		case EField(e,f,m):
 			return get(expr(e),f,m);
@@ -1213,7 +1216,7 @@ class Interp {
 					if (locals == null) {
 						error(EHasNoSuper);
 					} else if (locals.exists(f)) {
-						return getLocal(f);
+						return (locals.get(f).a ?? locals.get(f).r);
 					} else {
 						error(EUnknownVariable(f));
 					}
@@ -1273,7 +1276,7 @@ class Interp {
 		if (f is Mirror) {
 			switch (cast(f, Mirror)) {
 				case MSuper(locals, constructor):
-					if (locals == null) {
+					if (constructor == null) {
 						error(EHasNoSuper);
 					} else if (!superConstructorAllowed){
 						error(ECustom('Cannot call super constructor outside class constructor'));

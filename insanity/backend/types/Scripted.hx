@@ -13,11 +13,17 @@ using StringTools;
 using insanity.backend.TypeCollection;
 
 class ScriptedTools {
+	public static var scriptedClasses(default, never):Map<String, Class<IInsanityScripted>> = insanity.backend.macro.ScriptedMacro.listScriptedClasses();
+	
 	public static function resolve(t:Dynamic):Class<IInsanityScripted> {
 		if (t is InsanityScriptedClass)
 			return cast t;
 		
-		throw 'Class ${Type.getClassName(Type.getClass(t))} can\'t be extended for scripting';
+		var cls:String = Type.getClassName(t);
+		if (scriptedClasses.exists(cls))
+			return scriptedClasses.get(cls);
+		
+		throw 'Class $cls can\'t be extended for scripting';
 		return null;
 	}
 }
@@ -63,7 +69,11 @@ class InsanityScriptedClass implements InsanityType {
 		for (field in decl.fields) {
 			var f:String = field.name;
 			
-			if (knownFields.contains(f)) {
+			if (f == 'new') continue;
+			
+			if (insanity.backend.macro.ScriptedMacro.ignoreFields.contains(f)) {
+				throw 'Field $f reserved for internal use!!! - HScriptInsanity';
+			} else if (knownFields.contains(f)) {
 				throw 'Duplicate class field declaration: $name.$f';
 			} else {
 				knownFields.push(f);
@@ -125,7 +135,19 @@ class InsanityScriptedClass implements InsanityType {
 				
 				if (extend.extending != null) overrideFieldCheck(extend.extending);
 			} else {
-				// todo
+				var cls = getInstanceClass();
+				if (cls == null) return;
+				
+				for (field in Type.getInstanceFields(cls)) {
+					if (insanity.backend.macro.ScriptedMacro.ignoreFields.contains(field)) continue;
+					
+					if (overridingFields.contains(field)) {
+						if (!foundOverridingFields.contains(field))
+							foundOverridingFields.push(field);
+					} else if (knownFields.contains(field)) {
+						throw 'Field $field should be declared with \'override\' since it is inherited from superclass ${Reflect.field(cls, 'baseClass')}';
+					}
+				}
 			}
 		}
 		overrideFieldCheck(extending);

@@ -1,6 +1,7 @@
 package insanity.backend;
 
 #if (!macro)
+import insanity.backend.macro.TypeCollectionMacro;
 import insanity.Environment;
 #end
 
@@ -25,7 +26,7 @@ typedef TypeMap = {
 
 class TypeCollection {
 	#if (!macro)
-	public static var main(default, never):TypeCollection = new TypeCollection(insanity.backend.macro.TypeCollectionMacro.build());
+	public static var main(default, never):TypeCollection = new TypeCollection(TypeCollectionMacro.build());
 	public var types:TypeMap;
 	
 	public function new(?map:TypeMap) {

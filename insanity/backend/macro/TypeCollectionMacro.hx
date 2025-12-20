@@ -53,7 +53,6 @@ class TypeCollectionMacro {
 			for (type in types)
 				map.push(getTypeInfo(type));
 			
-			self.meta.remove('typed');
 			self.meta.add('typed', [macro $v {map}], self.pos);
 			// Context.info('types registered !!', Context.currentPos());
 		});

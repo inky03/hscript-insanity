@@ -1,7 +1,7 @@
 # hscript-insanity
 
 > [!TIP]
-> this is my first time messing with macros this complex so ... 
+> this is my first time messing with code and macros this complex so ... 
 > i apologize for any terribly mid code u might encounter !! (feel free to PR)
 
 experimental fork of [hscript](https://github.com/HaxeFoundation/hscript)!! (parse and evaluate Haxe expressions dynamically)
@@ -38,7 +38,7 @@ you can also edit the `variables` map in a Script to expose certain variables on
 
 > [!WARNING]
 > this feature is experimental and currently very unfinished. <br>
-> currently only empty classes can be properly defined in scripted modules, and only the CLASS type is supported (ENUMS and ABSTRACTS will be supported later)
+> currently only CLASS types are supported (ENUMS and ABSTRACTS will be supported later)
 
 you can define custom modules from string and use them in scripts !!
 
@@ -59,6 +59,18 @@ var path:String = 'test/scripts/TestScript.hxs';
 var script:Script = new Script(File.getContent(path), path, environment);
 script.start();
 ```
+
+if you want to make a haxe class extendable in scripted classes, extend your class and add the `IScripted` interface like the following:
+
+```hx
+class BaseThing {
+	// ...
+}
+
+class ScriptedThing extends BaseThing implements insanity.IScripted {}
+```
+
+(NOTE: currently only most behavior is properly implemented from extending classes. while i dont see why implement the interface in the base class, some things might have to be promptly fixed to correctly support them ...)
 
 
 
@@ -262,7 +274,7 @@ it represents my Dwindling mental state as i figure how to modify this library !
 - types
 	- [X] classes
 		- [X] extends Nothing (or scripted class)
-		- [ ] extends Real types
+		- [X] extends Real types
 	- [ ] enums
 	- [ ] typedefs (alias only?)
 	- [ ] abstracts
@@ -270,7 +282,8 @@ it represents my Dwindling mental state as i figure how to modify this library !
 - general
 	- [X] property getters & setters
 		- [ ] accessor error checking in modules
-	- [ ] fix module errors
+	- [ ] fix module exceptions (can merge call stack?)
+	- [ ] abstract type fields (currently untested)
 
 ### other
 
