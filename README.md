@@ -6,6 +6,8 @@
 
 experimental fork of [hscript](https://github.com/HaxeFoundation/hscript)!! (parse and evaluate Haxe expressions dynamically)
 
+! this project is inspired by [hscript-iris](https://github.com/pisayesiwsi/hscript-iris) and [rulescript](https://github.com/Kriptel/RuleScript) !
+
 still a heavy work in progress, have patience ...
 
 
@@ -154,6 +156,22 @@ trace('hello $test ${'can also be nested!! $$${test + 3210}'}');
 ```
 
 
+### Property accessors
+
+haxe's [property accessors](https://haxe.org/manual/class-field-property.html) can be defined in local variables within scripts and modules
+
+```hx
+var customSetter(default, set):Dynamic = 123;
+
+function set_customSetter(v:Dynamic):Dynamic {
+	trace('setting to $v !');
+	return customSetter = v;
+}
+
+customSetter = 456;
+```
+
+
 ### Regex
 
 haxe's [special regex syntax](https://haxe.org/manual/std-regex.html) can now be used to make a new regular expression in hscript (instead of `new EReg`)
@@ -250,7 +268,9 @@ it represents my Dwindling mental state as i figure how to modify this library !
 	- [ ] abstracts
 
 - general
-	- [ ] property getters & setters
+	- [X] property getters & setters
+		- [ ] accessor error checking in modules
+	- [ ] fix module errors
 
 ### other
 

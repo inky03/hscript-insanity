@@ -45,7 +45,11 @@ enum Stop {
 typedef Variable = {
 	var r:Dynamic;
 	var ?a:InsanityAbstract;
+	
 	var ?access:Array<FieldAccess>;
+	
+	var ?get:String;
+	var ?set:String;
 }
 
 class Interp {
@@ -68,6 +72,8 @@ class Interp {
 	var returnValue : Dynamic;
 	
 	var curExpr : Expr;
+	var curAccess : String = '';
+	static var accessingInterp:Interp = null;
 
 	public function new(?environment:Environment) {
 		this.environment = environment;
@@ -173,11 +179,11 @@ class Interp {
 		var v = expr(e2);
 		switch( Tools.expr(e1) ) {
 		case EIdent(id):
-			var l = locals.get(id);
-			if( l == null )
-				setVar(id,v)
-			else
-				l.r = v;
+			if (locals.exists(id)) {
+				setLocal(id, v);
+			} else {
+				setVar(id,v);
+			}
 		case EField(e,f,_):
 			v = set(expr(e),f,v);
 		case EArray(e, index):
@@ -204,12 +210,13 @@ class Interp {
 		var v;
 		switch( Tools.expr(e1) ) {
 		case EIdent(id):
-			var l = locals.get(id);
 			v = fop(expr(e1),expr(e2));
-			if( l == null )
-				setVar(id,v)
-			else
-				l.r = v;
+			
+			if (locals.exists(id)) {
+				setLocal(id, v);
+			} else {
+				setVar(id,v);
+			}
 		case EField(e,f,_):
 			var obj = expr(e);
 			v = fop(get(obj,f),expr(e2));
@@ -230,6 +237,67 @@ class Interp {
 		}
 		return v;
 	}
+	
+	public function getLocal(id:String):Dynamic {
+		var l:Variable = locals.get(id);
+		
+		switch (l.get) {
+			case 'null':
+				if (accessingInterp != this) throw 'This expression cannot be accessed for reading';
+				return (l.a ?? l.r);
+			case 'never':
+				throw 'This expression cannot be accessed for reading';
+			case 'get' | 'dynamic':
+				if (curAccess == id) return l.r;
+				
+				if (locals.exists('get_$id')) {
+					var prevAccess:String = curAccess;
+					curAccess = id;
+					var v = Reflect.callMethod(this, locals.get('get_$id').r, []);
+					curAccess = prevAccess;
+					return v;
+				} else {
+					error(ECustom('Method get_$id required by property $id is missing'));
+				}
+			case 'default' | null:
+				return (l.a ?? l.r);
+			default:
+				error(ECustom('Invalid property accessor ${l.get}'));
+		}
+		
+		return null;
+	}
+	public function setLocal(id:String, v:Dynamic):Dynamic {
+		var l:Variable = locals.get(id);
+		
+		if (l.access != null && Reflect.isFunction(l.r) && !l.access.contains(ADynamic))
+			throw 'Cannot rebind method $id: please use \'dynamic\' before method declaration';
+		
+		switch (l.set) {
+			case 'null':
+				if (accessingInterp != this) throw 'This expression cannot be accessed for writing';
+				return l.r = v;
+			case 'never':
+				throw 'This expression cannot be accessed for writing';
+			case 'set' | 'dynamic':
+				if (curAccess == id) return l.r = v;
+				
+				if (locals.exists('set_$id')) {
+					var prevAccess:String = curAccess;
+					curAccess = id;
+					Reflect.callMethod(this, locals.get('set_$id').r, [v]);
+					curAccess = prevAccess;
+				} else {
+					error(ECustom('Method set_$id required by property $id is missing'));
+				}
+			case 'default' | null:
+				return l.r = v;
+			default:
+				error(ECustom('Invalid property accessor ${l.set}'));
+		}
+		
+		return null;
+	}
 
 	function increment( e : Expr, prefix : Bool, delta : Int ) : Dynamic {
 		curExpr = e;
@@ -238,12 +306,13 @@ class Interp {
 		switch(e) {
 		case EIdent(id):
 			var l = locals.get(id);
-			var v : Dynamic = (l == null) ? resolve(id) : l.r;
+			var v : Dynamic = (locals.exists(id) ? getLocal(id) : resolve(id));
 			if( prefix ) {
 				v += delta;
-				if( l == null ) setVar(id,v) else l.r = v;
-			} else
-				if( l == null ) setVar(id,v + delta) else l.r = v + delta;
+				if (locals.exists(id)) setLocal(id, v) else setVar(id, v);
+			} else {
+				if (locals.exists(id)) setLocal(id, v + delta) else setVar(id, v + delta);
+			}
 			return v;
 		case EField(e,f,_):
 			var obj = expr(e);
@@ -653,19 +722,23 @@ class Interp {
 			}
 			
 			var r = null;
-			try {
+			if (inTry) {
+				try {
+					r = tryCast(exprReturn(fexpr), ret);
+				} catch( e : Dynamic ) {
+					stack.stack.shift();
+					#if neko
+					neko.Lib.rethrow(e);
+					#else
+					throw e;
+					#end
+				}
+			} else {
 				r = tryCast(exprReturn(fexpr), ret);
-			} catch( e : Dynamic ) {
-				// if (e is String) e = new InterpException(stack, e);
-				stack.stack.shift();
-				#if neko
-				neko.Lib.rethrow(e);
-				#else
-				throw e;
-				#end
 			}
 			
 			if (old != null) {
+				locals.clear();
 				for (loc => value in old)
 					locals.set(loc, value);
 			}
@@ -682,7 +755,7 @@ class Interp {
 				locals.set(name, ref);
 				capturedLocals.set(name, ref); // allow self-recursion
 			} else { // global function
-				variables.set(name, f);
+				locals.set(name, {r: f});
 			}
 		}
 		
@@ -690,6 +763,8 @@ class Interp {
 	}
 
 	public function expr( e : Expr, ?t : CType, calling:Bool = false ) : Dynamic {
+		accessingInterp = this;
+		
 		curExpr = e;
 		var e = e.e;
 		
@@ -709,19 +784,17 @@ class Interp {
 			case CReg(p, m): return new EReg(p, m);
 			}
 		case EIdent(id):
-			var l = locals.get(id);
-			if( l != null )
-				return (l.a ?? l.r);
+			if (locals.exists(id)) return getLocal(id);
 			return resolve(id, calling);
-		case EVar(n,t,e):
+		case EVar(n,t,e,get,set):
 			var ne:Dynamic = (e == null ? null : expr(e, t));
 			
 			declared.push({ n : n, old : locals.get(n) });
 			
 			if (AbstractTools.isAbstract(ne)) {
-				locals.set(n,{ r : ne.__a, a: ne });
+				locals.set(n,{ r : ne.__a, a: ne, get: get, set: set });
 			} else {
-				locals.set(n,{ r : ne });
+				locals.set(n,{ r : ne, get: get, set: set });
 			}
 			
 			return null;
@@ -1140,8 +1213,7 @@ class Interp {
 					if (locals == null) {
 						error(EHasNoSuper);
 					} else if (locals.exists(f)) {
-						var v = locals.get(f);
-						return (v.a ?? v.r);
+						return getLocal(f);
 					} else {
 						error(EUnknownVariable(f));
 					}

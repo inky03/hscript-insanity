@@ -734,6 +734,13 @@ class Parser {
 			mk(EIf(cond,e1,e2),p1,(e2 == null) ? tokenMax : pmax(e2));
 		case "var", "final":
 			var ident = getIdent();
+			var get = null, set = null;
+			if (maybe(TPOpen)) {
+				get = getIdent();
+				ensure(TComma);
+				set = getIdent();
+				ensure(TPClose);
+			}
 			var tk = token();
 			var t = null;
 			if( tk == TDoubleDot && allowTypes ) {
@@ -752,7 +759,7 @@ class Parser {
 				default: unexpected(tk);
 			}
 
-			mk(EVar(ident,t,e),p1,(e == null) ? tokenMax : pmax(e));
+			mk(EVar(ident,t,e,get,set),p1,(e == null) ? tokenMax : pmax(e));
 		case "while":
 			var econd = parseExpr();
 			var e = parseExpr();
@@ -1451,6 +1458,8 @@ class Parser {
 			switch( id ) {
 			case "override":
 				access.push(AOverride);
+			case "dynamic":
+				access.push(ADynamic);
 			case "public":
 				access.push(APublic);
 			case "private":

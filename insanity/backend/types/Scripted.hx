@@ -83,7 +83,9 @@ class InsanityScriptedClass implements InsanityType {
 				case KVar(v):
 					interp.locals.set(f, {
 						r: interp.exprReturn(v.expr),
-						access: field.access
+						access: field.access,
+						get: v.get,
+						set: v.set
 					});
 			}
 		}
@@ -155,27 +157,19 @@ class InsanityScriptedClass implements InsanityType {
 	}
 	
 	public function reflectHasField(field:String):Bool {
-		return false;
+		return (interp.locals.exists(field));
 	}
 	public function reflectGetField(field:String):Dynamic {
-		var field:Variable = interp.locals.get(field);
-		
-		return (field != null && field.access.contains(FieldAccess.AStatic) ? field.r : null);
+		return (interp.locals.exists(field) != null ? interp.locals.get(field).r : null);
 	}
 	public function reflectSetField(field:String, value:Dynamic):Dynamic {
-		return null;
+		return (interp.locals.exists(field) ? interp.locals.get(field).r = value : null);
 	}
 	public function reflectGetProperty(property:String):Dynamic {
-		var field:Variable = interp.locals.get(property);
-		
-		if (field != null && field.access.contains(FieldAccess.AStatic)) {
-			return field.r;
-		}
-		
-		return null;
+		return (interp.locals.exists(property) ? interp.getLocal(property) : null);
 	}
 	public function reflectSetProperty(property:String, value:Dynamic):Dynamic {
-		return null;
+		return (interp.locals.exists(property) ? interp.setLocal(property, value) : null);
 	}
 	public function reflectListFields():Array<String> {
 		return [for (field in interp.locals.keys()) field];

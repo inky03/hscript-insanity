@@ -39,7 +39,7 @@ typedef Expr = {
 enum ExprDef {
 	EConst( c : Const );
 	EIdent( v : String );
-	EVar( n : String, ?t : CType, ?e : Expr );
+	EVar( n : String, ?t : CType, ?e : Expr, ?get : String, ?set : String );
 	EParent( e : Expr );
 	EBlock( e : Array<Expr> );
 	EField( e : Expr, f : String, ?maybe : Bool );
@@ -121,6 +121,7 @@ enum FieldAccess {
 	APublic;
 	APrivate;
 	AInline;
+	ADynamic;
 	AOverride;
 	AStatic;
 	AMacro;

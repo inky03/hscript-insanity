@@ -81,7 +81,9 @@ class ScriptedMacro {
 								case KVar(v):
 									__interp.locals.set(f, {
 										r: __interp.exprReturn(v.expr),
-										access: field.access
+										access: field.access,
+										get: v.get,
+										set: v.set
 									});
 							}
 							
@@ -158,12 +160,12 @@ class ScriptedMacro {
 		}, { // TODO
 			pos: pos, access: [APublic], name: 'reflectGetProperty',
 			kind: FFun({
-				args: [{name: 'field', type: macro:String}],
+				args: [{name: 'property', type: macro:String}],
 				expr: macro {
-					if (__interp.locals.exists(field)) {
-						return __interp.locals.get(field).r;
+					if (__interp.locals.exists(property)) {
+						return __interp.getLocal(property);
 					} else {
-						return Reflect.getProperty(this, field);
+						return Reflect.getProperty(this, property);
 					}
 				},
 				ret: macro:Dynamic
@@ -171,13 +173,13 @@ class ScriptedMacro {
 		}, { // TODO
 			pos: pos, access: [APublic], name: 'reflectSetProperty',
 			kind: FFun({
-				args: [{name: 'field', type: macro:String}, {name: 'value', type: macro:Dynamic}],
+				args: [{name: 'property', type: macro:String}, {name: 'value', type: macro:Dynamic}],
 				expr: macro {
-					if (__interp.locals.exists(field)) {
-						return __interp.locals.get(field).r = value;
+					if (__interp.locals.exists(property)) {
+						return __interp.setLocal(property, value);
 					} else {
-						Reflect.setProperty(this, field, value);
-						return Reflect.field(this, field);
+						Reflect.setProperty(this, property, value);
+						return Reflect.field(this, property);
 					}
 				},
 				ret: macro:Dynamic
@@ -186,11 +188,7 @@ class ScriptedMacro {
 			pos: pos, access: [APublic], name: 'reflectListFields',
 			kind: FFun({
 				args: [],
-				expr: macro { return [for (f in Reflect.fields(this)) {
-					if (f != '__interp' && f != '__base') f;
-				}].concat([for (f in __interp.locals.keys()) {
-					f;
-				}]); },
+				expr: macro { return [for (f in Reflect.fields(this)) f].concat([for (f in __interp.locals.keys()) f]); },
 				ret: macro:Array<String>
 			})
 		}]);
