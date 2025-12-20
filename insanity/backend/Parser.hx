@@ -84,6 +84,7 @@ class Parser {
 
 	// implementation
 	var decl : Bool;
+	var pack : Array<String>;
 	var origin : String;
 	var input : String;
 	var readPos : Int;
@@ -1229,7 +1230,8 @@ class Parser {
 
 	// ------------------------ module -------------------------------
 
-	public function parseModule(content:String, ?origin:String = "hscript", position:Int = 0, ?pack:Array<String>) {
+	public function parseModule(content:String, ?origin:String = "hscript", position:Int = 0, pack:Array<String>) {
+		this.pack = pack;
 		initParser(origin, position);
 		input = content;
 		readPos = 0;
@@ -1382,6 +1384,9 @@ class Parser {
 			return DImport(path, mode);
 		case "class":
 			var name = getIdent();
+			if (!name.isTypeIdentifier())
+				error(ECustom('Type name should start with an uppercase letter'), tokenMin, tokenMax);
+			
 			var params = parseParams();
 			var extend = null;
 			var implement = [];
@@ -1398,6 +1403,9 @@ class Parser {
 					break;
 				}
 			}
+			
+			// origin = pack.join('.');
+			// origin = (origin.length > 0 ? '$origin.$name' : name);
 
 			var fields = [];
 			ensure(TBrOpen);
@@ -1416,6 +1424,9 @@ class Parser {
 			});
 		case "typedef":
 			var name = getIdent();
+			if (!name.isTypeIdentifier())
+				error(ECustom('Type name should start with an uppercase letter'), tokenMin, tokenMax);
+			
 			var params = parseParams();
 			ensureToken(TOp("="));
 			var t = parseType();

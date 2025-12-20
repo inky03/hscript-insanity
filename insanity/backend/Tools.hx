@@ -23,8 +23,9 @@ package insanity.backend;
 
 import insanity.backend.Expr;
 
+using insanity.backend.TypeCollection;
 using insanity.backend.types.Abstract;
-using insanity.backend.macro.TypeRegistry;
+using insanity.Environment;
 
 class Tools {
 
@@ -126,30 +127,38 @@ class Tools {
 		return callb(key,value,it);
 	}
 	
+	public static inline function pathToString(name:String, ?pack:Array<String>):String {
+		var pack:String = (pack?.join('.') ?? '');
+		return (pack.length > 0 ? '$pack.$name' : name);
+	}
+	
 	public static inline function isTypeIdentifier(id:String):Bool {
 		return (id.charAt(0) == id.charAt(0).toUpperCase());
 	}
 	
-	public static inline function resolve(path:String):Dynamic {
-		var type:Dynamic = Type.resolveClass(path);
+	public static inline function resolve(path:String, ?env:Environment):Dynamic {
+		var type:Dynamic = env?.resolve(path);
+		type ??= Config.typeProxy.get(path);
+		type ??= Type.resolveClass(path);
 		type ??= Type.resolveEnum(path);
 		type ??= AbstractTools.resolve(path);
 		
 		return type;
 	}
 	
-	public static inline function listTypes(path:String, fromPack:Bool = false, canIgnoreWarnings:Bool = false):Array<TypeInfo> {
+	public static inline function listTypes(path:String, fromPack:Bool = false, canIgnoreWarnings:Bool = false, ?collection:TypeCollection):Array<TypeInfo> {
 		var typeInfos:Array<TypeInfo> = [];
 		
+		collection ??= TypeCollection.main;
 		if (fromPack) {
-			typeInfos = TypeRegistry.fromPackage(path);
+			typeInfos = collection.fromPackage(path);
 		} else {
-			typeInfos = (TypeRegistry.fromModule(path) ?? TypeRegistry.fromPath(path) ?? TypeRegistry.fromCompilePath(path));
+			typeInfos = (collection.fromModule(path) ?? collection.fromPath(path) ?? collection.fromCompilePath(path));
 		}
 		
 		if (typeInfos == null) return null;
 		
-		var mainAttraction:Dynamic = (TypeRegistry.fromPath(path) ?? TypeRegistry.fromCompilePath(path));
+		var mainAttraction:Dynamic = (collection.fromPath(path) ?? collection.fromCompilePath(path));
 		var types:Dynamic = [];
 		for (type in typeInfos) {
 			if (!type.isInterface && (type.kind == 'class' || type.kind == 'enum' || type.kind == 'abstract')) {
@@ -166,6 +175,21 @@ class Tools {
 				
 				trace('(${type.fullPath()}) ${type.isInterface ? 'interface' : type.kind} import is currently unsupported');
 			}
+		}
+		
+		return types;
+	}
+	
+	public static inline function listTypesEx(path:String, fromPack:Bool = false, canIgnoreWarnings:Bool = false, collections:Array<TypeCollection>):Array<TypeInfo> {
+		var types:Array<TypeInfo> = null;
+		
+		for (collection in collections) {
+			if (collection == null) continue;
+			
+			var newTypes:Array<TypeInfo> = listTypes(path, fromPack, canIgnoreWarnings, collection);
+			if (newTypes == null) continue;
+			
+			types = (types == null ? newTypes : types.concat(newTypes));
 		}
 		
 		return types;

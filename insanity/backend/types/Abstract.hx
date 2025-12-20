@@ -1,10 +1,10 @@
 package insanity.backend.types;
 
-using insanity.backend.macro.TypeRegistry;
+using insanity.backend.TypeCollection;
 
 class AbstractTools {
 	public static function resolve(path:String):Class<InsanityAbstract> {
-		var t = (TypeRegistry.fromPath(path) ?? TypeRegistry.fromCompilePath(path));
+		var t = (TypeCollection.main.fromPath(path) ?? TypeCollection.main.fromCompilePath(path));
 		
 		if (t != null) {
 			var a = Type.resolveClass(t[0].pack.join('.') + (t[0].pack.length > 0 ? '.' : '') + 'InsanityAbstract_' + StringTools.replace(t[0].compilePath(), '.', '_'));
@@ -13,7 +13,7 @@ class AbstractTools {
 				return cast a;
 		}
 		
-		trace('Can\'t resolve abstract $path');
+		// trace('Can\'t resolve abstract $path');
 		return null;
 	}
 	
