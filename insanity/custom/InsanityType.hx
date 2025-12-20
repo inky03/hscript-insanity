@@ -1,10 +1,18 @@
 package insanity.custom;
 
+import insanity.backend.types.Scripted.InsanityScriptedClass;
 import Type.ValueType;
 
 class InsanityType {
-	public static inline function getClass<T>(o:T):Class<T> {
-		return Type.getClass(o);
+	public static var environment:Environment = null;
+	
+	public static inline function getClass(o:Dynamic):Dynamic {
+		if (o is ICustomClassType) {
+			var o:ICustomClassType = cast o;
+			return o.typeGetClass();
+		} else {
+			return Type.getClass(o);
+		}
 	}
 	
 	public static inline function getEnum(o:EnumValue):Enum<Dynamic> {
@@ -15,7 +23,10 @@ class InsanityType {
 		return Type.getSuperClass(c);
 	}
 	
-	public static inline function getClassName(c:Class<Dynamic>):String {
+	public static inline function getClassName(c:Dynamic):String {
+		if (c is InsanityScriptedClass)
+			return cast(c, InsanityScriptedClass).path;
+		
 		return Type.getClassName(c);
 	}
 	
@@ -23,8 +34,14 @@ class InsanityType {
 		return Type.getEnumName(e);
 	}
 	
-	public static inline function resolveClass(name:String):Class<Dynamic> {
-		return Type.resolveClass(name);
+	public static inline function resolveClass(name:String):Dynamic {
+		var t:Dynamic = environment?.resolve(name);
+		if (t != null) return t;
+		
+		t = Type.resolveClass(name);
+		if (t == null) return null;
+		
+		return (Config.typeProxy.get(Type.getClassName(t)) ?? t); // prevent resolved type from bypassing proxy (lol)
 	}
 	
 	public static inline function resolveEnum(name:String):Enum<Dynamic> {
@@ -91,6 +108,7 @@ class InsanityType {
 
 interface ICustomClassType extends ICustomType {
 	public function typeCreateInstance(args:Array<Dynamic>):Dynamic;
+	public function typeGetClass():Dynamic;
 }
 
 interface ICustomType {}

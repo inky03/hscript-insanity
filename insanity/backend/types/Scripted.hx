@@ -167,7 +167,7 @@ class InsanityScriptedClass implements InsanityType {
 	}
 	
 	public function toString():String {
-		return (Type.getClassName(Type.getClass(this)) + '<$path>');
+		return path; //(Type.getClassName(Type.getClass(this)) + '<$path>');
 	}
 	
 	public function typeCreateInstance(arguments:Array<Dynamic>):Dynamic {
@@ -176,6 +176,9 @@ class InsanityScriptedClass implements InsanityType {
 		var inst:IInsanityScripted = Type.createEmptyInstance(getInstanceClass());
 		inst.__construct(this, arguments);
 		return inst;
+	}
+	public function typeGetClass():Dynamic {
+		return null;
 	}
 	
 	public function reflectHasField(field:String):Bool {
@@ -210,6 +213,7 @@ class InsanityDummyClass implements IInsanityScripted {
 }
 
 @:autoBuild(insanity.backend.macro.ScriptedMacro.build())
-interface IInsanityScripted extends ICustomReflection {
+interface IInsanityScripted extends ICustomReflection extends ICustomClassType {
+	private var __base:InsanityScriptedClass;
 	private function __construct(base:InsanityScriptedClass, arguments:Array<Dynamic>):Void;
 }

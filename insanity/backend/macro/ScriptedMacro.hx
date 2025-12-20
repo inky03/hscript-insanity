@@ -14,6 +14,7 @@ using haxe.macro.ExprTools;
 class ScriptedMacro {
 	public static var ignoreFields:Array<String> = [
 		'reflectHasField', 'reflectGetField', 'reflectSetField', 'reflectListFields', 'reflectGetProperty', 'reflectSetProperty',
+		'typeCreateInstance', 'typeGetClass',
 		'__construct', '__interp', '__base', '__func', '__fields', 'new', 'super'
 	];
 	
@@ -271,20 +272,20 @@ class ScriptedMacro {
 		}
 		
 		fields = fields.concat([{
-			pos: pos, access: [APublic], name: '__base',
+			pos: pos, name: '__base',
 			kind: FVar(macro:insanity.backend.types.Scripted.InsanityScriptedClass),
 		}, {
-			pos: pos, access: [APublic], name: '__fields',
+			pos: pos, name: '__fields',
 			kind: FVar(macro:Array<String>),
 		}, {
-			pos: pos, access: [APublic], name: '__func',
+			pos: pos, name: '__func',
 			kind: FVar(macro:String, macro $v {''}),
+		}, {
+			pos: pos, name: '__interp',
+			kind: FVar(macro:insanity.backend.Interp),
 		}, {
 			pos: pos, access: [APublic, AStatic], name: 'baseClass',
 			kind: FVar(macro:String, macro $v {path.join('.')})
-		}, {
-			pos: pos, access: [APublic], name: '__interp',
-			kind: FVar(macro:insanity.backend.Interp),
 		}, {
 			pos: pos, access: [APublic], name: 'reflectHasField',
 			kind: FFun({
@@ -362,6 +363,20 @@ class ScriptedMacro {
 						.concat([for (f in __interp.locals.keys()) if (!insanity.backend.macro.ScriptedMacro.ignoreFields.contains(f)) f]);
 				},
 				ret: macro:Array<String>
+			})
+		}, {
+			pos: pos, access: [APublic], name: 'typeGetClass',
+			kind: FFun({
+				args: [],
+				expr: macro { return __base; },
+				ret: macro:insanity.backend.types.Scripted.InsanityScriptedClass
+			})
+		}, {
+			pos: pos, access: [APublic], name: 'typeCreateInstance',
+			kind: FFun({
+				args: [{name: 'args', type: macro:Array<Dynamic>}],
+				expr: macro { throw 'Invalid'; return null; },
+				ret: macro:Dynamic
 			})
 		}]);
 		

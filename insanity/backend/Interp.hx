@@ -30,6 +30,7 @@ import haxe.Constraints.IMap;
 
 import insanity.custom.InsanityReflect as Reflect;
 import insanity.custom.InsanityType as Type;
+import insanity.custom.InsanityStd as Std;
 
 using StringTools;
 using insanity.backend.Tools;
@@ -542,7 +543,7 @@ class Interp {
 			
 			imports.set(fullPath.substr(fullPath.lastIndexOf('.') + 1), null);
 			for (type in types) {
-				if (type.module != type.name) continue;
+				if (type.module != type.name && type.pack.length > 0) continue;
 				if (type.name.indexOf('_Impl_') > -1 || type.name.startsWith('InsanityAbstract_')) continue;
 				
 				importType(type.name, type.kind == 'abstract' ? AbstractTools.resolve(type.compilePath()) : type.resolve(environment), false);
@@ -764,6 +765,7 @@ class Interp {
 	}
 
 	public function expr( e : Expr, ?t : CType, calling:Bool = false ) : Dynamic {
+		Type.environment = environment;
 		accessingInterp = this;
 		
 		curExpr = e;
