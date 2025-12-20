@@ -372,6 +372,7 @@ class Printer {
 
 	public static function errorToString( e : Error, ?p:ParserException ) {
 		var message = switch( e ) {
+			case EHasNoSuper: 'Current class does not have a super';
 			case EUnknownType(t): 'Type not found: $t';
 			case EUnknownField(o, f): '$o has no field $f';
 			case EInvalidChar(c): "Invalid character: '"+(StringTools.isEof(c) ? "EOF" : String.fromCharCode(c))+"' ("+c+")";

@@ -56,33 +56,57 @@ class ScriptedMacro {
 					
 					var constructor:Dynamic = null;
 					
-					for (field in base.decl.fields) {
-						var f:String = field.name;
+					function setFields(decl:insanity.backend.Expr.ClassDecl, isSuper:Bool = false) {
+						var superLocals:Map<String, insanity.backend.Interp.Variable> = __interp.duplicate(__interp.locals);
 						
-						if (field.access.contains(AStatic)) continue;
+						for (field in decl.fields) {
+							var f:String = field.name;
+							
+							if (field.access.contains(AStatic)) continue;
+							
+							switch (field.kind) {
+								case KFunction(fun):
+									__interp.curExpr = fun.expr;
+									
+									if (f == 'new') {
+										constructor = __interp.buildFunction(f, fun.args, fun.expr, fun.ret, superLocals, true);
+										continue;
+									}
+									
+									// trace(f + ' -> ' + insanity.backend.Printer.toString(fun.expr));
+									__interp.locals.set(f, {
+										r: __interp.buildFunction(f, fun.args, fun.expr, fun.ret, superLocals),
+										access: field.access
+									});
+								case KVar(v):
+									__interp.locals.set(f, {
+										r: __interp.exprReturn(v.expr),
+										access: field.access
+									});
+							}
+							
+							if (isSuper) superLocals.set(f, __interp.locals.get(f));
+						}
 						
-						switch (field.kind) {
-							case KFunction(fun):
-								if (f == 'new') {
-									constructor = __interp.buildFunction(f, fun.args, fun.expr, fun.ret);
-									continue;
-								}
-								
-								__interp.locals.set(f, {
-									r: __interp.buildFunction(f, fun.args, fun.expr, fun.ret),
-									access: field.access
-								});
-							case KVar(v):
-								__interp.locals.set(f, {
-									r: __interp.exprReturn(v.expr),
-									access: field.access
-								});
+						if (isSuper) __interp.locals.set('super', {r: insanity.backend.Expr.Mirror.MSuper(superLocals, constructor)});
+					}
+					
+					function setSuperFields(extending:Dynamic) {
+						if (extending is insanity.backend.types.Scripted.InsanityScriptedClass) {
+							var extend:insanity.backend.types.Scripted.InsanityScriptedClass = cast extending;
+							
+							if (extend.extending != null) setSuperFields(extend.extending);
+							
+							setFields(extend.decl, true);
 						}
 					}
 					
-					if (constructor != null) {
+					__interp.locals.set('super', {r: insanity.backend.Expr.Mirror.MSuper(null, null)});
+					setSuperFields(base.extending);
+					setFields(base.decl);
+					
+					if (constructor != null)
 						Reflect.callMethod(this, constructor, arguments);
-					}
 				},
 				ret: macro:Void
 			})

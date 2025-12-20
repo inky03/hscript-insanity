@@ -63,11 +63,8 @@ class Module {
 			if (decls.length == 0) throw 'Module is uninitialized';
 			
 			for (type in types) {
-				try {
-					type.load(environment);
-				} catch (e:haxe.Exception) {
-					onModuleError(e, type);
-				}
+				try { type.init(environment); }
+				catch (e:haxe.Exception) { onModuleError(e, type); }
 			}
 			
 			return types;

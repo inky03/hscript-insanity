@@ -24,6 +24,7 @@ package insanity.backend;
 import insanity.backend.Expr;
 import insanity.backend.Exception;
 import insanity.backend.CallStack;
+import insanity.backend.types.Scripted;
 import haxe.PosInfos;
 import haxe.Constraints.IMap;
 
@@ -34,7 +35,6 @@ using StringTools;
 using insanity.backend.Tools;
 using insanity.backend.TypeCollection;
 using insanity.backend.types.Abstract;
-using insanity.backend.types.Scripted;
 
 enum Stop {
 	SBreak;
@@ -54,6 +54,8 @@ class Interp {
 	public var variables : Map<String,Dynamic>;
 	
 	public var environment : Environment;
+	
+	public var superConstructorAllowed:Bool = false;
 	
 	var locals (get, never) : Map<String, Variable>;
 	var binops : Map<String, Expr -> Expr -> Dynamic >;
@@ -412,6 +414,7 @@ class Interp {
 				error(ECustom('Module $id does not define type $id'));
 			} else if (v is Mirror) {
 				switch (v) {
+					default:
 					case MProperty(t, f): 
 						return Reflect.getProperty(t, f);
 					case MEnumValue(t, i):
@@ -587,8 +590,8 @@ class Interp {
 		error(EUnknownType(path.join('.')));
 	}
 	
-	public function buildFunction(?name:String, params:Array<Argument>, fexpr:Expr, ?ret:CType, ?id:Int, ?functionLocals:Map<String, Variable>) {
-		var capturedLocals = (functionLocals ?? duplicate(locals));
+	public function buildFunction(?name:String, params:Array<Argument>, fexpr:Expr, ?ret:CType, ?id:Int, ?functionLocals:Map<String, Variable>, su:Bool = false) {
+		var capturedLocals = duplicate(locals);
 		
 		var hasOpt = false, hasRest = false, minParams = 0;
 		
@@ -603,6 +606,8 @@ class Interp {
 		}
 		
 		var f = Reflect.makeVarArgs(function(args:Array<Dynamic>) {
+			superConstructorAllowed = su;
+			
 			if( args?.length ?? 0 != params.length ) {
 				if( args.length < minParams ) {
 					var str = "Invalid number of parameters. Got " + args.length + ", required " + minParams;
@@ -631,8 +636,14 @@ class Interp {
 					args2 = args2.concat(args.slice(params.length));
 				args = args2;
 			}
-			var old = locals;
+			var old = null;
 			pushStack(name == null ? SLocalFunction(id) : SMethod(curExpr.origin, name), duplicate(capturedLocals));
+			
+			if (functionLocals != null) {
+				old = duplicate(locals);
+				for (loc => value in functionLocals)
+					locals.set(loc, value);
+			}
 			for( i in 0...params.length ) {
 				if (i == params.length - 1 && hasRest) {
 					locals.set(params[i].name, {r: args.slice(params.length - 1)});
@@ -640,6 +651,7 @@ class Interp {
 					locals.set(params[i].name, {r: tryCast(args[i], params[i].t)});
 				}
 			}
+			
 			var r = null;
 			try {
 				r = tryCast(exprReturn(fexpr), ret);
@@ -652,7 +664,14 @@ class Interp {
 				throw e;
 				#end
 			}
+			
+			if (old != null) {
+				for (loc => value in old)
+					locals.set(loc, value);
+			}
 			stack.stack.shift();
+			superConstructorAllowed = false;
+			
 			return r;
 		});
 		
@@ -691,11 +710,8 @@ class Interp {
 			}
 		case EIdent(id):
 			var l = locals.get(id);
-			if( l != null ) {
-				if (l.a != null)
-					return l.a;
-				return l.r;
-			}
+			if( l != null )
+				return (l.a ?? l.r);
 			return resolve(id, calling);
 		case EVar(n,t,e):
 			var ne:Dynamic = (e == null ? null : expr(e, t));
@@ -1117,6 +1133,22 @@ class Interp {
 				return null;
 			}
 		}
+		
+		if (o is Mirror) {
+			switch (cast(o, Mirror)) {
+				case MSuper(locals, _):
+					if (locals == null) {
+						error(EHasNoSuper);
+					} else if (locals.exists(f)) {
+						var v = locals.get(f);
+						return (v.a ?? v.r);
+					} else {
+						error(EUnknownVariable(f));
+					}
+				default:
+			}
+		}
+		
 		return {
 			#if php
 				// https://github.com/HaxeFoundation/haxe/issues/4915
@@ -1141,7 +1173,7 @@ class Interp {
 	}
 
 	function fcall( o : Dynamic, f : String, args : Array<Dynamic> ) : Dynamic {
-		var fun = get(o, f);
+		var fun:Dynamic = get(o, f);
 		
 		if (o != Std || f != 'string') { // dirty solution but Yeah what ever
 			for (i => arg in args)
@@ -1166,6 +1198,20 @@ class Interp {
 	}
 
 	function call( o : Dynamic, f : Dynamic, args : Array<Dynamic> ) : Dynamic {
+		if (f is Mirror) {
+			switch (cast(f, Mirror)) {
+				case MSuper(locals, constructor):
+					if (locals == null) {
+						error(EHasNoSuper);
+					} else if (!superConstructorAllowed){
+						error(ECustom('Cannot call super constructor outside class constructor'));
+					} else {
+						f = constructor;
+					}
+				default:
+			}
+		}
+		
 		if (f != Std.string) {
 			for (i => arg in args)
 				args[i] = (AbstractTools.isAbstract(arg) ? arg.__a : arg);

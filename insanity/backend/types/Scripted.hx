@@ -13,17 +13,11 @@ using StringTools;
 using insanity.backend.TypeCollection;
 
 class ScriptedTools {
-	public static function resolve(path:String):Class<IInsanityScripted> {
-		var t = (TypeCollection.main.fromPath(path) ?? TypeCollection.main.fromCompilePath(path));
+	public static function resolve(t:Dynamic):Class<IInsanityScripted> {
+		if (t is InsanityScriptedClass)
+			return cast t;
 		
-		if (t != null) {
-			var a = Type.resolveClass(t[0].pack.join('.') + (t[0].pack.length > 0 ? '.' : '') + 'InsanityScripted_' + StringTools.replace(t[0].compilePath(), '.', '_'));
-			
-			if (a != null)
-				return cast a;
-		}
-		
-		throw 'Class $path can\'t be extended for scripting';
+		throw 'Class ${Type.getClassName(Type.getClass(t))} can\'t be extended for scripting';
 		return null;
 	}
 }
@@ -35,7 +29,7 @@ class InsanityScriptedClass implements InsanityType {
 	public var name:String;
 	public var module:Module;
 	public var pack:Array<String>;
-	public var instanceClass:Class<IInsanityScripted>;
+	public var extending:Dynamic = null;
 	public var constructorFunction:Dynamic;
 	public var path:String;
 	
@@ -56,21 +50,24 @@ class InsanityScriptedClass implements InsanityType {
 		interp = new Interp();
 	}
 	
-	public function load(?env:Environment):Void {
+	public function init(?env:Environment):Void {
 		initializing = true;
 		
 		interp.environment = env;
 		interp.setDefaults();
 		interp.executeModule(module.decls, module.path);
+		for (type in module.types) interp.imports.set(type.name, type);
 		
+		var overridingFields:Array<String> = [];
 		var knownFields:Array<String> = [];
 		for (field in decl.fields) {
 			var f:String = field.name;
 			
 			if (knownFields.contains(f)) {
-				interp.error(ECustom('Duplicate class field declalarion: $name.$f'));
+				throw 'Duplicate class field declaration: $name.$f';
 			} else {
 				knownFields.push(f);
+				if (field.access.contains(AOverride)) overridingFields.push(f);
 			}
 			
 			if (!field.access.contains(AStatic)) continue;
@@ -91,18 +88,58 @@ class InsanityScriptedClass implements InsanityType {
 			}
 		}
 		
-		instanceClass = switch (decl.extend) {
-			case null:
-				InsanityDummyClass;
+		extending = switch (decl.extend) {
 			case CTPath(path, _):
-				ScriptedTools.resolve(path.join('.'));
+				var p:String = path.join('.');
+				
+				var type = (interp.imports.get(p) ?? Tools.resolve(p, env));
+				if (type == null) throw 'Type not found: $p';
+				
+				ScriptedTools.resolve(type);
+			case null:
+				null;
 			default:
 				throw 'Invalid extend ${decl.extend}';
 				null;
 		}
 		
+		var foundOverridingFields:Array<String> = [];
+		function overrideFieldCheck(extending:Dynamic) {
+			if (extending is InsanityScriptedClass) {
+				var extend:InsanityScriptedClass = cast extending;
+				
+				for (field in extend.decl.fields) {
+					var f:String = field.name;
+					
+					if (f == 'new' || field.access.contains(AStatic)) continue;
+					
+					if (overridingFields.contains(f)) {
+						if (!foundOverridingFields.contains(f))
+							foundOverridingFields.push(f);
+					} else if (knownFields.contains(f)) {
+						throw 'Field $f should be declared with \'override\' since it is inherited from superclass ${extend.name}';
+					}
+				}
+				
+				if (extend.extending != null) overrideFieldCheck(extend.extending);
+			} else {
+				// todo
+			}
+		}
+		overrideFieldCheck(extending);
+		if (foundOverridingFields.length < overridingFields.length) {
+			for (f in overridingFields) {
+				if (!foundOverridingFields.contains(f))
+					throw 'Field $f is declared \'override\' but doesn\'t override any field'; // TODO (Suggestion: ) ?
+			}
+		}
+		
 		initializing = false;
 		initialized = true;
+	}
+	
+	public function getInstanceClass():Class<IInsanityScripted> {
+		return (extending is InsanityScriptedClass ? cast(extending, InsanityScriptedClass).getInstanceClass() : extending ?? InsanityDummyClass);
 	}
 	
 	public function toString():String {
@@ -112,7 +149,7 @@ class InsanityScriptedClass implements InsanityType {
 	public function typeCreateInstance(arguments:Array<Dynamic>):Dynamic {
 		if (!initialized) throw 'Type $path is not initialized';
 		
-		var inst:IInsanityScripted = Type.createEmptyInstance(instanceClass);
+		var inst:IInsanityScripted = Type.createEmptyInstance(getInstanceClass());
 		inst.__construct(this, arguments);
 		return inst;
 	}
@@ -149,7 +186,7 @@ interface InsanityType extends ICustomReflection extends ICustomClassType {
 	public var name:String;
 	public var pack:Array<String>;
 	
-	public function load(?env:Environment):Void;
+	public function init(?env:Environment):Void;
 }
 
 class InsanityDummyClass implements IInsanityScripted {
