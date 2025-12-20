@@ -130,6 +130,10 @@ trace('hello $test ${'can also be nested!! $$${test + 3210}'}');
 
 haxe's [special regex syntax](https://haxe.org/manual/std-regex.html) can now be used to make a new regular expression in hscript (instead of `new EReg`)
 
+```hx
+trace(~/hx/i.replace('HX is Awesome', 'Haxe')); // Haxe is Awesome
+```
+
 
 ### Call stack
 
