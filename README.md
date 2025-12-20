@@ -32,6 +32,34 @@ script.call('testFunction', 1, 2, 3);
 you can also edit the `variables` map in a Script to expose certain variables on a script. by default, `this` is defined as the Script instance
 
 
+### Scripted modules and types (with `Module` and `Environment`)
+
+> [!WARNING]
+> this feature is experimental and currently very unfinished. <br>
+> currently only empty classes can be properly defined in scripted modules, and only the CLASS type is supported (ENUMS and ABSTRACTS will be supported later)
+
+you can define custom modules from string and use them in scripts !!
+
+```hx
+var path:String = 'test/source/TestModule.hxs';
+var module:Module = new Module(File.getContent(path), 'TestModule', ['package', 'name'], path);
+
+var environment:Environment = new Environment([module]);
+environment.start();
+
+/*
+new Module creates a new module script instance...
+you can then add it to a new Environment ! (think of it as the source code folder)
+start() it to initialize all added modules and make them usable in new Scripts !!
+*/
+
+var path:String = 'test/scripts/TestScript.hxs';
+var script:Script = new Script(File.getContent(path), path, environment);
+script.start();
+```
+
+
+
 ### Abstracts
 
 > [!WARNING]
@@ -194,31 +222,37 @@ it represents my Dwindling mental state as i figure how to modify this library !
 ### compiled
 
 - abstracts
-  - [X] static fields
-  - [X] instance fields
-  - [X] cast from / to types
-  - [ ] overload operators (`@:op`)
-  
+	- [X] static fields
+	- [X] instance fields
+	- [X] cast from / to types
+	- [ ] overload operators (`@:op`)
+	
 - enum abstracts
-  - [X] static fields
-  - [X] constructors
-  
+	- [X] static fields
+	- [X] constructors
+	
 - enums
-  - [X] constructors
-  - [X] constructor arguments
-  
+	- [X] constructors
+	- [X] constructor arguments
+	
 - typedefs
-  - [X] type alias import
-  - [ ] ~~anonymous structure~~
+	- [X] type alias import
+	- [ ] ~~anonymous structure~~
 
 ### scripted
 
-- [ ] classes
-- [ ] enums
-- [ ] typedefs (alias only?)
-- [ ] abstracts
+- types
+	- [X] classes
+		- [X] extends Nothing (or scripted class)
+		- [ ] extends Real types
+	- [ ] enums
+	- [ ] typedefs (alias only?)
+	- [ ] abstracts
+
+- general
+	- [ ] property getters & setters
 
 ### other
 
 - `using`
-  - [ ] explicit type checking?
+	- [ ] explicit type checking?
