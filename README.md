@@ -38,7 +38,7 @@ you can also edit the `variables` map in a Script to expose certain variables on
 
 > [!WARNING]
 > this feature is experimental and currently very unfinished. <br>
-> currently only CLASS types are supported (ENUMS and ABSTRACTS will be supported later)
+> CLASS and ENUM types are supported (TYPEDEFS (alias) and ABSTRACTS may be supported later)
 
 you can load custom modules from string and use them in scripts !!
 
@@ -135,12 +135,12 @@ trace(get({hi: 123}, 'hi'));
 
 you can also import type alias typedefs ! due to type parameters being mostly stripped at runtime, adding support for importing anonymous structure typedefs is not very practical
 
-all type information is built in `insanity.backend.macro.TypeRegistry`
+all type information is registered in `insanity.backend.TypeCollection.main`
 
 
 ### Using (static extension)
 
-the [`using`](https://haxe.org/manual/lf-static-extension.html) keyword is supported, to most capacity
+the [`using`](https://haxe.org/manual/lf-static-extension.html) keyword is supported (to most capacity)
 
 ```hx
 using Lambda;
@@ -158,7 +158,9 @@ trace(array); // [1, 2, 10, 4, 5]
 
 ### Enums
 
-enums can be imported and used in hscript similarly to actual haxe, and support constructors
+enums can be imported or created in hscript and support constructors.
+
+basic enum matching in a switch statement is also implemented !
 
 ```hx
 // in source code ...
@@ -187,7 +189,7 @@ trace('hello $test ${'can also be nested!! $$${test + 3210}'}');
 
 ### Property accessors
 
-haxe's [property accessors](https://haxe.org/manual/class-field-property.html) can be defined in local variables within scripts and modules
+haxe's [property accessors](https://haxe.org/manual/class-field-property.html) can be defined in local variables within scripts and module types
 
 ```hx
 var customSetter(default, set):Dynamic = 123;
@@ -296,7 +298,7 @@ it represents my Dwindling mental state as i figure how to modify this library !
 	- [X] classes
 		- [X] extends Nothing (or scripted class)
 		- [X] extends Real types
-	- [ ] enums
+	- [X] enums
 	- [ ] typedefs (alias only?)
 	- [ ] abstracts
 
@@ -308,5 +310,10 @@ it represents my Dwindling mental state as i figure how to modify this library !
 
 ### other
 
-- `using`
+- `using` keyword
 	- [ ] explicit type checking?
+- `switch` keyword
+	- [ ] complex pattern matching
+- `Printer` class
+	- fix printed expressions with escape characters
+	- module declaration to string ?

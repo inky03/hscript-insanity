@@ -28,6 +28,7 @@ import insanity.backend.types.Scripted;
 import haxe.PosInfos;
 import haxe.Constraints.IMap;
 
+import insanity.custom.InsanityType.ICustomEnumValueType;
 import insanity.custom.InsanityReflect as Reflect;
 import insanity.custom.InsanityType as Type;
 import insanity.custom.InsanityStd as Std;
@@ -54,7 +55,7 @@ typedef Variable = {
 }
 
 class Interp {
-	public var usings : Array<Class<Dynamic>>;
+	public var usings : Array<Dynamic>;
 	public var imports : Map<String, Dynamic>;
 	public var variables : Map<String, Dynamic>;
 	
@@ -485,7 +486,7 @@ class Interp {
 			} else if (v is Mirror) {
 				switch (v) {
 					default:
-					case MProperty(t, f): 
+					case MProperty(t, f):
 						return Reflect.getProperty(t, f);
 					case MEnumValue(t, i):
 						if (calling) return Reflect.makeVarArgs(function(params:Array<Dynamic>) return createEnum(t, i, params));
@@ -508,7 +509,12 @@ class Interp {
 	function importType(name:String, t:Dynamic, enumValueImport:Bool = true) {
 		if (t == null) return;
 		
-		if (t is InsanityType) {
+		if (t is InsanityScriptedEnum) {
+			imports.set(name, t);
+			
+			if (enumValueImport)
+				importEnumValues(t);
+		} else if (t is IInsanityType) {
 			imports.set(name, t);
 		} else if (t is Class) {
 			if (Type.getSuperClass(t) == InsanityAbstract && t.isEnum) {
@@ -529,7 +535,7 @@ class Interp {
 		}
 	}
 	
-	function importEnumValues(t:Enum<Dynamic>) {
+	function importEnumValues(t:Dynamic) {
 		for (i => v in Type.getEnumConstructs(t))
 			imports.set(v, MEnumValue(t, i));
 	}
@@ -543,7 +549,7 @@ class Interp {
 			
 			imports.set(fullPath.substr(fullPath.lastIndexOf('.') + 1), null);
 			for (type in types) {
-				if (type.module != type.name && type.pack.length > 0) continue;
+				if (type.module != type.name && type.name != 'Main') continue; // lol
 				if (type.name.indexOf('_Impl_') > -1 || type.name.startsWith('InsanityAbstract_')) continue;
 				
 				importType(type.name, type.kind == 'abstract' ? AbstractTools.resolve(type.compilePath()) : type.resolve(environment), false);
@@ -574,15 +580,15 @@ class Interp {
 							}
 						}
 						
-						if (t is Class) {
+						if (t is Class || t is InsanityScriptedClass) {
 							if (!Type.getClassFields(t).contains(field))
 								error(ECustom('Module ${path[i]} does not define field $field'));
 							
 							switch (mode) {
-								case IAsName(alias): imports.set(alias, MProperty(t, field));
-								default: imports.set(field, MProperty(t, field));
+								case IAsName(alias): return imports.set(alias, MProperty(t, field));
+								default: return imports.set(field, MProperty(t, field));
 							}
-						} else if (t is Enum) {
+						} else if (t is Enum || t is InsanityScriptedEnum) {
 							var i:Int = Type.getEnumConstructs(t).indexOf(field);
 							
 							if (i >= 0) {
@@ -669,6 +675,15 @@ class Interp {
 				cls.init(environment, this);
 				
 				imports.set(m.name, cls);
+			
+			case DEnum(m):
+				if (variables.exists(m.name)) return;
+				
+				var cls = new InsanityScriptedEnum(m);
+				cls.init(environment, this);
+				
+				imports.set(m.name, cls);
+			
 			default:
 		}
 	}
@@ -1004,11 +1019,22 @@ class Interp {
 			var val : Dynamic = expr(e);
 			var match = false;
 			for( c in cases ) {
-				for( v in c.values )
-					if( expr(v) == val ) {
+				for( v in c.values ) {
+					var check = expr(v);
+					
+					if (check == val) {
 						match = true;
-						break;
+					} else if (val is ICustomEnumValueType && check is ICustomEnumValueType) {
+						match = cast(val, ICustomEnumValueType).eq(check);
+					} else {
+						try {
+							if (Type.getEnum(val) != null && Type.getEnum(check) != null)
+								match = Type.enumEq(val, check);
+						} catch (e:Dynamic) {}
 					}
+					
+					if (match) break;
+				}
 				if( match ) {
 					val = expr(c.expr);
 					break;

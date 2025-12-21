@@ -90,6 +90,7 @@ enum ModuleDecl {
 	DImport( path : Array<String>, mode : ImportMode );
 	DUsing( path : Array<String> );
 	DClass( c : ClassDecl );
+	DEnum( c : EnumDecl );
 	DTypedef( c : TypeDecl );
 }
 
@@ -116,6 +117,17 @@ typedef FieldDecl = {
 	var meta : Metadata;
 	var kind : FieldKind;
 	var access : Array<FieldAccess>;
+}
+
+typedef EnumDecl = {> ModuleType,
+	var constructs:Map<String, EnumFieldDecl>;
+	var names:Array<String>;
+}
+
+typedef EnumFieldDecl = {
+	var name:String;
+	var meta:Metadata;
+	var ?arguments:Array<Argument>;
 }
 
 enum FieldAccess {

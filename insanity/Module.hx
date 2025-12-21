@@ -17,7 +17,7 @@ class Module {
 	var interp:Interp = null;
 	
 	public var decls:Array<ModuleDecl> = [];
-	public var types:Map<String, InsanityType> = [];
+	public var types:Map<String, IInsanityType> = [];
 	
 	public function new(string:String, name:String = 'Module', pack:Array<String>, origin:String = 'hscript'):Void {
 		parser.allowTypes = parser.allowJSON = true;
@@ -44,8 +44,10 @@ class Module {
 						continue;
 					case DClass(m):
 						new InsanityScriptedClass(m, this);
+					case DEnum(m):
+						new InsanityScriptedEnum(m, this);
 					case DTypedef(m):
-						trace('Custom typedefs are unsupported');
+						trace('Scripted typedefs are currently unsupported');
 						continue;
 				}
 				
@@ -58,7 +60,7 @@ class Module {
 		return decls;
 	}
 	
-	public function start(?environment:Environment):Map<String, InsanityType> {
+	public function start(?environment:Environment):Map<String, IInsanityType> {
 		try {
 			if (decls.length == 0) throw 'Module is uninitialized';
 			
@@ -81,7 +83,7 @@ class Module {
 	public dynamic function onProgramError(e:haxe.Exception):Void {
 		trace('Module program stopped unexpectedly!\n' + e.details());
 	}
-	public dynamic function onModuleError(e:haxe.Exception, type:InsanityType):Void {
+	public dynamic function onModuleError(e:haxe.Exception, type:IInsanityType):Void {
 		trace('Failed to load type ${type.name} for module $path!\n' + e.details());
 	}
 	

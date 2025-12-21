@@ -713,7 +713,7 @@ class Parser {
 			}
 			
 			mk(EImport(path, mode));
-		case "class":
+		case "class", "enum":
 			push(TId(id));
 			var decl = parseModuleDecl();
 			if (!maybe(TSemicolon)) push(TSemicolon);
@@ -989,7 +989,7 @@ class Parser {
 		}
 	}
 
-	function parseFunctionArgs() {
+	function parseFunctionArgs(restAllowed:Bool = true) {
 		var args = new Array();
 		var hasRest = false;
 		var tk = token();
@@ -1002,6 +1002,7 @@ class Parser {
 						opt = true;
 						tk = token();
 					case TOp('...'):
+						if (!restAllowed) unexpected(tk);
 						rest = true;
 						tk = token();
 					default:
@@ -1435,6 +1436,34 @@ class Parser {
 				isPrivate : isPrivate,
 				isExtern : isExtern,
 			});
+		case "enum":
+			var name = getIdent();
+			if (!name.isTypeIdentifier())
+				error(ECustom('Type name should start with an uppercase letter'), tokenMin, tokenMax);
+			
+			var params = parseParams();
+			var names:Array<String> = [];
+			var constructs:Map<String, EnumFieldDecl> = [];
+			
+			ensure(TBrOpen);
+			while (!maybe(TBrClose)) {
+				var field:EnumFieldDecl = parseEnumField();
+				constructs.set(field.name, field);
+				
+				// if (names.contains(field.name))
+				// 	error(ECustom('Duplicate constructor ${field.name}'), tokenMin, tokenMax);
+				
+				names.push(field.name);
+			}
+			
+			return DEnum({
+				name: name,
+				meta: meta,
+				params: params,
+				isPrivate: isPrivate,
+				constructs: constructs,
+				names: names
+			});
 		case "typedef":
 			var name = getIdent();
 			if (!name.isTypeIdentifier())
@@ -1454,6 +1483,23 @@ class Parser {
 			unexpected(TId(ident));
 		}
 		return null;
+	}
+	
+	function parseEnumField():EnumFieldDecl {
+		var arguments:Array<Argument> = null;
+		var meta = parseMetadata();
+		var id = getIdent();
+		
+		if (maybe(TPOpen))
+			arguments = parseFunctionArgs(false);
+		
+		ensure(TSemicolon);
+		
+		return {
+			name: id,
+			meta: meta,
+			arguments: arguments
+		};
 	}
 
 	function parseField() : FieldDecl {

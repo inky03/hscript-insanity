@@ -3,6 +3,7 @@ package insanity.backend.types;
 import insanity.custom.InsanityReflect;
 import insanity.custom.InsanityType;
 
+import insanity.backend.Printer;
 import insanity.backend.Interp;
 import insanity.backend.Tools;
 import insanity.backend.Expr;
@@ -31,7 +32,7 @@ class ScriptedTools {
 @:access(insanity.Module)
 @:access(insanity.backend.Interp)
 @:access(insanity.backend.types.IInsanityScripted)
-class InsanityScriptedClass implements InsanityType {
+class InsanityScriptedClass implements IInsanityType implements ICustomClassType {
 	public var name:String;
 	public var module:Module;
 	public var pack:Array<String>;
@@ -177,7 +178,7 @@ class InsanityScriptedClass implements InsanityType {
 		initialized = true;
 	}
 	
-	public function getInstanceClass():Class<IInsanityScripted> {
+	public function getInstanceClass():Dynamic {
 		return (extending is InsanityScriptedClass ? cast(extending, InsanityScriptedClass).getInstanceClass() : extending ?? InsanityDummyClass);
 	}
 	
@@ -192,8 +193,47 @@ class InsanityScriptedClass implements InsanityType {
 		inst.__construct(this, arguments);
 		return inst;
 	}
+	public function typeCreateEmptyInstance():Dynamic {
+		if (!initialized) throw 'Type $path is not initialized';
+		
+		return Type.createEmptyInstance(getInstanceClass());
+	}
 	public function typeGetClass():Dynamic {
 		return null;
+	}
+	public function typeGetClassFields():Array<String> {
+		var fields:Array<String> = [for (loc => _ in interp.locals) loc];
+		return fields;
+	}
+	public function typeGetInstanceFields():Array<String> {
+		var fields:Array<String> = [];
+		
+		function getFields(c:Dynamic) {
+			if (c is InsanityScriptedClass) {
+				for (field in cast(c, InsanityScriptedClass).decl.fields) {
+					var f:String = field.name;
+					if (f == 'new' || field.access.contains(AStatic)) continue;
+					if (!fields.contains(f)) fields.push(f);
+				}
+				
+				var instance = c.getInstanceClass();
+				if (instance != InsanityScriptedClass)
+					getFields(instance);
+				
+				if (c.extending != null) {
+					getFields(c.extending);
+				}
+			} else if (c is Class) {
+				for (f in Type.getInstanceFields(c)) {
+					if (!fields.contains(f) && !insanity.backend.macro.ScriptedMacro.ignoreFields.contains(f))
+						fields.push(f);
+				}
+			}
+		}
+		
+		getFields(this);
+		
+		return fields;
 	}
 	
 	public function reflectHasField(field:String):Bool {
@@ -216,15 +256,158 @@ class InsanityScriptedClass implements InsanityType {
 	}
 }
 
-interface InsanityType extends ICustomReflection extends ICustomClassType {
+@:access(insanity.Module)
+class InsanityScriptedEnum implements IInsanityType implements ICustomEnumType {
 	public var name:String;
+	public var module:Module;
 	public var pack:Array<String>;
+	public var path:String;
 	
-	public function init(?env:Environment, ?baseInterp:Interp):Void;
+	public var values:Array<String>;
+	public var constructs:Map<String, EnumFieldDecl>;
+	var constructFunctions:Map<String, Array<Dynamic> -> InsanityScriptedEnumValue>;
+	
+	var decl:EnumDecl;
+	
+	public function new(decl:EnumDecl, ?module:Module) {
+		this.name = decl.name;
+		this.pack = (module?.pack ?? []);
+		this.module = module;
+		this.decl = decl;
+		
+		path = Tools.pathToString(name, pack);
+	}
+	
+	public function init(?env:Environment, ?baseInterp:Interp):Void {
+		values = decl.names;
+		constructs = decl.constructs;
+		constructFunctions = new Map();
+		
+		for (name => construct in constructs) {
+			var params = construct.arguments;
+			if (params != null) {
+				var minParams:Int = 0;
+				for (i => p in params) {
+					if (!p.opt) minParams = (i + 1);
+				}
+				
+				constructFunctions.set(name, Reflect.makeVarArgs(function(args:Array<Dynamic>) {
+					if (args.length < minParams) {
+						var arg = params[args.length];
+						var argType:String = arg.name;
+						if (arg.t != null) argType += (':' + new Printer().typeToString(arg.t));
+						
+						throw 'Not enough arguments, expected $argType';
+					}
+					if (args.length > params.length && params.length > 0) {
+						throw 'Too many arguments';
+					}
+					
+					return new InsanityScriptedEnumValue(this, values.indexOf(name), args);
+				}));
+			}
+		}
+	}
+	
+	public function toString():String { return path; }
+	
+	public function typeGetEnumName():String { return path; }
+	public function typeCreateEnum(constr:String, ?arguments:Array<Dynamic>):Dynamic {
+		var construct:EnumFieldDecl = constructs.get(constr);
+		if (construct != null) {
+			if (constructFunctions.exists(constr)) {
+				return Reflect.callMethod(this, constructFunctions.get(constr), arguments ?? []);
+			} else {
+				return new InsanityScriptedEnumValue(this, values.indexOf(constr));
+			}
+		}
+		return null;
+	}
+	public function typeCreateEnumIndex(index:Int, ?arguments:Array<Dynamic>):Dynamic {
+		return typeCreateEnum(values[index], arguments);
+	}
+	public function typeGetEnumConstructs():Array<String> {
+		return values.copy();
+	}
+	public function typeAllEnums():Array<Dynamic> {
+		var enums:Array<InsanityScriptedEnumValue> = [];
+		
+		for (index => constr in values) {
+			if (constructs.get(constr).arguments == null)
+				enums.push(new InsanityScriptedEnumValue(this, index));
+		}
+		
+		return enums;
+	}
+	
+	public function reflectHasField(field:String):Bool { return false; }
+	public function reflectGetField(field:String):Dynamic {
+		var construct:EnumFieldDecl = constructs.get(field);
+		if (construct != null) {
+			if (constructFunctions.exists(field)) {
+				return constructFunctions.get(field);
+			} else {
+				return new InsanityScriptedEnumValue(this, values.indexOf(field));
+			}
+		}
+		return null;
+	}
+	public function reflectSetField(field:String, value:Dynamic):Dynamic { return null; }
+	public function reflectGetProperty(property:String):Dynamic { return reflectGetField(property); }
+	public function reflectSetProperty(property:String, value:Dynamic):Dynamic { return null; }
+	public function reflectListFields():Array<String> { return null; }
+}
+
+class InsanityScriptedEnumValue implements ICustomEnumValueType {
+	var base:InsanityScriptedEnum;
+	
+	public var index:Int;
+	public var constructor:String;
+	public var arguments:Array<Dynamic>;
+	
+	public function new(base:InsanityScriptedEnum, index:Int, ?arguments:Array<Dynamic>) {
+		this.base = base;
+		this.arguments = arguments;
+		
+		this.index = index;
+		this.constructor = base.values[index];
+	}
+	
+	public function toString():String {
+		if (arguments != null) return '$constructor(${arguments.join(',')})';
+		
+		return constructor;
+	}
+	
+	public function typeGetEnum():Dynamic { return base; }
+	public function eq(o:ICustomEnumValueType):Bool {
+		if (!(o is InsanityScriptedEnumValue)) return false;
+		
+		var o:InsanityScriptedEnumValue = cast o;
+		if (o.base == base) {
+			if (o.arguments == null && arguments == null) return true;
+			
+			for (i => argument in arguments) {
+				if (argument != o.arguments[i])
+					return false;
+			}
+			
+			return true;
+		}
+		
+		return false;
+	}
 }
 
 class InsanityDummyClass implements IInsanityScripted {
 	public function new() {}
+}
+
+interface IInsanityType extends ICustomReflection {
+	public var name:String;
+	public var pack:Array<String>;
+	
+	public function init(?env:Environment, ?baseInterp:Interp):Void;
 }
 
 @:autoBuild(insanity.backend.macro.ScriptedMacro.build())

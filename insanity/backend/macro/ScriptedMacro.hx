@@ -14,8 +14,8 @@ using haxe.macro.ExprTools;
 class ScriptedMacro {
 	public static var ignoreFields:Array<String> = [
 		'reflectHasField', 'reflectGetField', 'reflectSetField', 'reflectListFields', 'reflectGetProperty', 'reflectSetProperty',
-		'typeCreateInstance', 'typeGetClass',
-		'__construct', '__interp', '__base', '__func', '__instanceFields', '__fields', 'new', 'super'
+		'typeCreateInstance', 'typeGetClass', 'typeGetClassFields', 'typeCreateEmptyInstance', 'typeGetInstanceFields',
+		'__construct', '__constructSuper', '__interp', '__base', '__func', '__instanceFields', '__fields', 'new', 'super'
 	];
 	
 	static var _name:String = 'insanity.backend.macro.ScriptedMacro';
@@ -384,6 +384,27 @@ class ScriptedMacro {
 				args: [{name: 'args', type: macro:Array<Dynamic>}],
 				expr: macro { throw 'Invalid'; return null; },
 				ret: macro:Dynamic
+			})
+		}, {
+			pos: pos, access: [APublic], name: 'typeCreateEmptyInstance',
+			kind: FFun({
+				args: [],
+				expr: macro { throw 'Invalid'; return null; },
+				ret: macro:Dynamic
+			})
+		}, {
+			pos: pos, access: [APublic], name: 'typeGetInstanceFields',
+			kind: FFun({
+				args: [],
+				expr: macro { return []; },
+				ret: macro:Array<String>
+			})
+		}, {
+			pos: pos, access: [APublic], name: 'typeGetClassFields',
+			kind: FFun({
+				args: [],
+				expr: macro { return []; },
+				ret: macro:Array<String>
 			})
 		}]);
 		

@@ -1,5 +1,6 @@
 package insanity;
 
+import insanity.backend.types.Scripted;
 import insanity.backend.TypeCollection;
 
 class Environment {
@@ -26,7 +27,7 @@ class Environment {
 		return module;
 	}
 	
-	public function resolve(path:String):Dynamic {
+	public function resolve(path:String):IInsanityType {
 		for (module in modules) {
 			if (module.types.exists(path))
 				return module.types.get(path);
