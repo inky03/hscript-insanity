@@ -28,13 +28,18 @@ enum Const {
 	CReg( pattern : String, modifiers : String );
 }
 
-typedef Expr = {
-	var e : ExprDef;
-	var pmin : Int;
-	var pmax : Int;
-	var column : Int;
+typedef Position = {
 	var origin : String;
 	var line : Int;
+	
+	var ?pmin : Int;
+	var ?pmax : Int;
+	var ?column : Int;
+}
+
+typedef Expr = {
+	var e : ExprDef;
+	var pos : Position;
 }
 enum ExprDef {
 	EDecl( t : ModuleDecl );
@@ -85,7 +90,11 @@ enum CType {
 	CTExpr( e : Expr ); // for type parameters only
 }
 
-enum ModuleDecl {
+typedef ModuleDecl = {
+	var d : ModuleDeclDef;
+	var pos : Position;
+}
+enum ModuleDeclDef {
 	DPackage( path : Array<String> );
 	DImport( path : Array<String>, mode : ImportMode );
 	DUsing( path : Array<String> );

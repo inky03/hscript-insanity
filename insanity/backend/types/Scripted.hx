@@ -16,7 +16,7 @@ using insanity.backend.TypeCollection;
 class ScriptedTools {
 	public static var scriptedClasses(default, never):Map<String, Class<IInsanityScripted>> = insanity.backend.macro.ScriptedMacro.listScriptedClasses();
 	
-	public static function resolve(t:Dynamic):Class<IInsanityScripted> {
+	public static function resolve(t:Dynamic):Dynamic {
 		if (t is InsanityScriptedClass)
 			return cast t;
 		
@@ -39,6 +39,8 @@ class InsanityScriptedClass implements IInsanityType implements ICustomClassType
 	public var extending:Dynamic = null;
 	public var constructorFunction:Dynamic;
 	public var path:String;
+	
+	public var safe:Bool = false;
 	
 	var decl:ClassDecl;
 	
@@ -73,11 +75,12 @@ class InsanityScriptedClass implements IInsanityType implements ICustomClassType
 			interp.setDefaults();
 		}
 		
-		if (module != null) {
-			interp.executeModule(module.decls, module.path);
-			for (type in module.types) interp.imports.set(type.name, type);
-		} else {
-			interp.pushStack(insanity.backend.CallStack.StackItem.SModule(module?.path ?? name));
+		interp.pushStack(insanity.backend.CallStack.StackItem.SModule(module?.path ?? name));
+		
+		safe = false;
+		for (meta in decl.meta) {
+			if (meta.name == ':safe')
+				safe = true;
 		}
 		
 		var overridingFields:Array<String> = [];
@@ -100,7 +103,7 @@ class InsanityScriptedClass implements IInsanityType implements ICustomClassType
 			
 			switch (field.kind) {
 				case KFunction(fun):
-					interp.curExpr = fun.expr;
+					interp.position = fun.expr.pos;
 					
 					interp.locals.set(f, {
 						r: interp.buildFunction(f, fun.args, fun.expr, fun.ret),
@@ -154,10 +157,17 @@ class InsanityScriptedClass implements IInsanityType implements ICustomClassType
 				var cls = getInstanceClass();
 				if (cls == null) return;
 				
-				for (field in Type.getInstanceFields(cls)) {
+				var instanceFields:Array<String> = (cls.instanceFields ?? Type.getInstanceFields(cast cls));
+				var inlinedFields:Array<String> = cls.inlinedFields;
+				var unexposedFields:Array<String> = cls.unexposedFields;
+				
+				for (field in instanceFields) {
 					if (insanity.backend.macro.ScriptedMacro.ignoreFields.contains(field)) continue;
 					
 					if (overridingFields.contains(field)) {
+						if (inlinedFields?.contains(field)) { throw 'Field $field is inlined and cannot be overridden'; }
+						else if (unexposedFields?.contains(field)) { throw 'Field $field is unexposed and cannot be overridden'; }
+						
 						if (!foundOverridingFields.contains(field))
 							foundOverridingFields.push(field);
 					} else if (knownFields.contains(field)) {
@@ -240,7 +250,7 @@ class InsanityScriptedClass implements IInsanityType implements ICustomClassType
 		return (interp.locals.exists(field));
 	}
 	public function reflectGetField(field:String):Dynamic {
-		return (interp.locals.exists(field) != null ? interp.locals.get(field).r : null);
+		return (interp.locals.exists(field) ? interp.locals.get(field).r : null);
 	}
 	public function reflectSetField(field:String, value:Dynamic):Dynamic {
 		return (interp.locals.exists(field) ? interp.locals.get(field).r = value : null);
@@ -253,6 +263,10 @@ class InsanityScriptedClass implements IInsanityType implements ICustomClassType
 	}
 	public function reflectListFields():Array<String> {
 		return [for (field in interp.locals.keys()) field];
+	}
+	
+	public dynamic function onInstanceError(error:Dynamic, ?instance:IInsanityScripted):Void {
+		trace('Error on instance of $name: $error');
 	}
 }
 

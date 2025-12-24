@@ -303,6 +303,7 @@ it represents my Dwindling mental state as i figure how to modify this library !
 	- [ ] abstracts
 
 - general
+	- fix compile errors in HashLink ("Don't know how to cast ref(bool) to bool" .. whatever the hell that means)
 	- [X] property getters & setters
 		- [ ] accessor error checking in modules
 	- [ ] fix module exceptions (can merge call stack?)

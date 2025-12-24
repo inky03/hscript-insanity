@@ -5,6 +5,7 @@ import insanity.backend.Parser;
 import insanity.backend.Interp;
 import insanity.backend.Expr;
 
+@:access(insanity.backend.Interp)
 class Script {
 	public var name:String;
 	
@@ -51,7 +52,7 @@ class Script {
 	public function call(variable:String, ...args:Any):Any {
 		if (interp == null) throw 'Interpreter is uninitialized';
 		
-		var fun = variables.get(variable);
+		var fun = (variables.get(variable) ?? interp.getLocal(variable));
 		
 		if (!Reflect.isFunction(fun)) {
 			trace('$variable isn\'t a function');

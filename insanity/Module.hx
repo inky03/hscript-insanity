@@ -39,7 +39,7 @@ class Module {
 			for (decl in declList) {
 				decls.push(decl);
 				
-				var type = switch (decl) {
+				var type = switch (decl.d) {
 					default:
 						continue;
 					case DClass(m):
@@ -64,8 +64,12 @@ class Module {
 		try {
 			if (decls.length == 0) throw 'Module is uninitialized';
 			
+			interp.environment = environment;
+			interp.setDefaults();
+			interp.executeModule(decls, path);
+			
 			for (type in types) {
-				try { type.init(environment); }
+				try { type.init(environment, interp); }
 				catch (e:haxe.Exception) { onModuleError(e, type); }
 			}
 			

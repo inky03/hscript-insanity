@@ -28,6 +28,8 @@ import insanity.backend.types.Scripted;
 import haxe.PosInfos;
 import haxe.Constraints.IMap;
 
+import Reflect as HaxeReflect;
+
 import insanity.custom.InsanityType.ICustomEnumValueType;
 import insanity.custom.InsanityReflect as Reflect;
 import insanity.custom.InsanityType as Type;
@@ -73,8 +75,9 @@ class Interp {
 	var declared : Array<{ n : String, old : Variable }>;
 	var returnValue : Dynamic;
 	
-	var curExpr : Expr;
+	var position : Position = { origin: 'hscript', line: 0 };
 	var curAccess : String = '';
+	
 	static var accessingInterp:Interp = null;
 
 	public function new(?environment:Environment) {
@@ -109,7 +112,7 @@ class Interp {
 	}
 
 	public function posInfos(): PosInfos {
-		return cast { fileName : (curExpr?.origin ?? 'hscript'), lineNumber : (curExpr?.line ?? 0) };
+		return cast { fileName : position.origin, lineNumber : position.line };
 	}
 	
 	function get_locals():Map<String, Variable> { return stack.last().locals; }
@@ -154,13 +157,17 @@ class Interp {
 	}
 
 	function setVar( name : String, v : Dynamic ) {
+		if (AbstractTools.isAbstract(v))
+			v = v.__a;
+		
 		var iv = imports.get(name);
 		if (iv != null) {
 			if (iv is Mirror) {
 				switch (iv) {
-					case MProperty(t, f): 
-						Reflect.setProperty(t, f, v);
-						return v;
+					case MProperty(t, f):
+						if (curAccess == f) { Reflect.setField(t, f, v); }
+						else { Reflect.setProperty(t, f, v); }
+						return Reflect.field(t, f);
 					default:
 				}
 			}
@@ -169,6 +176,17 @@ class Interp {
 		}
 		
 		if (variables.exists(name)) {
+			var vv = variables.get(name);
+			if (vv is Mirror) {
+				switch (vv) {
+					case MProperty(t, f):
+						if (curAccess == f) { Reflect.setField(t, f, v); }
+						else { Reflect.setProperty(t, f, v); }
+						return Reflect.field(t, f);
+					default:
+				}
+			}
+			
 			variables.set(name, v);
 		} else {
 			error(EUnknownVariable(name));
@@ -242,13 +260,14 @@ class Interp {
 	
 	public function getLocal(id:String):Dynamic {
 		var l:Variable = locals.get(id);
+		if (l == null) return null;
 		
 		switch (l.get) {
 			case 'null':
 				if (accessingInterp != this) throw 'This expression cannot be accessed for reading';
 				return (l.a ?? l.r);
 			case 'never':
-				throw 'This expression cannot be accessed for reading';
+				throw 'This expression cannot be accessed for reading'; return null;
 			case 'get' | 'dynamic':
 				if (curAccess == id) return l.r;
 				
@@ -258,19 +277,18 @@ class Interp {
 					var v = Reflect.callMethod(this, locals.get('get_$id').r, []);
 					curAccess = prevAccess;
 					return v;
-				} else {
-					error(ECustom('Method get_$id required by property $id is missing'));
 				}
+				
+				error(ECustom('Method get_$id required by property $id is missing')); return null;
 			case 'default' | null:
 				return (l.a ?? l.r);
 			default:
-				error(ECustom('Invalid property accessor ${l.get}'));
+				throw 'Invalid property accessor'; return null;
 		}
-		
-		return null;
 	}
 	public function setLocal(id:String, v:Dynamic):Dynamic {
 		var l:Variable = locals.get(id);
+		if (l == null) return null;
 		
 		if (l.access != null && Reflect.isFunction(l.r) && !l.access.contains(ADynamic))
 			throw 'Cannot rebind method $id: please use \'dynamic\' before method declaration';
@@ -280,7 +298,7 @@ class Interp {
 				if (accessingInterp != this) throw 'This expression cannot be accessed for writing';
 				return l.r = v;
 			case 'never':
-				throw 'This expression cannot be accessed for writing';
+				throw 'This expression cannot be accessed for writing'; return null;
 			case 'set' | 'dynamic':
 				if (curAccess == id) return l.r = v;
 				
@@ -289,20 +307,19 @@ class Interp {
 					curAccess = id;
 					Reflect.callMethod(this, locals.get('set_$id').r, [v]);
 					curAccess = prevAccess;
-				} else {
-					error(ECustom('Method set_$id required by property $id is missing'));
+					return l.r;
 				}
+				
+				error(ECustom('Method set_$id required by property $id is missing')); return null;
 			case 'default' | null:
 				return l.r = v;
 			default:
-				error(ECustom('Invalid property accessor ${l.set}'));
+				error(ECustom('Invalid property accessor ${l.set}')); return null;
 		}
-		
-		return null;
 	}
 
 	function increment( e : Expr, prefix : Bool, delta : Int ) : Dynamic {
-		curExpr = e;
+		position = e.pos;
 		var e = e.e;
 		
 		switch(e) {
@@ -359,7 +376,9 @@ class Interp {
 				pushStack(SModule(path));
 			
 			for (decl in decls) {
-				switch (decl) {
+				position = decl.pos;
+				
+				switch (decl.d) {
 					default:
 					case DUsing(path):
 						usingType(path);
@@ -424,8 +443,8 @@ class Interp {
 		
 		if (last != null) {
 			stack.stack.unshift({locals: last.locals, item: switch (last.item) {
-				case SFilePos(item, _, _): SFilePos(item, curExpr.origin, curExpr.line, curExpr.column);
-				default: SFilePos(last.item, curExpr.origin, curExpr.line, curExpr.column);
+				case SFilePos(item, _, _): SFilePos(item, position.origin, position.line, position.column);
+				default: SFilePos(last.item, position.origin, position.line, position.column);
 			}});
 		}
 		if (item != null) {
@@ -468,7 +487,7 @@ class Interp {
 		}
 	}
 	
-	function createAbstractEnum(t:Class<InsanityAbstract>, i:Int):Class<InsanityAbstract> {
+	function createAbstractEnum(t:Class<InsanityAbstract>, i:Int):InsanityAbstract {
 		try {
 			return AbstractTools.createEnumIndex(t, i);
 		} catch (e:haxe.Exception) {
@@ -476,34 +495,40 @@ class Interp {
 			throw 'Failed to construct enum of type ${t.impl}';
 		}
 	}
+	
+	inline function resolveMirror(v:Dynamic, calling:Bool = false):Dynamic {
+		if (v is Mirror) {
+			switch (v) {
+				default:
+					return v;
+				case MProperty(t, f):
+					if (curAccess == f) { return Reflect.field(t, f); }
+					else { return Reflect.getProperty(t, f); }
+				case MEnumValue(t, i):
+					if (calling) return Reflect.makeVarArgs(function(params:Array<Dynamic>) return createEnum(t, i, params));
+					return createEnum(t, i);
+				case MAbstractEnumValue(t, i):
+					return createAbstractEnum(t, i);
+			}
+		} else {
+			return v;
+		}
+	}
 
 	function resolve(id:String, calling:Bool = false) : Dynamic {
 		if (imports.exists(id)) {
 			var v:Dynamic = imports.get(id);
 			
-			if (v == null) {
+			if (v == null)
 				error(ECustom('Module $id does not define type $id'));
-			} else if (v is Mirror) {
-				switch (v) {
-					default:
-					case MProperty(t, f):
-						return Reflect.getProperty(t, f);
-					case MEnumValue(t, i):
-						if (calling) return Reflect.makeVarArgs(function(params:Array<Dynamic>) return createEnum(t, i, params));
-						return createEnum(t, i);
-					case MAbstractEnumValue(t, i):
-						return createAbstractEnum(t, i);
-				}
-			}
 			
-			return v;
+			return resolveMirror(v, calling);
 		}
 		
-		var v = variables.get(id);
-		if( v == null && !variables.exists(id) )
+		if (!variables.exists(id))
 			error(EUnknownVariable(id));
 		
-		return v;
+		return resolveMirror(variables.get(id), calling);
 	}
 	
 	function importType(name:String, t:Dynamic, enumValueImport:Bool = true) {
@@ -667,7 +692,9 @@ class Interp {
 	}
 	
 	public function startDecl(decl:ModuleDecl) {
-		switch (decl) {
+		position = decl.pos;
+		
+		switch (decl.d) {
 			case DClass(m):
 				if (variables.exists(m.name)) return;
 				
@@ -735,7 +762,7 @@ class Interp {
 				args = args2;
 			}
 			var old = null;
-			pushStack(name == null ? SLocalFunction(id) : SMethod(curExpr.origin, name), duplicate(capturedLocals));
+			pushStack(name == null ? SLocalFunction(id) : SMethod(position.origin, name), duplicate(capturedLocals));
 			
 			if (functionLocals != null) {
 				old = duplicate(locals);
@@ -796,11 +823,11 @@ class Interp {
 		Type.environment = environment;
 		accessingInterp = this;
 		
-		curExpr = e;
+		position = e.pos;
 		var e = e.e;
 		
 		if (stack.length == 0)
-			pushStack(SScript(curExpr.origin));
+			pushStack(SScript(position.origin));
 		
 		switch( e ) {
 		case EDecl(decl):
@@ -893,7 +920,7 @@ class Interp {
 		case EForGen(it,e):
 			Tools.getKeyIterator(it, function(vk,vv,it) {
 				if( vk == null ) {
-					curExpr = it;
+					position = it.pos;
 					error(ECustom("Invalid for expression"));
 					return;
 				}
@@ -919,7 +946,7 @@ class Interp {
 						keys.push(expr(eKey));
 						values.push(expr(eValue));
 					default:
-						curExpr = e;
+						position = e.pos;
 						error(ECustom("Invalid map key=>value expression"));
 					}
 				}
@@ -1065,17 +1092,14 @@ class Interp {
 						t = info[0].compilePath().resolve();
 				}
 				
-				if (t == null) return e; // throw 'Type not found: $path';
+				if (t == null || !t is Class) return e; // throw 'Type not found: $path';
 				
 				if (Type.getSuperClass(t) == InsanityAbstract) {
 					return Type.createInstance(t, [e]);
-				} else {
-					var c:Dynamic = Type.getClass(e);
-					if (c != null && Type.getSuperClass(c) == InsanityAbstract) {
-						var r = e.resolveTo(Type.getClassName(t));
-						if (r == null) throw 'Can\'t cast ${c.impl} to $path';
-						else return r;
-					}
+				} else if (e is InsanityAbstract) {
+					var r = e.resolveTo(Type.getClassName(t));
+					if (r == null) throw 'Can\'t cast ${e.impl} to $path';
+					else return r;
 				}
 				
 			default:
@@ -1321,7 +1345,7 @@ class Interp {
 				case MSuper(locals, constructor):
 					if (constructor == null) {
 						error(EHasNoSuper);
-					} else if (!superConstructorAllowed){
+					} else if (!superConstructorAllowed) {
 						error(ECustom('Cannot call super constructor outside class constructor'));
 					} else {
 						f = constructor;

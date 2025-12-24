@@ -96,15 +96,15 @@ class Tools {
 		case ECheckType(e,t): ECheckType(f(e), t);
 		case ECast(e,t): ECast(f(e),t);
 		}
-		return mk(edef, e);
+		return mk(edef, e.pos);
 	}
 
 	public static inline function expr( e : Expr ) : ExprDef {
 		return e.e;
 	}
 
-	public static inline function mk( e : ExprDef, p : Expr ) {
-		return { e : e, pmin : p.pmin, pmax : p.pmax, origin : p.origin, line : p.line };
+	public static inline function mk( e : ExprDef, pos : Position ) {
+		return { e : e, pos: { pmin : pos.pmin, pmax : pos.pmax, origin : pos.origin, line : pos.line } };
 	}
 
 	public static inline function getKeyIterator<T>( e : Expr, callb : String -> String -> Expr -> T ) {

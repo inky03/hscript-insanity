@@ -223,22 +223,26 @@ class Parser {
 	}
 
 	inline function pmin(e:Expr) {
-		return (e?.pmin ?? 0);
+		return e.pos.pmin;
 	}
 
 	inline function pmax(e:Expr) {
-		return (e?.pmax ?? 0);
+		return e.pos.pmax;
 	}
 
-	inline function mk(e,pmin=-1,pmax=-1) : Expr {
-		if( e == null ) return null;
-		
+	inline function mk(e, ?pmin:Int, ?pmax:Int) : Expr {
+		return { e : e, pos : getPos(pmin, pmax) };
+	}
+	inline function mkd(d, ?pmin:Int, ?pmax:Int) : ModuleDecl {
+		return { d : d, pos : getPos(pmin, pmax) };
+	}
+	inline function getPos(pmin:Int = -1, pmax:Int = -1) : Position {
 		if (pmin < 0) pmin = tokenMin;
 		if (pmax < 0) pmax = tokenMax;
 		
 		var column:Int = ((pmin < columnOffset ? pmax : pmin) - columnOffset + 1);
 		
-		return { e : e, pmin : pmin, pmax : pmax, origin : origin, line : line , column : column };
+		return { pmin : pmin, pmax : pmax, origin : origin, line : line , column : column };
 	}
 
 	function isBlock(e) {
@@ -1135,7 +1139,7 @@ class Parser {
 						switch arg.value {
 							case null:
 							case v:
-								error(ECustom('Default values not allowed in function types'), v.pmin, v.pmax);
+								error(ECustom('Default values not allowed in function types'), v.pos.pmin, v.pos.pmax);
 						}
 
 						CTNamed(arg.name, if (arg.opt) CTOpt(arg.t) else arg.t);
@@ -1259,7 +1263,7 @@ class Parser {
 			decls.push(parseModuleDecl(decls));
 		}
 		var fullPack = pack.join('.');
-		var thisPack = (switch(decls[0]) {
+		var thisPack = (switch (decls[0].d) {
 			case DPackage(path): path;
 			default: [];
 		}).join('.');
@@ -1332,7 +1336,7 @@ class Parser {
 			
 			ensure(TSemicolon);
 			
-			return DUsing(path);
+			return mkd(DUsing(path), tokenMin, tokenMax);
 		case "package":
 			if (decls != null && decls.length > 0) error(EUnexpected(ident), tokenMin, tokenMax);
 			
@@ -1340,7 +1344,7 @@ class Parser {
 			var path = (noPath ? [] : parsePath());
 			if (!noPath) ensure(TSemicolon);
 			
-			return DPackage(path);
+			return mkd(DPackage(path), tokenMin, tokenMax);
 		case "import":
 			if (decl)
 				error(ECustom('import and using may not appear after a declaration'), tokenMin, tokenMax);
@@ -1395,7 +1399,7 @@ class Parser {
 			
 			ensure(TSemicolon);
 			
-			return DImport(path, mode);
+			return mkd(DImport(path, mode), tokenMin, tokenMax);
 		case "class":
 			var name = getIdent();
 			if (!name.isTypeIdentifier())
@@ -1426,7 +1430,7 @@ class Parser {
 			while( !maybe(TBrClose) )
 				fields.push(parseField());
 
-			return DClass({
+			return mkd(DClass({
 				name : name,
 				meta : meta,
 				params : params,
@@ -1435,7 +1439,7 @@ class Parser {
 				fields : fields,
 				isPrivate : isPrivate,
 				isExtern : isExtern,
-			});
+			}), tokenMin, tokenMax);
 		case "enum":
 			var name = getIdent();
 			if (!name.isTypeIdentifier())
@@ -1456,14 +1460,14 @@ class Parser {
 				names.push(field.name);
 			}
 			
-			return DEnum({
+			return mkd(DEnum({
 				name: name,
 				meta: meta,
 				params: params,
 				isPrivate: isPrivate,
 				constructs: constructs,
 				names: names
-			});
+			}), tokenMin, tokenMax);
 		case "typedef":
 			var name = getIdent();
 			if (!name.isTypeIdentifier())
@@ -1472,13 +1476,13 @@ class Parser {
 			var params = parseParams();
 			ensureToken(TOp("="));
 			var t = parseType();
-			return DTypedef({
+			return mkd(DTypedef({
 				name : name,
 				meta : meta,
 				params : params,
 				isPrivate : isPrivate,
 				t : t,
-			});
+			}), tokenMin, tokenMax);
 		default:
 			unexpected(TId(ident));
 		}
