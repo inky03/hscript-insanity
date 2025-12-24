@@ -20,22 +20,24 @@ class InterpException extends Exception {
 		var b:StringBuf = new StringBuf();
 		b.add('Exception: ${toString()}$customStack');
 		
-		var stack:haxe.CallStack = stack.copy();
-		if (!fullStack) {
-			while (true) {
-				switch (stack[0]) {
-					case FilePos(s, file, line, col):
-						if (StringTools.startsWith(file, 'insanity/')) { // bit of a dirty solution but whatever
-							stack.asArray().shift();
-						} else {
+		var stack:haxe.CallStack = stack?.copy();
+		if (stack != null) {
+			if (!fullStack && stack.length > 0) {
+				while (true) {
+					switch (stack[0]) {
+						case FilePos(s, file, line, col):
+							if (StringTools.startsWith(file, 'insanity/')) { // bit of a dirty solution but whatever
+								stack.asArray().shift();
+							} else {
+								break;
+							}
+						default:
 							break;
-						}
-					default:
-						break;
+					}
 				}
 			}
+			b.add(Std.string(stack));
 		}
-		b.add(Std.string(stack));
 		
 		return b.toString();
 	}

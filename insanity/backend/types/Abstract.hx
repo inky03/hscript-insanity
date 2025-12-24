@@ -56,7 +56,7 @@ class AbstractTools {
 		return null;
 	}
 	
-	public static function createEnum(a:Class<InsanityAbstract>, n:String):Class<InsanityAbstract> {
+	public static function createEnum(a:Class<InsanityAbstract>, n:String):InsanityAbstract {
 		var a:Dynamic = a;
 		
 		if (a.isEnum) return Type.createInstance(a, [a._enumValues[a._enumMap.get(n) ?? -1]]);
@@ -65,7 +65,7 @@ class AbstractTools {
 		return null;
 	}
 	
-	public static function createEnumIndex(a:Class<InsanityAbstract>, i:Int):Class<InsanityAbstract> {
+	public static function createEnumIndex(a:Class<InsanityAbstract>, i:Int):InsanityAbstract {
 		var a:Dynamic = a;
 		
 		if (a.isEnum) return Type.createInstance(a, [a._enumValues[i]]);
@@ -75,7 +75,7 @@ class AbstractTools {
 	}
 	
 	public static function isAbstract(o:Dynamic):Bool {
-		return Reflect.hasField(o, '__a');
+		return (o is InsanityAbstract);
 	}
 }
 

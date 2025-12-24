@@ -13,21 +13,28 @@ using haxe.macro.ComplexTypeTools;
 
 class AbstractMacro {
 	static function build():Array<Field> {
-		var t = Context.getLocalType();
+		var pos = Context.currentPos();
+		var type = Context.getLocalType();
 		var fields = Context.getBuildFields();
 		var imports = Context.getLocalImports();
 		
 		var ab = null;
 		
-		switch (t) {
+		switch (type) {
 			case TInst(r, _):
 				var c = r.get();
 				
-				c.meta.add(':keep', [], Context.currentPos());
+				c.meta.add(':keep', [], pos);
 				
 				switch (c.kind) {
 					case KAbstractImpl(a):
 						ab = a.get();
+						
+						switch (ab.pack[0]) {
+							case 'haxe', 'hl', 'cpp', 'neko', 'js', 'cs', 'lua', 'php', 'macro', 'java', 'flash', 'python':
+								return fields;
+							default:
+						}
 						
 						if (ab.meta.has(':coreType') || ab.type == null || ab.pack[1] == 'Contraints')
 							return fields;
@@ -45,18 +52,18 @@ class AbstractMacro {
 		}
 		cls.pack = ab.pack;
 		cls.name = 'InsanityAbstract_${fullPath.join('_')}';
-		cls.meta.push({name: ':keep', pos: Context.currentPos()});
+		cls.meta.push({name: ':keep', pos: pos});
 		cls.fields.push({
-			name: 'isEnum', pos: Context.currentPos(), access: [APublic, AStatic],
+			name: 'isEnum', pos: pos, access: [APublic, AStatic],
 			kind: FProp('default', 'never', macro:Bool, macro $v {isEnum})
 		});
 		
 		imports.push({
-			path: [for (v in 'insanity.backend.types.Abstract'.split('.')) {name: v, pos: Context.currentPos()}],
+			path: [for (v in 'insanity.backend.types.Abstract'.split('.')) {name: v, pos: pos}],
 			mode: INormal
 		});
 		/* imports.push({
-			path: [for (v in (ab.module + (ab.module != '' ? '.' : '') + ab.name).split('.')) {name: v, pos: Context.currentPos()}],
+			path: [for (v in (ab.module + (ab.module != '' ? '.' : '') + ab.name).split('.')) {name: v, pos: pos}],
 			mode: INormal
 		}); */
 		// trace(imports);
@@ -81,14 +88,15 @@ class AbstractMacro {
 				if (p == null) return false;
 				
 				imports.push({
-					path: [for (v in p.split('.')) {name: v, pos: Context.currentPos()}],
+					path: [for (v in p.split('.')) {name: v, pos: pos}],
 					mode: INormal
 				});
 			}
 			
 			return true;
 		}
-		function stripComplex(t:ComplexType):ComplexType { // just strip the params
+		function stripComplex(?t:ComplexType):ComplexType { // just strip the params
+			if (t == null) return null;
 			return switch(t) {
 				case TPath(p):
 					if (p.name.length <= 1) macro:Dynamic;
@@ -126,7 +134,7 @@ class AbstractMacro {
 			return toComplex(t.toType(), includeParams);
 		}
 		function ex(expr:ExprDef):Expr {
-			return {pos: Context.currentPos(), expr: expr};
+			return {pos: pos, expr: expr};
 		}
 		
 		var tt = ab.type, t;
@@ -147,7 +155,7 @@ class AbstractMacro {
 		var enumMap:Map<String, Int> = (isEnum ? [] : null);
 		var enumConstructors:Array<String> = (isEnum ? [] : null);
 		cls.fields.push({
-			name: 'tryCast', pos: Context.currentPos(), access: [AStatic],
+			name: 'tryCast', pos: pos, access: [AStatic],
 			kind: FFun({
 				args: [{name: 'v', type: macro:Dynamic}], params: [], ret: macro:Void,
 				expr: castExpr
@@ -183,14 +191,22 @@ class AbstractMacro {
 		var implPath = ab.impl.get().pack.copy(); implPath.push(ab.impl.get().name);
 		var implStr = macro $v {implPath.join('.')};
 		
-		function afield(expr, typeIsAbstract) {
-			var t = {name: cls.name, pack: ab.pack};
-			var newExpr = (typeIsAbstract ? macro new $t($expr) : macro $expr);
+		var rabstractT = {name: ab.name, pack: ab.pack};
+		var abstractT = {name: cls.name, pack: ab.pack};
+		
+		function afield(expr, typeIsAbstract:Bool, ownReturn:Bool = false) {
+			var newExpr;
+			if (ownReturn) {
+				newExpr = (typeIsAbstract ? macro { var r:Dynamic = $expr; return new $abstractT(r); } : macro { return $expr; });
+			} else {
+				newExpr = (typeIsAbstract ? macro new $abstractT($expr) : macro $expr);
+			}
+			// trace(ExprTools.toString(newExpr));
 			
 			return newExpr;
 		}
-		function func(expr, returnIsAbstract) {
-			return macro return ${afield(expr, returnIsAbstract)};
+		function func(expr, returnIsAbstract:Bool, ownReturn:Bool = false) {
+			return macro return ${afield(expr, returnIsAbstract, ownReturn)};
 		}
 		function matchAbstract(t:ComplexType) {
 			if (t == null) return false;
@@ -222,6 +238,8 @@ class AbstractMacro {
 										var st = p.pack.copy();
 										st.push(p.name);
 										ss = macro $v {st.join('.')};
+									case TFunction(_, _):
+										continue;
 									default:
 										throw 'Invalid ${f.args[0].type}';
 								}
@@ -261,7 +279,7 @@ class AbstractMacro {
 						var setterField = StringTools.replace(name, 'set_', '');
 						
 						cls.fields.push({
-							name: name, pos: Context.currentPos(), access: [AStatic, APublic],
+							name: name, pos: pos, access: [AStatic, APublic],
 							kind: FFun({
 								args: args, params: [],
 								expr: func(isSetter ? macro {
@@ -277,10 +295,41 @@ class AbstractMacro {
 					case FVar(t, e):
 						if (field.access.contains(APrivate) || !field.access.contains(APublic)) continue;
 						
+						var typeIsMe:Bool = matchAbstract(t);
+						function mapIdent(e:Expr) { // oh
+							return switch (e.expr) {
+								case EConst(CIdent(f)):
+									var ee = e;
+									for (field in fields) {
+										if (f == field.name) {
+											ee = {pos: pos, expr: EMeta({pos: pos, name: ':privateAccess'}, macro $p {fullPath}.$f)};
+											break;
+										}
+									}
+									ee;
+								default:
+									e.map(mapIdent);
+							}
+						}
+						
 						cls.fields.push({
-							name: name, pos: Context.currentPos(), access: [AStatic, APublic],
-							kind: FProp('default', 'never', macro:Dynamic, afield(macro Reflect.field(Type.resolveClass($implStr), $v{name}), matchAbstract(t)))
+							name: name, pos: pos, access: [AStatic, APublic],
+							kind: FProp(
+								typeIsMe ? 'get' : 'default', 'never',
+								typeIsMe ? TPath(abstractT) : macro:Dynamic,
+								typeIsMe ? null : e.map(mapIdent)
+							)
 						});
+						
+						if (typeIsMe) {
+							cls.fields.push({
+								name: 'get_$name', pos: pos, access: [AStatic],
+								kind: FFun({
+									args: [], ret: TPath(abstractT),
+									expr: macro return new $abstractT($e)
+								})
+							});
+						}
 						
 					default:
 				}
@@ -291,6 +340,8 @@ class AbstractMacro {
 						for (meta in field.meta) {
 							if (meta.name == ':to') {
 								t = stripComplex(f.ret);
+								if (t == null) continue;
+								
 								st = macro $v {ComplexTypeTools.toString(t)};
 								var fc = macro return Reflect.getProperty(Type.resolveClass($implStr), $v{name})(__a);
 								toExpr.unshift(macro if (t == $st) $fc);
@@ -351,14 +402,16 @@ class AbstractMacro {
 								// trace(setterExpr.toString());
 							}
 							
+							var returnsMe:Bool = matchAbstract(f.ret);
 							cls.fields.push({
-								name: name, pos: Context.currentPos(), access: [APublic],
+								name: name, pos: pos, access: [APublic],
 								kind: FFun({
 									args: args, params: [],
 									expr: func(isSetter ? setterExpr : macro {
 										var cls = Type.resolveClass($implStr);
 										Reflect.callMethod(cls, Reflect.field(cls, $v{name}), $a{stuff});
-									}, matchAbstract(f.ret))
+									}, returnsMe, !isSetter),
+									ret: (name == 'toString' ? macro:String : (returnsMe ? TPath(abstractT) : macro:Dynamic))
 								})
 							});
 						}
@@ -368,7 +421,7 @@ class AbstractMacro {
 						props.push('set_$name');
 						
 						cls.fields.push({
-							name: name, pos: Context.currentPos(),
+							name: name, pos: pos,
 							kind: FProp(get, set, macro:Dynamic)
 						});
 						// trace('$get, $set, $t ');
@@ -378,6 +431,15 @@ class AbstractMacro {
 							enumConstructors.push(name);
 							enumMap.set(name, enumI ++);
 							enumIndex.push(e);
+							
+							cls.fields.push({
+								name: name, pos: pos, access: [APublic, AStatic],
+								kind: FProp('get', 'never', TPath(abstractT))
+							});
+							cls.fields.push({
+								name: 'get_$name', pos: pos, access: [APublic, AStatic],
+								kind: FFun({args: [], ret: TPath(abstractT), expr: macro return new $abstractT($e)})
+							});
 						}
 										
 					default:
@@ -389,7 +451,7 @@ class AbstractMacro {
 		trace('--------------------------- finisched');*/
 		
 		cls.fields.push({
-			name: 'set_value', pos: Context.currentPos(), access: [APrivate, AOverride],
+			name: 'set_value', pos: pos, access: [APrivate, AOverride],
 			kind: FFun({args: [{name: 'v', type: macro:Dynamic}], params: [], expr: macro {
 				var r = resolveFrom(v);
 				if (r == null) throw ('Can\'t cast ' + AbstractTools.resolveName(v) + ' to ' + impl);
@@ -397,27 +459,28 @@ class AbstractMacro {
 			}})
 		});
 		cls.fields.push({
-			name: 'resolveFrom', pos: Context.currentPos(), access: [APublic, AStatic],
+			name: 'resolveFrom', pos: pos, access: [APublic, AStatic],
 			kind: FFun({args: [{name: 'v', type: macro:Dynamic}], params: [], expr: macro $b {fromExpr}, ret: macro:Dynamic})
 		});
 		cls.fields.push({
-			name: 'resolveTo', pos: Context.currentPos(), access: [APublic, AOverride],
+			name: 'resolveTo', pos: pos, access: [APublic, AOverride],
 			kind: FFun({args: [{name: 't', type: macro:String}], params: [], expr: macro $b {toExpr}, ret: macro:Dynamic})
 		});
 		
 		cls.fields.push({
-			name: '_enumMap', pos: Context.currentPos(), access: [APrivate, AStatic],
+			name: '_enumMap', pos: pos, access: [APrivate, AStatic],
 			kind: FProp('default', 'never', macro:Map<String, Int>, macro $v {enumMap})
 		});
 		cls.fields.push({
-			name: '_enumConstructors', pos: Context.currentPos(), access: [APrivate, AStatic],
+			name: '_enumConstructors', pos: pos, access: [APrivate, AStatic],
 			kind: FProp('default', 'never', macro:Array<String>, macro $v {enumConstructors})
 		});
 		cls.fields.push({
-			name: '_enumValues', pos: Context.currentPos(), access: [APrivate, AStatic],
+			name: '_enumValues', pos: pos, access: [APrivate, AStatic],
 			kind: FProp('default', 'never', macro:Array<Dynamic>, (isEnum ? macro $a {enumIndex} : null))
 		});
 		
+		// Context.info(ab.pack.join('.') + (ab.pack.length > 0 ? '.' : '') + cls.name, pos);
 		Context.defineModule(ab.pack.join('.') + (ab.pack.length > 0 ? '.' : '') + cls.name, [cls], imports);
 		
 		return fields;
