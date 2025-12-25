@@ -111,7 +111,7 @@ class InsanityScriptedClass implements IInsanityType implements ICustomClassType
 					});
 				case KVar(v):
 					interp.locals.set(f, {
-						r: interp.exprReturn(v.expr),
+						r: interp.exprReturn(v.expr, v.type),
 						access: field.access,
 						get: v.get,
 						set: v.set

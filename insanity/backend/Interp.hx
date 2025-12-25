@@ -416,9 +416,9 @@ class Interp {
 		return null;
 	}
 
-	function exprReturn(e) : Dynamic {
+	function exprReturn(e, ?t:CType) : Dynamic {
 		try {
-			return expr(e);
+			return expr(e, t);
 		} catch( e : Stop ) {
 			switch( e ) {
 			case SBreak: throw "Invalid break";

@@ -385,7 +385,7 @@ class ScriptedMacro {
 							
 							__interp.locals.get(f).r = __interp.buildFunction(f, fun.args, fun.expr, fun.ret, superLocals);
 						case KVar(v):
-							__interp.locals.get(f).r = __interp.exprReturn(v.expr);
+							__interp.locals.get(f).r = __interp.exprReturn(v.expr, v.type);
 					}
 					
 					if (isSuper) superLocals.set(f, __interp.locals.get(f));
