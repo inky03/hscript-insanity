@@ -9,9 +9,9 @@ import insanity.backend.Expr;
 class Script {
 	public var name:String;
 	
-	var parser:Parser = new Parser();
-	var interp:Interp = null;
-	var program:Expr = null;
+	public var parser:Parser = new Parser();
+	public var interp:Interp = null;
+	public var program:Expr = null;
 	
 	public var variables(get, never):Map<String, Dynamic>;
 	inline function get_variables():Map<String, Dynamic> { return interp.variables; }

@@ -39,6 +39,13 @@ class Environment {
 	public function start():Void {
 		for (module in modules)
 			module.start(this);
+		
+		for (module in modules)
+			module.startTypes(this);
+	}
+	public function snapshot():Void {
+		for (module in modules)
+			module.snapshot();
 	}
 	
 	public function rebuildTypes():TypeCollection {

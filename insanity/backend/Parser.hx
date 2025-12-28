@@ -113,9 +113,9 @@ class Parser {
 			["+", "-"],
 			["<<", ">>", ">>>"],
 			["|", "&", "^"],
+			["??"],
 			["==", "!=", ">", "<", ">=", "<="],
 			["..."],
-			["??"],
 			["&&"],
 			["||"],
 			["=","+=","-=","*=","/=","%=","<<=",">>=",">>>=","|=","&=","^=","=>","??="],
@@ -127,7 +127,7 @@ class Parser {
 		for( i in 0...priorities.length )
 			for( x in priorities[i] ) {
 				opPriority.set(x, i);
-				if( i == 9 ) opRightAssoc.set(x, true);
+				if( i == 10 ) opRightAssoc.set(x, true);
 			}
 		for( x in ["!", "++", "--", "~"] ) // unary "-" handled in parser directly!
 			opPriority.set(x, x == "++" || x == "--" ? -1 : -2);
@@ -242,7 +242,7 @@ class Parser {
 		
 		var column:Int = ((pmin < columnOffset ? pmax : pmin) - columnOffset + 1);
 		
-		return { pmin : pmin, pmax : pmax, origin : origin, line : line , column : column };
+		return { pmin : pmin, pmax : pmax, origin : origin, line : line, column : column };
 	}
 
 	function isBlock(e) {
@@ -1022,7 +1022,7 @@ class Parser {
 						break;
 				}
 				
-				var arg : Argument = { name : name, rest : rest };
+				var arg : Argument = { name : name, rest : rest, opt : opt };
 				if( allowTypes ) {
 					if( maybe(TDoubleDot) )
 						arg.t = parseType();
@@ -1248,28 +1248,34 @@ class Parser {
 
 	// ------------------------ module -------------------------------
 
-	public function parseModule(content:String, ?origin:String = "hscript", position:Int = 0, pack:Array<String>) {
+	public function parseModule(content:String, ?origin:String = "hscript", position:Int = 0, ?pack:Array<String>, importModule:Bool = false) {
 		this.pack = pack;
 		initParser(origin, position);
 		input = content;
 		readPos = 0;
 		allowTypes = true;
 		allowMetadata = true;
+		
 		var decls = [];
 		while( true ) {
 			var tk = token();
 			if( tk == TEof ) break;
 			push(tk);
-			decls.push(parseModuleDecl(decls));
+			decls.push(parseModuleDecl(decls, importModule));
 		}
-		var fullPack = pack.join('.');
-		var thisPack = (switch (decls[0].d) {
-			case DPackage(path): path;
-			default: [];
-		}).join('.');
-		if (thisPack != fullPack) {
-			throw new haxe.Exception('"package${thisPack.length > 0 ? ' ' : ''}$thisPack;" in $origin should be "package${fullPack.length > 0 ? ' ' : ''}$fullPack;"');
+		
+		if (!importModule) {
+			pack ??= [];
+			var fullPack = pack.join('.');
+			var thisPack = (switch (decls[0]?.d) {
+				case DPackage(path): path;
+				default: [];
+			}).join('.');
+			if (thisPack != fullPack) {
+				throw new haxe.Exception('"package${thisPack.length > 0 ? ' ' : ''}$thisPack;" in $origin should be "package${fullPack.length > 0 ? ' ' : ''}$fullPack;"');
+			}
 		}
+		
 		return decls;
 	}
 
@@ -1294,7 +1300,7 @@ class Parser {
 		return {};
 	}
 
-	function parseModuleDecl(?decls:Array<ModuleDecl>) : ModuleDecl {
+	function parseModuleDecl(?decls:Array<ModuleDecl>, importModule:Bool = false) : ModuleDecl {
 		var meta = parseMetadata();
 		var ident = getIdent();
 		var isPrivate = false, isExtern = false;
@@ -1313,8 +1319,7 @@ class Parser {
 		
 		return switch( ident ) {
 		case "using":
-			if (decl)
-				error(ECustom('import and using may not appear after a declaration'), tokenMin, tokenMax);
+			if (decl) error(ECustom('import and using may not appear after a declaration'), tokenMin, tokenMax);
 			
 			var path:Array<String> = [getIdent()];
 			
@@ -1346,8 +1351,7 @@ class Parser {
 			
 			return mkd(DPackage(path), tokenMin, tokenMax);
 		case "import":
-			if (decl)
-				error(ECustom('import and using may not appear after a declaration'), tokenMin, tokenMax);
+			if (decl) error(ECustom('import and using may not appear after a declaration'), tokenMin, tokenMax);
 			
 			var path:Array<String> = [getIdent()];
 			var mode:ImportMode = INormal;
@@ -1401,6 +1405,8 @@ class Parser {
 			
 			return mkd(DImport(path, mode), tokenMin, tokenMax);
 		case "class":
+			if (importModule) error(EImportHx, tokenMin, tokenMax);
+			
 			var name = getIdent();
 			if (!name.isTypeIdentifier())
 				error(ECustom('Type name should start with an uppercase letter'), tokenMin, tokenMax);
@@ -1441,6 +1447,8 @@ class Parser {
 				isExtern : isExtern,
 			}), tokenMin, tokenMax);
 		case "enum":
+			if (importModule) error(EImportHx, tokenMin, tokenMax);
+			
 			var name = getIdent();
 			if (!name.isTypeIdentifier())
 				error(ECustom('Type name should start with an uppercase letter'), tokenMin, tokenMax);
@@ -1469,6 +1477,8 @@ class Parser {
 				names: names
 			}), tokenMin, tokenMax);
 		case "typedef":
+			if (importModule) error(EImportHx, tokenMin, tokenMax);
+			
 			var name = getIdent();
 			if (!name.isTypeIdentifier())
 				error(ECustom('Type name should start with an uppercase letter'), tokenMin, tokenMax);

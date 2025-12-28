@@ -373,6 +373,7 @@ class Printer {
 
 	public static function errorToString( e : Error, ?p:ParserException ) {
 		var message = switch( e ) {
+			case EImportHx: 'Only import and using is allowed in import.hx files';
 			case EHasNoSuper: 'Current class does not have a super';
 			case EUnknownType(t): 'Type not found: $t';
 			case EUnknownField(o, f): '$o has no field $f';

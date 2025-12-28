@@ -75,28 +75,29 @@ class Interp {
 	var declared : Array<{ n : String, old : Variable }>;
 	var returnValue : Dynamic;
 	
+	static var accessingInterp:Interp = null;
 	var position : Position = { origin: 'hscript', line: 0 };
 	var curAccess : String = '';
-	
-	static var accessingInterp:Interp = null;
 
 	public function new(?environment:Environment) {
 		this.environment = environment;
 		stack = new CallStack();
+		
+		imports = new Map();
+		usings = new Array();
+		variables = new Map();
 		
 		declared = new Array();
 		setDefaults();
 		initOps();
 	}
 
-	public function setDefaults() {
-		imports ??= new Map();
-		usings ??= new Array();
-		variables ??= new Map<String, Dynamic>();
-		
-		imports.clear();
-		usings.resize(0);
-		variables.clear();
+	public function setDefaults(wipe:Bool = true) {
+		if (wipe) {
+			imports.clear();
+			usings.resize(0);
+			variables.clear();
+		}
 		
 		importPath([''], IAll); // import all bottom level classes
 		
@@ -115,7 +116,7 @@ class Interp {
 		return cast { fileName : position.origin, lineNumber : position.line };
 	}
 	
-	function get_locals():Map<String, Variable> { return stack.last().locals; }
+	function get_locals():Map<String, Variable> { return stack.last()?.locals; }
 
 	function initOps() {
 		binops = new Map();
@@ -258,8 +259,9 @@ class Interp {
 		return v;
 	}
 	
-	public function getLocal(id:String):Dynamic {
-		var l:Variable = locals.get(id);
+	public function getLocal(id:String, ?map:Map<String, Variable>):Dynamic {
+		var map:Map<String, Variable> = (map ?? locals);
+		var l:Variable = map.get(id);
 		if (l == null) return null;
 		
 		switch (l.get) {
@@ -271,10 +273,10 @@ class Interp {
 			case 'get' | 'dynamic':
 				if (curAccess == id) return l.r;
 				
-				if (locals.exists('get_$id')) {
+				if (map.exists('get_$id')) {
 					var prevAccess:String = curAccess;
 					curAccess = id;
-					var v = Reflect.callMethod(this, locals.get('get_$id').r, []);
+					var v = Reflect.callMethod(this, map.get('get_$id').r, []);
 					curAccess = prevAccess;
 					return v;
 				}
@@ -286,8 +288,9 @@ class Interp {
 				throw 'Invalid property accessor'; return null;
 		}
 	}
-	public function setLocal(id:String, v:Dynamic):Dynamic {
-		var l:Variable = locals.get(id);
+	public function setLocal(id:String, v:Dynamic, ?map:Map<String, Variable>):Dynamic {
+		var map:Map<String, Variable> = (map ?? locals);
+		var l:Variable = map.get(id);
 		if (l == null) return null;
 		
 		if (l.access != null && Reflect.isFunction(l.r) && !l.access.contains(ADynamic))
@@ -302,10 +305,10 @@ class Interp {
 			case 'set' | 'dynamic':
 				if (curAccess == id) return l.r = v;
 				
-				if (locals.exists('set_$id')) {
+				if (map.exists('set_$id')) {
 					var prevAccess:String = curAccess;
 					curAccess = id;
-					Reflect.callMethod(this, locals.get('set_$id').r, [v]);
+					Reflect.callMethod(this, map.get('set_$id').r, [v]);
 					curAccess = prevAccess;
 					return l.r;
 				}
@@ -432,9 +435,10 @@ class Interp {
 		return null;
 	}
 
-	function duplicate<T>( h : Map<String,T> ) {
+	function duplicate(h : Map<String, Variable>) {
 		var h2 = new Map();
-		for (k => v in h) h2.set(k, v);
+		for (k => v in h)
+			h2.set(k, v);
 		return h2;
 	}
 	
@@ -761,20 +765,23 @@ class Interp {
 					args2 = args2.concat(args.slice(params.length));
 				args = args2;
 			}
-			var old = null;
+			var old = (functionLocals == null && params.length > 0 ? new Map() : null);
 			pushStack(name == null ? SLocalFunction(id) : SMethod(position.origin, name), duplicate(capturedLocals));
 			
 			if (functionLocals != null) {
 				old = duplicate(locals);
 				locals.clear();
-				for (loc => value in functionLocals)
-					locals.set(loc, value);
+				for (loc => v in functionLocals)
+					locals.set(loc, v);
 			}
 			for( i in 0...params.length ) {
+				var name:String = params[i].name;
+				if (locals.exists(name)) old.set(name, locals.get(name));
+				
 				if (i == params.length - 1 && hasRest) {
-					locals.set(params[i].name, {r: args.slice(params.length - 1)});
+					locals.set(name, {r: args.slice(params.length - 1)});
 				} else {
-					locals.set(params[i].name, {r: tryCast(args[i], params[i].t)});
+					locals.set(name, {r: tryCast(args[i], params[i].t)});
 				}
 			}
 			
@@ -795,7 +802,7 @@ class Interp {
 			}
 			
 			if (old != null) {
-				locals.clear();
+				if (functionLocals != null) locals.clear();
 				for (loc => value in old)
 					locals.set(loc, value);
 			}
@@ -822,7 +829,6 @@ class Interp {
 	public function expr( e : Expr, ?t : CType, calling:Bool = false ) : Dynamic {
 		Type.environment = environment;
 		accessingInterp = this;
-		
 		position = e.pos;
 		var e = e.e;
 		
@@ -1080,7 +1086,7 @@ class Interp {
 		return null;
 	}
 	
-	function tryCast(e, ?type):Dynamic {
+	function tryCast(e:Dynamic, ?type):Dynamic {
 		switch (type) {
 			case CTPath(p, _):
 				var path = p.join('.');
@@ -1092,7 +1098,7 @@ class Interp {
 						t = info[0].compilePath().resolve();
 				}
 				
-				if (t == null || !t is Class) return e; // throw 'Type not found: $path';
+				if (e == null || t == null || !(t is Class)) return e; // throw 'Type not found: $path';
 				
 				if (Type.getSuperClass(t) == InsanityAbstract) {
 					return Type.createInstance(t, [e]);
@@ -1137,11 +1143,23 @@ class Interp {
 		if( v is Array )
 			return (v : Array<Dynamic>).iterator();
 		if( v.iterator != null ) v = v.iterator();
+		
 		#else
-		#if (cpp) if ( v.iterator != null ) #end
-			try v = v.iterator() catch( e : Dynamic ) {};
+		
+		#if hl
+		var iter = Reflect.getProperty(v, 'iterator');
+		if (iter != null)
+			v = Reflect.callMethod(v, iter, []);
+		else
+		#elseif cpp
+		if ( v.iterator != null )
 		#end
-		if( v.hasNext == null || v.next == null ) error(EInvalidIterator(v));
+			try { v = v.iterator(); } catch( e : Dynamic ) {};
+		
+		#end
+		
+		if ( v.hasNext == null || v.next == null ) error(EInvalidIterator(v));
+		
 		return v;
 	}
 
@@ -1151,9 +1169,21 @@ class Interp {
 		if( v is Array )
 			return (v : Array<Dynamic>).keyValueIterator();
 		if( v.keyValueIterator != null ) v = v.keyValueIterator();
+		
 		#else
-		try v = v.keyValueIterator() catch( e : Dynamic ) {};
+		
+		#if hl
+		var iter = Reflect.getProperty(v, 'keyValueIterator');
+		if (iter != null)
+			v = Reflect.callMethod(v, iter, []);
+		else
+		#elseif cpp
+		if ( v.keyValueIterator != null )
 		#end
+			try { v = v.keyValueIterator(); } catch( e : Dynamic ) {};
+		
+		#end
+		
 		if( v.hasNext == null || v.next == null ) error(EInvalidIterator(v));
 		return v;
 	}

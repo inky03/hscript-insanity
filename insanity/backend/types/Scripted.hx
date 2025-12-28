@@ -33,20 +33,22 @@ class ScriptedTools {
 @:access(insanity.backend.Interp)
 @:access(insanity.backend.types.IInsanityScripted)
 class InsanityScriptedClass implements IInsanityType implements ICustomClassType {
+	public var path:String;
 	public var name:String;
 	public var module:Module;
 	public var pack:Array<String>;
-	public var extending:Dynamic = null;
-	public var constructorFunction:Dynamic;
-	public var path:String;
 	
 	public var safe:Bool = false;
+	public var snapshotAll:Bool = false;
+	
+	public var extending(get, never):Dynamic;
+	public var instanceClass(get, never):Dynamic;
 	
 	var decl:ClassDecl;
-	
-	var interp:Interp;
 	var initializing:Bool = false;
+	var __vars:Map<String, Variable> = [];
 	public var initialized:Bool = false;
+	public var interp:Interp;
 	
 	public function new(decl:ClassDecl, ?module:Module) {
 		this.name = decl.name;
@@ -59,28 +61,25 @@ class InsanityScriptedClass implements IInsanityType implements ICustomClassType
 		interp = new Interp();
 	}
 	
-	public function init(?env:Environment, ?baseInterp:Interp):Void {
+	public function init(?env:Environment, ?baseInterp:Interp, restore:Bool = true):Void {
 		initializing = true;
 		
 		interp.environment = env;
+		interp.setDefaults();
 		
 		if (baseInterp != null) {
-			interp.usings.resize(0);
-			interp.imports.clear();
-			interp.variables.clear();
 			for (u in baseInterp.usings) interp.usings.push(u);
 			for (k => i in baseInterp.imports) interp.imports.set(k, i);
-			for (k => v in baseInterp.variables) interp.variables.set(k, v);
-		} else {
-			interp.setDefaults();
+			// for (k => v in baseInterp.variables) interp.variables.set(k, v);
 		}
 		
 		interp.pushStack(insanity.backend.CallStack.StackItem.SModule(module?.path ?? name));
 		
 		safe = false;
+		snapshotAll = false;
 		for (meta in decl.meta) {
-			if (meta.name == ':safe')
-				safe = true;
+			safe = (safe || meta.name == ':safe');
+			snapshotAll = (snapshotAll || meta.name == ':snapshot');
 		}
 		
 		var overridingFields:Array<String> = [];
@@ -103,35 +102,38 @@ class InsanityScriptedClass implements IInsanityType implements ICustomClassType
 			
 			switch (field.kind) {
 				case KFunction(fun):
-					interp.position = fun.expr.pos;
-					
 					interp.locals.set(f, {
 						r: interp.buildFunction(f, fun.args, fun.expr, fun.ret),
 						access: field.access
 					});
 				case KVar(v):
+					if (restore) {
+						var snapshot:Bool = snapshotAll;
+						if (!snapshot) for (meta in field.meta) snapshot = (snapshot || meta.name == ':snapshot');
+						
+						if (snapshot && Module.snapshots.exists(path)) {
+							var fields:Map<String, Dynamic> = Module.snapshots.get(path);
+							if (fields.exists(f)) {
+								interp.locals.set(f, {
+									r: fields.get(f),
+									access: field.access,
+									get: v.get,
+									set: v.set
+								});
+								continue;
+							}
+						}
+					}
+					
 					interp.locals.set(f, {
-						r: interp.exprReturn(v.expr, v.type),
+						r: (v.expr == null ? null : interp.exprReturn(v.expr, v.type)),
 						access: field.access,
 						get: v.get,
 						set: v.set
 					});
 			}
-		}
-		
-		extending = switch (decl.extend) {
-			case CTPath(path, _):
-				var p:String = path.join('.');
-				
-				var type = (interp.imports.get(p) ?? Tools.resolve(p, env));
-				if (type == null) throw 'Type not found: $p';
-				
-				ScriptedTools.resolve(type);
-			case null:
-				null;
-			default:
-				throw 'Invalid extend ${decl.extend}';
-				null;
+			
+			__vars.set(f, interp.locals.get(f));
 		}
 		
 		var foundOverridingFields:Array<String> = [];
@@ -154,7 +156,7 @@ class InsanityScriptedClass implements IInsanityType implements ICustomClassType
 				
 				if (extend.extending != null) overrideFieldCheck(extend.extending);
 			} else {
-				var cls = getInstanceClass();
+				var cls = instanceClass;
 				if (cls == null) return;
 				
 				var instanceFields:Array<String> = (cls.instanceFields ?? Type.getInstanceFields(cast cls));
@@ -187,9 +189,48 @@ class InsanityScriptedClass implements IInsanityType implements ICustomClassType
 		initializing = false;
 		initialized = true;
 	}
+	public function snapshot():Void {
+		for (field in decl.fields) {
+			if (field.name == 'new' || !field.access.contains(AStatic)) continue;
+			
+			var snapshot:Bool = snapshotAll;
+			if (!snapshot) for (meta in field.meta) snapshot = (snapshot || meta.name == ':snapshot');
+			if (!snapshot) continue;
+			
+			switch (field.kind) {
+				case KFunction(_):
+				case KVar(_):
+					var fields:Map<String, Dynamic> = (Module.snapshots.get(path) ?? []);
+					fields.set(field.name, interp.getLocal(field.name));
+					Module.snapshots.set(path, fields);
+			}
+		}
+	}
 	
-	public function getInstanceClass():Dynamic {
-		return (extending is InsanityScriptedClass ? cast(extending, InsanityScriptedClass).getInstanceClass() : extending ?? InsanityDummyClass);
+	function get_extending():Dynamic {
+		return switch (decl.extend) {
+			case CTPath(path, _):
+				var p:String = path.join('.');
+				
+				var type = (module?.interp.imports.get(p) ?? interp.imports.get(p) ?? Tools.resolve(p, interp.environment));
+				if (type == null) throw 'Type not found: $p';
+				
+				ScriptedTools.resolve(type);
+			case null:
+				null;
+			default:
+				throw 'Invalid extend ${decl.extend}';
+				null;
+		}
+	}
+	function get_instanceClass():Dynamic {
+		if (extending is InsanityScriptedClass) {
+			return cast(extending, InsanityScriptedClass).instanceClass;
+		} else if (extending == null) {
+			return InsanityDummyClass;
+		} else {
+			return extending;
+		}
 	}
 	
 	public function toString():String {
@@ -199,14 +240,14 @@ class InsanityScriptedClass implements IInsanityType implements ICustomClassType
 	public function typeCreateInstance(arguments:Array<Dynamic>):Dynamic {
 		if (!initialized) throw 'Type $path is not initialized';
 		
-		var inst:IInsanityScripted = Type.createEmptyInstance(getInstanceClass());
+		var inst:IInsanityScripted = Type.createEmptyInstance(instanceClass);
 		inst.__construct(this, arguments);
 		return inst;
 	}
 	public function typeCreateEmptyInstance():Dynamic {
 		if (!initialized) throw 'Type $path is not initialized';
 		
-		return Type.createEmptyInstance(getInstanceClass());
+		return Type.createEmptyInstance(instanceClass);
 	}
 	public function typeGetClass():Dynamic {
 		return null;
@@ -226,7 +267,7 @@ class InsanityScriptedClass implements IInsanityType implements ICustomClassType
 					if (!fields.contains(f)) fields.push(f);
 				}
 				
-				var instance = c.getInstanceClass();
+				var instance = c.instanceClass;
 				if (instance != InsanityScriptedClass)
 					getFields(instance);
 				
@@ -247,26 +288,26 @@ class InsanityScriptedClass implements IInsanityType implements ICustomClassType
 	}
 	
 	public function reflectHasField(field:String):Bool {
-		return (interp.locals.exists(field));
+		return (__vars.exists(field));
 	}
 	public function reflectGetField(field:String):Dynamic {
-		return (interp.locals.exists(field) ? interp.locals.get(field).r : null);
+		return (__vars.exists(field) ? __vars.get(field).r : null);
 	}
 	public function reflectSetField(field:String, value:Dynamic):Dynamic {
-		return (interp.locals.exists(field) ? interp.locals.get(field).r = value : null);
+		return (__vars.exists(field) ? __vars.get(field).r = value : null);
 	}
 	public function reflectGetProperty(property:String):Dynamic {
-		return (interp.locals.exists(property) ? interp.getLocal(property) : null);
+		return (__vars.exists(property) ? interp.getLocal(property, __vars) : null);
 	}
 	public function reflectSetProperty(property:String, value:Dynamic):Dynamic {
-		return (interp.locals.exists(property) ? interp.setLocal(property, value) : null);
+		return (__vars.exists(property) ? interp.setLocal(property, value, __vars) : null);
 	}
 	public function reflectListFields():Array<String> {
-		return [for (field in interp.locals.keys()) field];
+		return [for (field in __vars.keys()) field];
 	}
 	
-	public dynamic function onInstanceError(error:Dynamic, ?instance:IInsanityScripted):Void {
-		trace('Error on instance of $name: $error');
+	public dynamic function onInstanceError(error:Dynamic, fun:String, ?instance:IInsanityScripted):Void {
+		trace('Error on instance of $name ($fun): $error');
 	}
 }
 
@@ -292,7 +333,7 @@ class InsanityScriptedEnum implements IInsanityType implements ICustomEnumType {
 		path = Tools.pathToString(name, pack);
 	}
 	
-	public function init(?env:Environment, ?baseInterp:Interp):Void {
+	public function init(?env:Environment, ?baseInterp:Interp, restore:Bool = true):Void {
 		values = decl.names;
 		constructs = decl.constructs;
 		constructFunctions = new Map();
@@ -370,6 +411,8 @@ class InsanityScriptedEnum implements IInsanityType implements ICustomEnumType {
 	public function reflectGetProperty(property:String):Dynamic { return reflectGetField(property); }
 	public function reflectSetProperty(property:String, value:Dynamic):Dynamic { return null; }
 	public function reflectListFields():Array<String> { return null; }
+	
+	public function snapshot():Void {}
 }
 
 class InsanityScriptedEnumValue implements ICustomEnumValueType {
@@ -421,7 +464,8 @@ interface IInsanityType extends ICustomReflection {
 	public var name:String;
 	public var pack:Array<String>;
 	
-	public function init(?env:Environment, ?baseInterp:Interp):Void;
+	public function init(?env:Environment, ?baseInterp:Interp, restore:Bool = true):Void;
+	public function snapshot():Void;
 }
 
 @:autoBuild(insanity.backend.macro.ScriptedMacro.build())

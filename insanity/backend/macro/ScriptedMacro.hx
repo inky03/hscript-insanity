@@ -1,7 +1,6 @@
 package insanity.backend.macro;
 
 #if macro
-import haxe.macro.TypeTools;
 import haxe.macro.Context;
 import haxe.macro.Expr;
 import haxe.macro.Type;
@@ -17,7 +16,7 @@ class ScriptedMacro {
 	public static var ignoreFields:Array<String> = [
 		'reflectHasField', 'reflectGetField', 'reflectSetField', 'reflectListFields', 'reflectGetProperty', 'reflectSetProperty',
 		'typeCreateInstance', 'typeGetClass', 'typeGetClassFields', 'typeCreateEmptyInstance', 'typeGetInstanceFields',
-		'__construct', '__constructSuper', '__interp', '__base', '__safe', '__func', '__fields', 'instanceFields', 'inlinedFields', 'unexposedFields', 'new', 'super'
+		'__construct', '__constructSuper', '__interp', '__base', '__safe', '__func', '__fields', '__vars', 'instanceFields', 'inlinedFields', 'unexposedFields', 'new', 'super'
 	];
 	
 	static var _name:String = 'insanity.backend.macro.ScriptedMacro';
@@ -78,17 +77,33 @@ class ScriptedMacro {
 					
 					function mapSuper(e:Expr) {
 						return switch(e.expr) {
-							case ECall({pos: _, expr: EConst(CIdent('super'))}, params): // "inlining" super constructor calls
-								var superClass = type.superClass.t.get();
-								
-								{pos: pos, expr: ECall(mapConstructor(superClass), params)};
+							case ECall(e, params):
+								var newParams:Array<Expr> = [];
+								for (param in params) {
+									switch (param.expr) {
+										case EConst(CIdent('null')):
+											// todo check dynamic params ? this could get ugly
+										default:
+											newParams.push(param);
+									}
+								}
+								{
+									pos: pos,
+									expr: ECall(switch (e.expr) {
+										case EConst(CIdent('super')):
+											mapConstructor(type.superClass.t.get());
+										default:
+											e.map(mapSuper);
+									},
+									newParams)
+								}
 							default:
 								e.map(mapSuper);
 						}
 					}
 					
-					var constr = expr.map(mapSuper);
-					var body:Array<Expr> = [constr];
+					var constrExpr = expr.map(mapSuper);
+					var body:Array<Expr> = [constrExpr];
 					
 					for (field in type.fields.get()) {
 						switch (field.kind) {
@@ -146,18 +161,40 @@ class ScriptedMacro {
 								body.unshift(macro Reflect.setField(this, $v {field.name}, $expr));
 						}
 					}
-					constr = macro $b {body};
+					constrExpr = macro $b {body};
 					
+					var defaults:Array<Expr> = [];
+					switch (constr.expr().expr) {
+						default:
+						case TFunction(fun):
+							for (arg in fun.args) {
+								if (arg.value == null) {
+									defaults.push(null);
+									continue;
+								}
+								var expr = Context.getTypedExpr(arg.value);
+								defaults.push(macro cast $expr);
+							}
+					}
 					return {pos: pos, expr: EFunction(FAnonymous, {
-						args: [for (arg in args) { {name: arg.name, opt: arg.opt, type: arg.t.toComplexType()} }],
-						expr: constr,
+						args: [for (i => arg in args) {
+							var defaultValue:Expr = defaults[i];
+							
+							{
+								name: arg.name,
+								value: defaultValue,
+								opt: (defaultValue == null ? arg.opt : null),
+								type: (defaultValue == null ? arg.t.toComplexType() : null)
+							}
+						}],
+						expr: constrExpr,
 						ret: ret.toComplexType()
 					})};
 				}
 				
 				hasConstructor = true;
 				constructorExpr = {pos: pos, expr: EMeta({pos: pos, name: ':privateAccess'}, mapConstructor(type))};
-				// trace(constructorExpr.toString());
+				//trace(constructorExpr.toString());
 			}
 			
 			for (field in typeFields) {
@@ -221,7 +258,7 @@ class ScriptedMacro {
 									if (__safe) {
 										__interp.inTry = true;
 										try { r = Reflect.callMethod(__interp, __interp.getLocal(fname), $a {argsArray}); }
-										catch (e:Dynamic) { __base.onInstanceError(e, this); r = null; }
+										catch (e:Dynamic) { __base.onInstanceError(e, fname, this); r = null; }
 									} else {
 										r = Reflect.callMethod(__interp, __interp.getLocal(fname), $a {argsArray});
 									}
@@ -231,7 +268,7 @@ class ScriptedMacro {
 								
 								if (__safe) {
 									try { ${isVoid ? macro super.$f ($a {argsArray}) : macro return super.$f($a{argsArray})} }
-									catch (e:Dynamic) { __base.onInstanceError(e, this); ${isVoid ? macro return : macro return cast null} }
+									catch (e:Dynamic) { __base.onInstanceError(e, fname, this); ${isVoid ? macro return : macro return cast null} }
 								} else {
 									${isVoid ? macro super.$f ($a {argsArray}) : macro return super.$f ($a {argsArray})}
 								}
@@ -280,19 +317,36 @@ class ScriptedMacro {
 									}
 								}
 								
-								var args = [for (arg in args) {
-									var twist:Bool = arg.opt;
+								var defaults:Array<Expr> = [];
+								switch (field.expr().expr) {
+									default:
+									case TFunction(fun):
+										for (arg in fun.args) {
+											if (arg.value == null) {
+												defaults.push(null);
+												continue;
+											}
+											var expr = Context.getTypedExpr(arg.value);
+											defaults.push(macro cast $expr);
+										}
+								}
+								var args = [for (i => arg in args) {
+									var defaultValue:Expr = defaults[i];
+									
 									var t = mapGeneric(arg.t.toComplexType());
-									switch (t) {
+									/*switch (t) {
 										case TPath(p):
 											if (p.sub == 'Null')
-												twist = false;
+												t = macro:Dynamic;
 										default:
 									}
+									if (!arg.opt) t = macro:Dynamic;*/
+									
 									{
 										name: arg.name,
-										opt: arg.opt,
-										type: (twist ? macro:Dynamic /* ?!?!?!?!?!?? */ : t)
+										value: defaultValue,
+										type: (defaultValue == null ? t : null),
+										opt: (defaultValue == null ? arg.opt : null)
 									}
 								}];
 								var ret = mapGeneric(ret.toComplexType());
@@ -329,13 +383,17 @@ class ScriptedMacro {
 				pos: pos, access: [APublic], name: 'toString',
 				kind: FFun({
 					args: [],
-					expr: macro { return __base.path; },
+					expr: macro return __base.path,
 					ret: macro:String
 				})
 			});
 		}
 		
 		var constructExpr = macro {
+			__vars = new Map();
+			__curAccess = '';
+			__func = '';
+			
 			__base = base;
 			__safe = base.safe;
 			__interp = new insanity.backend.Interp(base.interp.environment);
@@ -349,6 +407,24 @@ class ScriptedMacro {
 			
 			__fields = [];
 			var constructor:Dynamic = null;
+			var classConstructor = ${hasConstructor ? constructorExpr : macro null};
+			function setInstanceFields(i:Dynamic) {
+				var instanceFields:Array<String> = i.instanceFields;
+				if (instanceFields == null) return;
+				
+				var superLocals:Map<String, insanity.backend.Interp.Variable> = __interp.duplicate(__interp.locals);
+				
+				for (field in instanceFields) {
+					if (insanity.backend.macro.ScriptedMacro.ignoreFields.contains(field)) continue;
+					
+					if (!__interp.variables.exists(field)) __interp.variables.set(field, insanity.backend.Expr.Mirror.MProperty(this, field));
+					
+					var f = Reflect.field(this, field);
+					if (Reflect.isFunction(f)) superLocals.set(field, {r: f});
+				}
+				
+				__interp.locals.set('super', {r: insanity.backend.Expr.Mirror.MSuper(superLocals, classConstructor)});
+			}
 			function setFields(t:insanity.backend.types.Scripted.InsanityScriptedClass, isSuper:Bool = false) {
 				for (field in t.decl.fields) {
 					var f:String = field.name;
@@ -357,16 +433,28 @@ class ScriptedMacro {
 					
 					switch (field.kind) {
 						case KFunction(fun):
-							if (!__interp.locals.exists(f)) __interp.locals.set(f, {r: null, access: field.access});
+							__interp.locals.set(f, {r: null, access: field.access});
 						case KVar(v):
 							if (instanceFields.contains(f)) { Reflect.setField(this, f, __interp.exprReturn(v.expr)); }
-							else if (!__interp.locals.exists(f)) { __interp.locals.set(f, {r: null, access: field.access, get: v.get, set: v.set}); }
+							else { __interp.locals.set(f, {r: null, access: field.access, get: v.get, set: v.set}); }
 					}
 				}
 				
 				var superLocals:Map<String, insanity.backend.Interp.Variable> = __interp.duplicate(__interp.locals);
 				for (loc => v in t.interp.locals)
 					superLocals.set(loc, v);
+				
+				var instanceFields:Array<String> = t.extending?.instanceFields;
+				if (instanceFields != null) {
+					for (field in instanceFields) {
+						if (insanity.backend.macro.ScriptedMacro.ignoreFields.contains(field)) continue;
+						
+						if (!__interp.variables.exists(field)) __interp.variables.set(field, insanity.backend.Expr.Mirror.MProperty(this, field));
+						
+						var f = Reflect.field(this, field);
+						if (Reflect.isFunction(f)) superLocals.set(field, {r: f});
+					}
+				}
 				
 				for (field in t.decl.fields) {
 					var f:String = field.name;
@@ -376,8 +464,6 @@ class ScriptedMacro {
 					
 					switch (field.kind) {
 						case KFunction(fun):
-							__interp.position = fun.expr.pos;
-							
 							if (f == 'new') {
 								constructor = __interp.buildFunction(f, fun.args, fun.expr, fun.ret, superLocals, true);
 								continue;
@@ -385,10 +471,11 @@ class ScriptedMacro {
 							
 							__interp.locals.get(f).r = __interp.buildFunction(f, fun.args, fun.expr, fun.ret, superLocals);
 						case KVar(v):
-							__interp.locals.get(f).r = __interp.exprReturn(v.expr, v.type);
+							__interp.locals.get(f).r = (v.expr == null ? null : __interp.exprReturn(v.expr, v.type));
 					}
 					
-					if (isSuper) superLocals.set(f, __interp.locals.get(f));
+					__vars.set(f, __interp.locals.get(f));
+					superLocals.set(f, __interp.locals.get(f));
 				}
 				
 				if (isSuper) __interp.locals.set('super', {r: insanity.backend.Expr.Mirror.MSuper(superLocals, constructor)});
@@ -401,38 +488,25 @@ class ScriptedMacro {
 					if (extend.extending != null) setSuperFields(extend.extending);
 					
 					setFields(extend, true);
+				} else if (extending != null) {
+					setInstanceFields(extending);
 				}
 			}
 			
-			var locals:Map<String, insanity.backend.Interp.Variable> = [];
-			for (field in instanceFields) {
-				if (!insanity.backend.macro.ScriptedMacro.ignoreFields.contains(field)) {
-					__interp.variables.set(field, insanity.backend.Expr.Mirror.MProperty(this, field));
-					
-					var f = Reflect.field(this, field);
-					if (Reflect.isFunction(f)) locals.set(field, {r: f});
-				}
-				
-				field;
-			};
-			
-			var superConstructor = ${hasConstructor ? constructorExpr : macro { null; }};
-			
-			__interp.locals.set('super', {r: insanity.backend.Expr.Mirror.MSuper(locals, superConstructor)});
 			setSuperFields(base.extending);
 			setFields(base);
 			
-			if (constructor == null) constructor = superConstructor;
+			if (constructor == null) constructor = classConstructor;
 			if (constructor != null) {
 				if (__safe) {
 					try { Reflect.callMethod(this, constructor, arguments); }
-					catch (e:Dynamic) { __base.onInstanceError(e, this); }
+					catch (e:Dynamic) { __base.onInstanceError(e, 'new', this); }
 				} else {
 					Reflect.callMethod(this, constructor, arguments);
 				}
 			} else {
 				if (__safe) {
-					__base.onInstanceError('${base.path} does not have a constructor', this);
+					__base.onInstanceError('${base.path} does not have a constructor', 'new', this);
 				} else {
 					throw '${base.path} does not have a constructor';
 				}
@@ -474,11 +548,17 @@ class ScriptedMacro {
 			pos: pos, access: [AStatic, APublic], name: 'unexposedFields',
 			kind: FVar(macro:Array<String>, macro $v {omittedFields}),
 		}, {
+			pos: pos, access: [AStatic, APublic], name: '__curAccess',
+			kind: FVar(macro:String),
+		}, {
+			pos: pos, name: '__vars',
+			kind: FVar(macro:Map<String, insanity.backend.Interp.Variable>),
+		}, {
 			pos: pos, name: '__fields',
 			kind: FVar(macro:Array<String>),
 		}, {
 			pos: pos, name: '__func',
-			kind: FVar(macro:String, macro $v {''}),
+			kind: FVar(macro:String),
 		}, {
 			pos: pos, name: '__interp',
 			kind: FVar(macro:insanity.backend.Interp),
@@ -491,7 +571,7 @@ class ScriptedMacro {
 				args: [{name: 'field', type: macro:String}],
 				expr: macro {
 					if (insanity.backend.macro.ScriptedMacro.ignoreFields.contains(field)) return false;
-					return (instanceFields.contains(field) || Reflect.hasField(this, field) || __fields.contains(field));
+					return (instanceFields.contains(field) || Reflect.hasField(this, field) || __vars.exists(field));
 				},
 				ret: macro:Bool
 			})
@@ -503,8 +583,9 @@ class ScriptedMacro {
 					if (insanity.backend.macro.ScriptedMacro.ignoreFields.contains(field)) return null;
 					if (instanceFields.contains(field) || Reflect.hasField(this, field)) {
 						return Reflect.field(this, field);
-					} else if (__interp.locals.exists(field)) {
-						return __interp.locals.get(field).r;
+					} else if (__vars.exists(field)) {
+						trace(__vars);
+						return __vars.get(field).r;
 					}
 					return null;
 				},
@@ -519,8 +600,8 @@ class ScriptedMacro {
 					if (instanceFields.contains(field) || Reflect.hasField(this, field)) {
 						Reflect.setField(this, field, value);
 						return Reflect.field(this, field);
-					} else if (__interp.locals.exists(field)) {
-						return __interp.locals.get(field).r = value;
+					} else if (__vars.exists(field)) {
+						return __vars.get(field).r = value;
 					}
 					return null;
 				},
@@ -534,8 +615,8 @@ class ScriptedMacro {
 					if (insanity.backend.macro.ScriptedMacro.ignoreFields.contains(property)) return null;
 					if (instanceFields.contains(property) || Reflect.hasField(this, property)) {
 						return Reflect.getProperty(this, property);
-					} else if (__interp.locals.exists(property)) {
-						return __interp.getLocal(property);
+					} else if (__vars.exists(property)) {
+						return __interp.getLocal(property, __vars);
 					}
 					return null;
 				},
@@ -550,8 +631,8 @@ class ScriptedMacro {
 					if (instanceFields.contains(property) || Reflect.hasField(this, property)) {
 						Reflect.setProperty(this, property, value);
 						return Reflect.field(this, property);
-					} else if (__interp.locals.exists(property)) {
-						return __interp.setLocal(property, value);
+					} else if (__vars.exists(property)) {
+						return __interp.setLocal(property, value, __vars);
 					}
 					return null;
 				},
@@ -563,7 +644,7 @@ class ScriptedMacro {
 				args: [],
 				expr: macro {
 					var fields = [for (f in Reflect.fields(this)) if (!insanity.backend.macro.ScriptedMacro.ignoreFields.contains(f)) f];
-					for (f in __fields) { if (!fields.contains(f)) fields.push(f); }
+					for (f in __vars.keys()) { if (!insanity.backend.macro.ScriptedMacro.ignoreFields.contains(f) && !fields.contains(f)) fields.push(f); }
 					return fields;
 				},
 				ret: macro:Array<String>

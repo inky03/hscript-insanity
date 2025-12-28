@@ -303,7 +303,7 @@ it represents my Dwindling mental state as i figure how to modify this library !
 	- [ ] abstracts
 
 - general
-	- fix compile errors in HashLink ("Don't know how to cast ref(bool) to bool" .. whatever the hell that means)
+	- [X] fix compile errors in HashLink (for now)
 	- [X] property getters & setters
 		- [ ] accessor error checking in modules
 	- [ ] fix module exceptions (can merge call stack?)
@@ -316,5 +316,5 @@ it represents my Dwindling mental state as i figure how to modify this library !
 - `switch` keyword
 	- [ ] complex pattern matching
 - `Printer` class
-	- fix printed expressions with escape characters
-	- module declaration to string ?
+	- [ ] fix printed expressions with escape characters
+	- [ ] module declaration to string ?
