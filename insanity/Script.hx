@@ -5,20 +5,20 @@ import insanity.backend.Parser;
 import insanity.backend.Interp;
 import insanity.backend.Expr;
 
+@:access(insanity.backend.Interp)
 class Script {
 	public var name:String;
 	
-	var parser:Parser = new Parser();
-	var interp:Interp = null;
-	var program:Expr = null;
+	public var parser:Parser = new Parser();
+	public var interp:Interp = null;
+	public var program:Expr = null;
 	
 	public var variables(get, never):Map<String, Dynamic>;
 	inline function get_variables():Map<String, Dynamic> { return interp.variables; }
 	
-	public function new(string:String, name:String = 'hscript'):Void {
-		parser.allowTypes = true;
-		parser.allowJSON = true;
-		interp = new Interp();
+	public function new(string:String, name:String = 'hscript', ?environment:Environment):Void {
+		parser.allowTypes = parser.allowJSON = true;
+		interp = new Interp(environment);
 		
 		this.name = name;
 		
@@ -52,14 +52,14 @@ class Script {
 	public function call(variable:String, ...args:Any):Any {
 		if (interp == null) throw 'Interpreter is uninitialized';
 		
-		var fun = variables.get(variable);
+		var fun = (variables.get(variable) ?? interp.getLocal(variable));
 		
 		if (!Reflect.isFunction(fun)) {
 			trace('$variable isn\'t a function');
 			return null;
 		}
 		
-		return Reflect.callMethod(interp, fun, [for (arg in args) arg]);
+		return Reflect.callMethod(interp, fun, args.toArray());
 	}
 	
 	public function setDefaults():Void {
