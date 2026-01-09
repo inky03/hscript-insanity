@@ -538,7 +538,12 @@ class Interp {
 	function importType(name:String, t:Dynamic, enumValueImport:Bool = true) {
 		if (t == null) return;
 		
-		if (t is InsanityScriptedEnum) {
+		if (t is InsanityScriptedTypedef) {
+			var alias:Dynamic = cast(t, InsanityScriptedTypedef).alias;
+			
+			if (alias != null)
+				imports.set(name, alias);
+		} else if (t is InsanityScriptedEnum) {
 			imports.set(name, t);
 			
 			if (enumValueImport)
@@ -714,6 +719,14 @@ class Interp {
 				cls.init(environment, this);
 				
 				imports.set(m.name, cls);
+			
+			case DTypedef(m):
+				if (variables.exists(m.name)) return;
+				
+				var cls = new InsanityScriptedTypedef(m);
+				cls.init(environment, this);
+				
+				if (cls.alias != null) imports.set(m.name, cls.alias);
 			
 			default:
 		}
@@ -996,6 +1009,11 @@ class Interp {
 						
 							var p = new Printer();
 							error(ECustom('Map of type <${p.typeToString(params[0])}, ${p.typeToString(params[1])}> is not accepted'));
+						} else {
+							var t:Dynamic = resolve(fullPath); // alias stuff
+							
+							if (t is haxe.ds.IntMap || t is haxe.ds.StringMap || t is haxe.ds.ObjectMap || t is haxe.ds.EnumValueMap)
+								return Type.createInstance(t, []);
 						}
 					default:
 				}

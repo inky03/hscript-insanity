@@ -29,10 +29,9 @@ class ScriptedTools {
 	}
 }
 
-@:access(insanity.Module)
 @:access(insanity.backend.Interp)
 @:access(insanity.backend.types.IInsanityScripted)
-class InsanityScriptedClass implements IInsanityType implements ICustomClassType {
+class InsanityScriptedClass implements IInsanityType implements ICustomReflection implements ICustomClassType {
 	public var path:String;
 	public var name:String;
 	public var module:Module;
@@ -311,8 +310,84 @@ class InsanityScriptedClass implements IInsanityType implements ICustomClassType
 	}
 }
 
+@:access(insanity.backend.Interp)
+class InsanityScriptedTypedef implements IInsanityType {
+	public var name:String;
+	public var module:Module;
+	public var pack:Array<String>;
+	public var path:String;
+	
+	public var alias:Dynamic;
+	
+	var decl:TypeDecl;
+	
+	public function new(decl:TypeDecl, ?module:Module) {
+		this.name = decl.name;
+		this.pack = (module?.pack ?? []);
+		this.module = module;
+		this.decl = decl;
+		
+		path = Tools.pathToString(name, pack);
+	}
+	
+	public function init(?env:Environment, ?baseInterp:Interp, restore:Bool = true):Void {
+		alias = null;
+		
+		switch (decl.t) {
+			case insanity.backend.Expr.CType.CTPath(path, params):
+				var fullPath:String = path.join('.');
+				
+				if (fullPath == 'Map') { // infer from parameters
+					if (params == null || params.length < 2) throw 'Not enough type parameters for Map'; // we dont really care about the value type , but whatever
+					else if (params.length > 2) throw 'Too many type parameters for Map';
+					
+					switch (params[0]) {
+						case CTAnon(_):
+							alias = haxe.ds.ObjectMap;
+						case CTPath(path, _):
+							var fullPath:String = path.join('.');
+							
+							if (fullPath == 'String') {
+								alias = haxe.ds.StringMap;
+							} else if (fullPath == 'Int') {
+								alias = haxe.ds.IntMap;
+							} else {
+								var type:TypeInfo = null;
+								var r = (Tools.resolve(fullPath, env) ?? baseInterp.imports.get(fullPath));
+								if (r is Class) {
+									type = TypeCollection.main.fromCompilePath(InsanityType.getClassName(r))[0];
+								} else if (r == null) {
+									throw Printer.errorToString(EUnknownType(fullPath));
+								}
+								
+								if (type?.kind == 'class') {
+									alias = haxe.ds.ObjectMap;
+								}
+							}
+						default:
+					}
+					
+					if (alias == null) {
+						var p = new Printer();
+						throw 'Map of type <${p.typeToString(params[0])}, ${p.typeToString(params[1])}> is not accepted';
+					}
+				} else {
+					alias = baseInterp.resolve(fullPath);
+				}
+				
+				if (alias == null)
+					throw Printer.errorToString(EUnknownType(fullPath));
+				
+			default:
+				trace('Non type-alias typedefs are not supported');
+		}
+	}
+	
+	public function snapshot():Void {}
+}
+
 @:access(insanity.Module)
-class InsanityScriptedEnum implements IInsanityType implements ICustomEnumType {
+class InsanityScriptedEnum implements IInsanityType implements ICustomReflection implements ICustomEnumType {
 	public var name:String;
 	public var module:Module;
 	public var pack:Array<String>;
@@ -460,9 +535,11 @@ class InsanityDummyClass implements IInsanityScripted {
 	public function new() {}
 }
 
-interface IInsanityType extends ICustomReflection {
+interface IInsanityType {
 	public var name:String;
+	public var module:Module;
 	public var pack:Array<String>;
+	public var path:String;
 	
 	public function init(?env:Environment, ?baseInterp:Interp, restore:Bool = true):Void;
 	public function snapshot():Void;

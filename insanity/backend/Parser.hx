@@ -717,7 +717,7 @@ class Parser {
 			}
 			
 			mk(EImport(path, mode));
-		case "class", "enum":
+		case "class", "enum", "typedef":
 			push(TId(id));
 			var decl = parseModuleDecl();
 			if (!maybe(TSemicolon)) push(TSemicolon);
@@ -1484,8 +1484,18 @@ class Parser {
 				error(ECustom('Type name should start with an uppercase letter'), tokenMin, tokenMax);
 			
 			var params = parseParams();
+			
 			ensureToken(TOp("="));
+			
 			var t = parseType();
+			switch (t) {
+				case CTPath(_, _):
+					ensure(TSemicolon);
+				
+				default:
+					maybe(TSemicolon);
+			}
+			
 			return mkd(DTypedef({
 				name : name,
 				meta : meta,

@@ -168,7 +168,7 @@ class Tools {
 					if (type.typedefType != null) {
 						types.push(type);
 					} else {
-						trace('(${type.fullPath()}) this typedef\'s target type is currently unsupported');
+						trace('(${type.fullPath()}) this typedef\'s target type is unsupported');
 					}
 					continue;
 				}

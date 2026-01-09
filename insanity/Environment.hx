@@ -56,13 +56,12 @@ class Environment {
 			
 			for (type in module.types) {
 				var k:String = 'class';
-				var name:String = type.name;
 				
 				var info:TypeInfo = {
 					kind: k,
 					module: module.path,
 					pack: module.pack,
-					name: name,
+					name: type.name,
 				};
 				
 				var tp:Array<String> = info.pack.copy(); tp.push(info.name);

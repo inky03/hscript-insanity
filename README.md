@@ -299,7 +299,7 @@ it represents my Dwindling mental state as i figure how to modify this library !
 		- [X] extends Nothing (or scripted class)
 		- [X] extends Real types
 	- [X] enums
-	- [ ] typedefs (alias only?)
+	- [X] typedefs (type alias only)
 	- [ ] abstracts
 
 - general

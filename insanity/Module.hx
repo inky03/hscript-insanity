@@ -43,7 +43,7 @@ class Module {
 			for (decl in declList) {
 				decls.push(decl);
 				
-				var type = switch (decl.d) {
+				var type:IInsanityType = switch (decl.d) {
 					default:
 						continue;
 					case DClass(m):
@@ -51,8 +51,7 @@ class Module {
 					case DEnum(m):
 						new InsanityScriptedEnum(m, this);
 					case DTypedef(m):
-						trace('Scripted typedefs are currently unsupported');
-						continue;
+						new InsanityScriptedTypedef(m, this);
 				}
 				
 				types.set(Tools.pathToString(type.name, pack), type);
