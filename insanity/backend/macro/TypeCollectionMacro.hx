@@ -53,12 +53,12 @@ class TypeCollectionMacro {
 			for (type in types)
 				map.push(getTypeInfo(type));
 			
-			self.meta.add('typed', [macro $v {map}], self.pos);
+			self.meta.add('typed', [macro $v {haxe.Serializer.run(map)}], self.pos);
 			// Context.info('types registered !!', Context.currentPos());
 		});
 		
 		return macro {
-			var meta:Array<TypeInfo> = cast haxe.rtti.Meta.getType($p {_name.split('.')}).typed[0];
+			var meta:Array<TypeInfo> = cast haxe.Unserializer.run(haxe.rtti.Meta.getType($p {_name.split('.')}).typed[0]);
 			var map:TypeMap = { byPackage: [], byModule: [], byPath: [], byCompilePath: [], all: [] };
 			
 			for (info in meta) {
