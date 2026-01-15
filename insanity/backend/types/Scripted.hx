@@ -67,7 +67,7 @@ class InsanityScriptedClass implements IInsanityType implements ICustomReflectio
 		initializing = true;
 		
 		interp.environment = env;
-		interp.setDefaults(true, true);
+		interp.setDefaults(true, baseInterp == null);
 		
 		if (baseInterp != null) {
 			for (u in baseInterp.usings) interp.usings.push(u);
@@ -483,7 +483,6 @@ class InsanityScriptedEnum implements IInsanityType implements ICustomReflection
 			}
 		}
 		
-		trace('enum done');
 		initialized = true;
 		initializing = false;
 	}

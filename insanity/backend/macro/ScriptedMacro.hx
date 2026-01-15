@@ -399,7 +399,7 @@ class ScriptedMacro {
 			__interp = new insanity.backend.Interp(base.interp.environment);
 			__interp.pushStack(insanity.backend.CallStack.StackItem.SModule(base.module?.path ?? base.name));
 			
-			__interp.setDefaults(true, true);
+			__interp.setDefaults(true, false);
 			__interp.variables.set('this', this);
 			for (u in base.interp.usings) __interp.usings.push(u);
 			for (k => i in base.interp.imports) __interp.imports.set(k, i);
