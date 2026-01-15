@@ -40,14 +40,16 @@ class InsanityScriptedClass implements IInsanityType implements ICustomReflectio
 	public var safe:Bool = false;
 	public var snapshotAll:Bool = false;
 	
+	public var interp:Interp;
 	public var extending(get, never):Dynamic;
 	public var instanceClass(get, never):Dynamic;
 	
 	var decl:ClassDecl;
-	var initializing:Bool = false;
 	var __vars:Map<String, Variable> = [];
+	
+	public var failed:Bool = false;
 	public var initialized:Bool = false;
-	public var interp:Interp;
+	public var initializing:Bool = false;
 	
 	public function new(decl:ClassDecl, ?module:Module) {
 		this.name = decl.name;
@@ -58,13 +60,14 @@ class InsanityScriptedClass implements IInsanityType implements ICustomReflectio
 		path = Tools.pathToString(name, pack);
 		
 		interp = new Interp();
+		interp.canDefer = true;
 	}
 	
 	public function init(?env:Environment, ?baseInterp:Interp, restore:Bool = true):Void {
 		initializing = true;
 		
 		interp.environment = env;
-		interp.setDefaults();
+		interp.setDefaults(true, true);
 		
 		if (baseInterp != null) {
 			for (u in baseInterp.usings) interp.usings.push(u);
@@ -124,12 +127,33 @@ class InsanityScriptedClass implements IInsanityType implements ICustomReflectio
 						}
 					}
 					
-					interp.locals.set(f, {
-						r: (v.expr == null ? null : interp.exprReturn(v.expr, v.type)),
-						access: field.access,
-						get: v.get,
-						set: v.set
-					});
+					try {
+						interp.locals.set(f, {
+							r: (v.expr == null ? null : interp.exprReturn(v.expr, v.type)),
+							access: field.access,
+							get: v.get,
+							set: v.set
+						});
+					} catch (d:Defer) {
+						var signal = (env?.onInitialized ?? module.onInitialized);
+						
+						signal.push(function(_) {
+							try {
+								interp.locals.set(f, {
+									r: interp.exprReturn(v.expr, v.type),
+									access: field.access,
+									get: v.get,
+									set: v.set
+								});
+							} catch (e:haxe.Exception) {
+								trace('Error on expression for field $f: $e');
+							}
+							
+							return false;
+						});
+					} catch (e:haxe.Exception) {
+						trace('Error on expression for field $f: $e');
+					}
 			}
 			
 			__vars.set(f, interp.locals.get(f));
@@ -139,6 +163,12 @@ class InsanityScriptedClass implements IInsanityType implements ICustomReflectio
 		function overrideFieldCheck(extending:Dynamic) {
 			if (extending is InsanityScriptedClass) {
 				var extend:InsanityScriptedClass = cast extending;
+				
+				if (extend.module != null && !extend.initializing && !extend.initialized && !extend.failed) {
+					if (!extend.module.starting && !extend.module.started) extend.module.start(env);
+					
+					extend.module.startType(env, extend);
+				}
 				
 				for (field in extend.decl.fields) {
 					var f:String = field.name;
@@ -185,8 +215,8 @@ class InsanityScriptedClass implements IInsanityType implements ICustomReflectio
 			}
 		}
 		
-		initializing = false;
 		initialized = true;
+		initializing = false;
 	}
 	public function snapshot():Void {
 		for (field in decl.fields) {
@@ -321,6 +351,10 @@ class InsanityScriptedTypedef implements IInsanityType {
 	
 	var decl:TypeDecl;
 	
+	public var failed:Bool = false;
+	public var initialized:Bool = false;
+	public var initializing:Bool = false;
+	
 	public function new(decl:TypeDecl, ?module:Module) {
 		this.name = decl.name;
 		this.pack = (module?.pack ?? []);
@@ -331,6 +365,8 @@ class InsanityScriptedTypedef implements IInsanityType {
 	}
 	
 	public function init(?env:Environment, ?baseInterp:Interp, restore:Bool = true):Void {
+		initializing = true;
+		
 		alias = null;
 		
 		switch (decl.t) {
@@ -381,6 +417,9 @@ class InsanityScriptedTypedef implements IInsanityType {
 			default:
 				trace('Non type-alias typedefs are not supported');
 		}
+		
+		initialized = true;
+		initializing = false;
 	}
 	
 	public function snapshot():Void {}
@@ -399,6 +438,10 @@ class InsanityScriptedEnum implements IInsanityType implements ICustomReflection
 	
 	var decl:EnumDecl;
 	
+	public var failed:Bool = false;
+	public var initialized:Bool = false;
+	public var initializing:Bool = false;
+	
 	public function new(decl:EnumDecl, ?module:Module) {
 		this.name = decl.name;
 		this.pack = (module?.pack ?? []);
@@ -409,8 +452,10 @@ class InsanityScriptedEnum implements IInsanityType implements ICustomReflection
 	}
 	
 	public function init(?env:Environment, ?baseInterp:Interp, restore:Bool = true):Void {
-		values = decl.names;
-		constructs = decl.constructs;
+		initializing = true;
+		
+		values = decl.names.copy();
+		constructs = decl.constructs.copy();
 		constructFunctions = new Map();
 		
 		for (name => construct in constructs) {
@@ -437,6 +482,10 @@ class InsanityScriptedEnum implements IInsanityType implements ICustomReflection
 				}));
 			}
 		}
+		
+		trace('enum done');
+		initialized = true;
+		initializing = false;
 	}
 	
 	public function toString():String { return path; }
@@ -457,7 +506,7 @@ class InsanityScriptedEnum implements IInsanityType implements ICustomReflection
 		return typeCreateEnum(values[index], arguments);
 	}
 	public function typeGetEnumConstructs():Array<String> {
-		return values.copy();
+		return (values?.copy() ?? []);
 	}
 	public function typeAllEnums():Array<Dynamic> {
 		var enums:Array<InsanityScriptedEnumValue> = [];
@@ -541,6 +590,10 @@ interface IInsanityType {
 	public var pack:Array<String>;
 	public var path:String;
 	
+	public var failed:Bool;
+	public var initialized:Bool;
+	public var initializing:Bool;
+	
 	public function init(?env:Environment, ?baseInterp:Interp, restore:Bool = true):Void;
 	public function snapshot():Void;
 }
@@ -549,4 +602,8 @@ interface IInsanityType {
 interface IInsanityScripted extends ICustomReflection extends ICustomClassType {
 	private var __base:InsanityScriptedClass;
 	private function __construct(base:InsanityScriptedClass, arguments:Array<Dynamic>):Void;
+}
+
+enum Defer {
+	DDefer;
 }

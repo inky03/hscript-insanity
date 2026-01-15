@@ -20,8 +20,12 @@ class Module {
 	
 	public var decls:Array<ModuleDecl> = [];
 	public var types:Map<String, IInsanityType> = [];
+	public var onInitialized:Array<Map<String, IInsanityType> -> Bool> = [];
 	
 	public var importModules:Array<ImportModule> = [];
+	
+	public var starting:Bool = false;
+	public var started:Bool = false;
 	
 	public function new(string:String, name:String = 'Module', pack:Array<String>, origin:String = 'hscript'):Void {
 		parser.allowTypes = parser.allowJSON = true;
@@ -63,12 +67,19 @@ class Module {
 		return decls;
 	}
 	
+	public function init(?environment:Environment):Void {
+		interp.environment = environment;
+		interp.setDefaults();
+		
+		for (type in types)
+			interp.imports.set(type.name, type);
+	}
+	
 	public function start(?environment:Environment):Void {
 		try {
 			if (decls.length == 0) throw 'Module is uninitialized';
 			
-			interp.environment = environment;
-			interp.setDefaults();
+			starting = true;
 			
 			for (module in importModules) {
 				module.start(environment);
@@ -77,22 +88,41 @@ class Module {
 				for (n => i in module.interp.imports) interp.imports.set(n, i);
 			}
 			
-			for (type in types)
-				interp.imports.set(type.name, type);
-			
+			interp.canInit = true;
 			interp.executeModule(decls, path);
+			
+			starting = false;
+			started = true;
 		} catch (e:haxe.Exception) {
 			onProgramError(e);
 		}
 	}
 	
+	public function startType(?environment:Environment, type:IInsanityType):IInsanityType {
+		if (type.initializing || type.initialized || type.failed) return type;
+		
+		if (starting || !started) return type;
+			start(environment);
+		
+		try {
+			type.failed = false;
+			type.init(environment, interp);
+		} catch (e:haxe.Exception) {
+			type.failed = true;
+			onModuleError(e, type);
+		}
+		
+		return type;
+	}
+	
 	public function startTypes(?environment:Environment):Map<String, IInsanityType> {
-		for (type in types) {
-			try {
-				type.init(environment, interp);
-			} catch (e:haxe.Exception) {
-				onModuleError(e, type);
-			}
+		for (type in types)
+			startType(environment, type);
+		
+		var i:Int = onInitialized.length;
+		while (-- i >= 0) {
+			if (!onInitialized[i](types))
+				onInitialized.remove(onInitialized[i]);
 		}
 		
 		return types;

@@ -7,6 +7,8 @@ class Environment {
 	public var modules:Map<String, Module> = [];
 	public var types:TypeCollection;
 	
+	public var onInitialized:Array<Map<String, IInsanityType> -> Bool> = [];
+	
 	public function new(?modules:Array<Module>) {
 		if (modules != null) {
 			for (module in modules)
@@ -37,11 +39,26 @@ class Environment {
 	}
 	
 	public function start():Void {
+		var allTypes:Map<String, IInsanityType> = [];
+		
+		for (module in modules)
+			module.init(this);
+		
 		for (module in modules)
 			module.start(this);
 		
-		for (module in modules)
+		for (module in modules) {
 			module.startTypes(this);
+			
+			for (n => t in module.types)
+				allTypes.set(n, t);
+		}
+		
+		var i:Int = onInitialized.length;
+		while (-- i >= 0) {
+			if (!onInitialized[i](allTypes))
+				onInitialized.remove(onInitialized[i]);
+		}
 	}
 	public function snapshot():Void {
 		for (module in modules)

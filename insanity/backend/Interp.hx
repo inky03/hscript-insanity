@@ -78,6 +78,9 @@ class Interp {
 	static var accessingInterp:Interp = null;
 	var position : Position = { origin: 'hscript', line: 0 };
 	var curAccess : String = '';
+	
+	public var canDefer:Bool = false;
+	public var canInit:Bool = true;
 
 	public function new(?environment:Environment) {
 		this.environment = environment;
@@ -92,14 +95,15 @@ class Interp {
 		initOps();
 	}
 
-	public function setDefaults(wipe:Bool = true) {
+	public function setDefaults(wipe:Bool = true, bottomLevel:Bool = true) {
 		if (wipe) {
 			imports.clear();
 			usings.resize(0);
 			variables.clear();
 		}
 		
-		importPath([''], IAll); // import all bottom level classes
+		if (bottomLevel)
+			importPath([''], IAll); // import all bottom level classes
 		
 		variables.set('null', null);
 		variables.set('true', true);
@@ -423,6 +427,8 @@ class Interp {
 		try {
 			return expr(e, t);
 		} catch( e : Stop ) {
+			#if cpp if (!(e is Stop)) throw e; #end
+			
 			switch( e ) {
 			case SBreak: throw "Invalid break";
 			case SContinue: throw "Invalid continue";
@@ -537,6 +543,9 @@ class Interp {
 	
 	function importType(name:String, t:Dynamic, enumValueImport:Bool = true) {
 		if (t == null) return;
+		
+		if (canInit && t is IInsanityType && t.module != null && !t.initializing && !t.initialized && !t.failed)
+			t.module.startType(environment, t);
 		
 		if (t is InsanityScriptedTypedef) {
 			var alias:Dynamic = cast(t, InsanityScriptedTypedef).alias;
@@ -1317,6 +1326,9 @@ class Interp {
 	}
 
 	function get( o : Dynamic, f : String, maybe : Bool = false ) : Dynamic {
+		if (canDefer && o is IInsanityType && !o.initialized)
+			throw DDefer;
+		
 		if ( o == null ) {
 			if (!maybe) {
 				error(EInvalidAccess(f));
@@ -1354,6 +1366,9 @@ class Interp {
 	}
 
 	function set( o : Dynamic, f : String, v : Dynamic ) : Dynamic {
+		if (canDefer && o is IInsanityType && !o.initialized)
+			throw DDefer;
+		
 		if (AbstractTools.isAbstract(v))
 			v = v.__a;
 		
@@ -1412,7 +1427,11 @@ class Interp {
 
 	function cnew( cl : String, args : Array<Dynamic> ) : Dynamic {
 		var c = Type.resolveClass(cl);
-		if( c == null ) c = resolve(cl);
+		c ??= resolve(cl);
+		
+		if (canDefer && c is IInsanityType && !c.initialized)
+			throw DDefer;
+		
 		return Type.createInstance(c,args);
 	}
 
