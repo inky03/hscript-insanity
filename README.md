@@ -187,6 +187,11 @@ trace('hello $test ${'can also be nested!! $$${test + 3210}'}');
 ```
 
 
+### Pattern matching
+
+Haxe's [switch-case pattern matching features](https://haxe.org/manual/lf-pattern-matching.html) are fully implemented ! (see examples)
+
+
 ### Property accessors
 
 haxe's [property accessors](https://haxe.org/manual/class-field-property.html) can be defined in local variables within scripts and module types
@@ -314,13 +319,14 @@ it represents my Dwindling mental state as i figure how to modify this library !
 - `using` keyword
 	- [ ] explicit type checking?
 - `switch` keyword
-	- [ ] complex pattern matching
+	- [X] complex pattern matching
 		- [X] capture variables
 		- [X] extractors
 		- [X] enum
 		- [X] array
 		- [X] struct
-		- [ ] guard conditions
+		- [X] guard conditions
+		- [X] multiple values (sorta)
 - `Printer` class
 	- [ ] fix printed expressions with escape characters
 	- [ ] module declaration to string ?

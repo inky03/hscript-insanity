@@ -856,12 +856,17 @@ class Parser {
 		case "switch":
 			var e = parseExpr();
 			var def = null, cases = [];
-			ensure(TBrOpen);
+			var brace = false;
+			if (maybe(TPOpen)) {
+				brace = true;
+			} else {
+				ensure(TBrOpen);
+			}
 			while( true ) {
 				var tk = token();
 				switch( tk ) {
 				case TId("case"):
-					var c = { values : [], expr : null };
+					var c = { values : [], expr : null, guard : null };
 					cases.push(c);
 					while( true ) {
 						var e:Expr;
@@ -876,6 +881,18 @@ class Parser {
 						tk = token();
 						
 						switch( tk ) {
+							case TId('if'):
+								ensure(TPOpen);
+								c.guard = parseExpr();
+								ensure(TPClose);
+								
+								switch (tk = token()) {
+									case TDoubleDot:
+										break;
+									default:
+										unexpected(tk);
+										break;
+								}
 							case TComma:
 								// next expr
 							case TDoubleDot:
@@ -934,7 +951,9 @@ class Parser {
 						mk(EBlock([]), tokenMin, tokenMin);
 					else
 						mk(EBlock(exprs), pmin(exprs[0]), pmax(exprs[exprs.length - 1]));
-				case TBrClose:
+				case TPClose if (brace):
+					break;
+				case TBrClose if (!brace):
 					break;
 				default:
 					unexpected(tk);

@@ -1111,8 +1111,9 @@ class Interp {
 									if (id != '_' && (id.isTypeIdentifier() || !makeCapture))
 										throw 'Unknown identifier: $id, pattern variables must be lower-case or with \'var \' prefix';
 									captures.set(id, match);
+									return true;
 								}
-								true;
+								matchValues(resolve(id), match);
 							case EField(ve, f, m):
 								test(ve, match, false);
 								matchValues(get(expr(ve), f, m), match);
@@ -1168,6 +1169,9 @@ class Interp {
 					match = test(e, val);
 					
 					captures.remove('_');
+					
+					if (c.guard != null && !expr(c.guard))
+						match = false;
 					
 					if (match) break;
 				}
