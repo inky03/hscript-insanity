@@ -377,6 +377,7 @@ class Printer {
 			case EHasNoSuper: 'Current class does not have a super';
 			case EUnknownType(t): 'Type not found: $t';
 			case EUnknownField(o, f): '$o has no field $f';
+			case EUnrecognizedPattern(e): 'Unrecognized pattern: ' + toString(e);
 			case EInvalidChar(c): "Invalid character: '"+(StringTools.isEof(c) ? "EOF" : String.fromCharCode(c))+"' ("+c+")";
 			case EUnexpected(s): "Unexpected token: \""+s+"\"";
 			case EUnterminatedString: "Unterminated string";

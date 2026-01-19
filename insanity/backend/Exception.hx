@@ -68,6 +68,7 @@ class ParserException extends haxe.Exception {
 enum Error {
 	EImportHx;
 	EHasNoSuper;
+	EUnrecognizedPattern( e : Expr );
 	EUnknownField( o : Dynamic, f : String );
 	EUnknownType( t : String );
 	EInvalidChar( c : Int );

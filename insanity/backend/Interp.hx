@@ -529,9 +529,6 @@ class Interp {
 	}
 
 	function resolve(id:String) : Dynamic {
-		if (captures.exists(id))
-			return captures.get(id);
-		
 		if (imports.exists(id)) {
 			var v:Dynamic = imports.get(id);
 			
@@ -878,6 +875,7 @@ class Interp {
 			case CReg(p, m): return new EReg(p, m);
 			}
 		case EIdent(id):
+			if (captures.exists(id)) return captures.get(id);
 			if (locals.exists(id)) return getLocal(id);
 			return resolve(id);
 		case EVar(n,t,e,get,set):
@@ -1103,19 +1101,21 @@ class Interp {
 			var val : Dynamic = expr(e);
 			var match = false;
 			for( c in cases ) {
-				for( e in c.values ) {
-					function test(e:Expr, match:Dynamic, makeCapture:Bool = true) {
+				for( exr in c.values ) {
+					captures.clear();
+					
+					function test(e:Expr, match:Dynamic) {
 						return switch (e.e) {
 							case EIdent(id):
 								if (!imports.exists(id) && !variables.exists(id)) {
-									if (id != '_' && (id.isTypeIdentifier() || !makeCapture))
+									if (id != '_' && id.isTypeIdentifier())
 										throw 'Unknown identifier: $id, pattern variables must be lower-case or with \'var \' prefix';
 									captures.set(id, match);
 									return true;
 								}
 								matchValues(resolve(id), match);
 							case EField(ve, f, m):
-								test(ve, match, false);
+								test(ve, match);
 								matchValues(get(expr(ve), f, m), match);
 							case EVar(id):
 								captures.set(id, match);
@@ -1125,8 +1125,12 @@ class Interp {
 							case EParent(e):
 								test(e, match);
 							case EBinop('=>', e1, e2):
-								test(e1, match, false);
+								captures.set('_', match);
 								matchValues(expr(e1), expr(e2));
+							case EBinop('|', e1, e2):
+								test(e1, match);
+								test(e2, match);
+								(matchValues(match, expr(e1)) || matchValues(match, expr(e2)));
 							case EObject(f):
 								if (!Reflect.isObject(match))
 									return false;
@@ -1166,11 +1170,18 @@ class Interp {
 								
 								true;
 							default:
-								false;
+								throw EUnrecognizedPattern(null);
 						}
 					}
 					
-					match = test(e, val);
+					try {
+						match = test(exr, val);
+					} catch (e:Error) {
+						switch (e) {
+							case EUnrecognizedPattern(_): error(EUnrecognizedPattern(exr));
+							default: error(e);
+						}
+					}
 					
 					captures.remove('_');
 					

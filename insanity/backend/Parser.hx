@@ -897,14 +897,6 @@ class Parser {
 								break;
 						}
 					}
-					for (i => ca in c.values) {
-						switch (ca.e) {
-							case EBinop('|', a, b):
-								c.values[i] = a;
-								c.values.insert(i + 1, b);
-							default:
-						}
-					}
 					var exprs = [];
 					while( true ) {
 						tk = token();
