@@ -28,18 +28,24 @@ enum Const {
 	CReg( pattern : String, modifiers : String );
 }
 
-typedef Expr = {
-	var e : ExprDef;
-	var pmin : Int;
-	var pmax : Int;
-	var column : Int;
+typedef Position = {
 	var origin : String;
 	var line : Int;
+	
+	var ?pmin : Int;
+	var ?pmax : Int;
+	var ?column : Int;
+}
+
+typedef Expr = {
+	var e : ExprDef;
+	var pos : Position;
 }
 enum ExprDef {
+	EDecl( t : ModuleDecl );
 	EConst( c : Const );
 	EIdent( v : String );
-	EVar( n : String, ?t : CType, ?e : Expr );
+	EVar( n : String, ?t : CType, ?e : Expr, ?get : String, ?set : String );
 	EParent( e : Expr );
 	EBlock( e : Array<Expr> );
 	EField( e : Expr, f : String, ?maybe : Bool );
@@ -84,11 +90,16 @@ enum CType {
 	CTExpr( e : Expr ); // for type parameters only
 }
 
-enum ModuleDecl {
+typedef ModuleDecl = {
+	var d : ModuleDeclDef;
+	var pos : Position;
+}
+enum ModuleDeclDef {
 	DPackage( path : Array<String> );
 	DImport( path : Array<String>, mode : ImportMode );
 	DUsing( path : Array<String> );
 	DClass( c : ClassDecl );
+	DEnum( c : EnumDecl );
 	DTypedef( c : TypeDecl );
 }
 
@@ -117,10 +128,22 @@ typedef FieldDecl = {
 	var access : Array<FieldAccess>;
 }
 
+typedef EnumDecl = {> ModuleType,
+	var constructs:Map<String, EnumFieldDecl>;
+	var names:Array<String>;
+}
+
+typedef EnumFieldDecl = {
+	var name:String;
+	var meta:Metadata;
+	var ?arguments:Array<Argument>;
+}
+
 enum FieldAccess {
 	APublic;
 	APrivate;
 	AInline;
+	ADynamic;
 	AOverride;
 	AStatic;
 	AMacro;
@@ -151,6 +174,7 @@ enum ImportMode {
 }
 
 enum Mirror {
+	MSuper(?locals:Map<String, Interp.Variable>, ?constructor:Dynamic);
 	MProperty(t:Dynamic, f:String);
 	MEnumValue(t:Dynamic, i:Int);
 	MAbstractEnumValue(t:Dynamic, i:Int);

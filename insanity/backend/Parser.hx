@@ -84,6 +84,7 @@ class Parser {
 
 	// implementation
 	var decl : Bool;
+	var pack : Array<String>;
 	var origin : String;
 	var input : String;
 	var readPos : Int;
@@ -112,9 +113,9 @@ class Parser {
 			["+", "-"],
 			["<<", ">>", ">>>"],
 			["|", "&", "^"],
+			["??"],
 			["==", "!=", ">", "<", ">=", "<="],
 			["..."],
-			["??"],
 			["&&"],
 			["||"],
 			["=","+=","-=","*=","/=","%=","<<=",">>=",">>>=","|=","&=","^=","=>","??="],
@@ -126,7 +127,7 @@ class Parser {
 		for( i in 0...priorities.length )
 			for( x in priorities[i] ) {
 				opPriority.set(x, i);
-				if( i == 9 ) opRightAssoc.set(x, true);
+				if( i == 10 ) opRightAssoc.set(x, true);
 			}
 		for( x in ["!", "++", "--", "~"] ) // unary "-" handled in parser directly!
 			opPriority.set(x, x == "++" || x == "--" ? -1 : -2);
@@ -222,22 +223,26 @@ class Parser {
 	}
 
 	inline function pmin(e:Expr) {
-		return (e?.pmin ?? 0);
+		return e.pos.pmin;
 	}
 
 	inline function pmax(e:Expr) {
-		return (e?.pmax ?? 0);
+		return e.pos.pmax;
 	}
 
-	inline function mk(e,pmin=-1,pmax=-1) : Expr {
-		if( e == null ) return null;
-		
+	inline function mk(e, ?pmin:Int, ?pmax:Int) : Expr {
+		return { e : e, pos : getPos(pmin, pmax) };
+	}
+	inline function mkd(d, ?pmin:Int, ?pmax:Int) : ModuleDecl {
+		return { d : d, pos : getPos(pmin, pmax) };
+	}
+	inline function getPos(pmin:Int = -1, pmax:Int = -1) : Position {
 		if (pmin < 0) pmin = tokenMin;
 		if (pmax < 0) pmax = tokenMax;
 		
 		var column:Int = ((pmin < columnOffset ? pmax : pmin) - columnOffset + 1);
 		
-		return { e : e, pmin : pmin, pmax : pmax, origin : origin, line : line , column : column };
+		return { pmin : pmin, pmax : pmax, origin : origin, line : line, column : column };
 	}
 
 	function isBlock(e) {
@@ -712,6 +717,12 @@ class Parser {
 			}
 			
 			mk(EImport(path, mode));
+		case "class", "enum", "typedef":
+			push(TId(id));
+			var decl = parseModuleDecl();
+			if (!maybe(TSemicolon)) push(TSemicolon);
+			
+			mk(EDecl(decl));
 		case "if":
 			ensure(TPOpen);
 			var cond = parseExpr();
@@ -733,6 +744,13 @@ class Parser {
 			mk(EIf(cond,e1,e2),p1,(e2 == null) ? tokenMax : pmax(e2));
 		case "var", "final":
 			var ident = getIdent();
+			var get = null, set = null;
+			if (maybe(TPOpen)) {
+				get = getIdent();
+				ensure(TComma);
+				set = getIdent();
+				ensure(TPClose);
+			}
 			var tk = token();
 			var t = null;
 			if( tk == TDoubleDot && allowTypes ) {
@@ -751,7 +769,7 @@ class Parser {
 				default: unexpected(tk);
 			}
 
-			mk(EVar(ident,t,e),p1,(e == null) ? tokenMax : pmax(e));
+			mk(EVar(ident,t,e,get,set),p1,(e == null) ? tokenMax : pmax(e));
 		case "while":
 			var econd = parseExpr();
 			var e = parseExpr();
@@ -975,7 +993,7 @@ class Parser {
 		}
 	}
 
-	function parseFunctionArgs() {
+	function parseFunctionArgs(restAllowed:Bool = true) {
 		var args = new Array();
 		var hasRest = false;
 		var tk = token();
@@ -988,6 +1006,7 @@ class Parser {
 						opt = true;
 						tk = token();
 					case TOp('...'):
+						if (!restAllowed) unexpected(tk);
 						rest = true;
 						tk = token();
 					default:
@@ -1003,7 +1022,7 @@ class Parser {
 						break;
 				}
 				
-				var arg : Argument = { name : name, rest : rest };
+				var arg : Argument = { name : name, rest : rest, opt : opt };
 				if( allowTypes ) {
 					if( maybe(TDoubleDot) )
 						arg.t = parseType();
@@ -1120,7 +1139,7 @@ class Parser {
 						switch arg.value {
 							case null:
 							case v:
-								error(ECustom('Default values not allowed in function types'), v.pmin, v.pmax);
+								error(ECustom('Default values not allowed in function types'), v.pos.pmin, v.pos.pmax);
 						}
 
 						CTNamed(arg.name, if (arg.opt) CTOpt(arg.t) else arg.t);
@@ -1229,27 +1248,34 @@ class Parser {
 
 	// ------------------------ module -------------------------------
 
-	public function parseModule(content:String, ?origin:String = "hscript", position:Int = 0, ?pack:Array<String>) {
+	public function parseModule(content:String, ?origin:String = "hscript", position:Int = 0, ?pack:Array<String>, importModule:Bool = false) {
+		this.pack = pack;
 		initParser(origin, position);
 		input = content;
 		readPos = 0;
 		allowTypes = true;
 		allowMetadata = true;
+		
 		var decls = [];
 		while( true ) {
 			var tk = token();
 			if( tk == TEof ) break;
 			push(tk);
-			decls.push(parseModuleDecl(decls));
+			decls.push(parseModuleDecl(decls, importModule));
 		}
-		var fullPack = pack.join('.');
-		var thisPack = (switch(decls[0]) {
-			case DPackage(path): path;
-			default: [];
-		}).join('.');
-		if (thisPack != fullPack) {
-			throw new haxe.Exception('"package${thisPack.length > 0 ? ' ' : ''}$thisPack;" in $origin should be "package${fullPack.length > 0 ? ' ' : ''}$fullPack;"');
+		
+		if (!importModule) {
+			pack ??= [];
+			var fullPack = pack.join('.');
+			var thisPack = (switch (decls[0]?.d) {
+				case DPackage(path): path;
+				default: [];
+			}).join('.');
+			if (thisPack != fullPack) {
+				throw new haxe.Exception('"package${thisPack.length > 0 ? ' ' : ''}$thisPack;" in $origin should be "package${fullPack.length > 0 ? ' ' : ''}$fullPack;"');
+			}
 		}
+		
 		return decls;
 	}
 
@@ -1274,7 +1300,7 @@ class Parser {
 		return {};
 	}
 
-	function parseModuleDecl(?decls:Array<ModuleDecl>) : ModuleDecl {
+	function parseModuleDecl(?decls:Array<ModuleDecl>, importModule:Bool = false) : ModuleDecl {
 		var meta = parseMetadata();
 		var ident = getIdent();
 		var isPrivate = false, isExtern = false;
@@ -1293,8 +1319,7 @@ class Parser {
 		
 		return switch( ident ) {
 		case "using":
-			if (decl)
-				error(ECustom('import and using may not appear after a declaration'), tokenMin, tokenMax);
+			if (decl) error(ECustom('import and using may not appear after a declaration'), tokenMin, tokenMax);
 			
 			var path:Array<String> = [getIdent()];
 			
@@ -1316,7 +1341,7 @@ class Parser {
 			
 			ensure(TSemicolon);
 			
-			return DUsing(path);
+			return mkd(DUsing(path), tokenMin, tokenMax);
 		case "package":
 			if (decls != null && decls.length > 0) error(EUnexpected(ident), tokenMin, tokenMax);
 			
@@ -1324,10 +1349,9 @@ class Parser {
 			var path = (noPath ? [] : parsePath());
 			if (!noPath) ensure(TSemicolon);
 			
-			return DPackage(path);
+			return mkd(DPackage(path), tokenMin, tokenMax);
 		case "import":
-			if (decl)
-				error(ECustom('import and using may not appear after a declaration'), tokenMin, tokenMax);
+			if (decl) error(ECustom('import and using may not appear after a declaration'), tokenMin, tokenMax);
 			
 			var path:Array<String> = [getIdent()];
 			var mode:ImportMode = INormal;
@@ -1379,9 +1403,14 @@ class Parser {
 			
 			ensure(TSemicolon);
 			
-			return DImport(path, mode);
+			return mkd(DImport(path, mode), tokenMin, tokenMax);
 		case "class":
+			if (importModule) error(EImportHx, tokenMin, tokenMax);
+			
 			var name = getIdent();
+			if (!name.isTypeIdentifier())
+				error(ECustom('Type name should start with an uppercase letter'), tokenMin, tokenMax);
+			
 			var params = parseParams();
 			var extend = null;
 			var implement = [];
@@ -1398,13 +1427,16 @@ class Parser {
 					break;
 				}
 			}
+			
+			// origin = pack.join('.');
+			// origin = (origin.length > 0 ? '$origin.$name' : name);
 
 			var fields = [];
 			ensure(TBrOpen);
 			while( !maybe(TBrClose) )
 				fields.push(parseField());
 
-			return DClass({
+			return mkd(DClass({
 				name : name,
 				meta : meta,
 				params : params,
@@ -1413,23 +1445,85 @@ class Parser {
 				fields : fields,
 				isPrivate : isPrivate,
 				isExtern : isExtern,
-			});
-		case "typedef":
+			}), tokenMin, tokenMax);
+		case "enum":
+			if (importModule) error(EImportHx, tokenMin, tokenMax);
+			
 			var name = getIdent();
+			if (!name.isTypeIdentifier())
+				error(ECustom('Type name should start with an uppercase letter'), tokenMin, tokenMax);
+			
 			var params = parseParams();
+			var names:Array<String> = [];
+			var constructs:Map<String, EnumFieldDecl> = [];
+			
+			ensure(TBrOpen);
+			while (!maybe(TBrClose)) {
+				var field:EnumFieldDecl = parseEnumField();
+				constructs.set(field.name, field);
+				
+				// if (names.contains(field.name))
+				// 	error(ECustom('Duplicate constructor ${field.name}'), tokenMin, tokenMax);
+				
+				names.push(field.name);
+			}
+			
+			return mkd(DEnum({
+				name: name,
+				meta: meta,
+				params: params,
+				isPrivate: isPrivate,
+				constructs: constructs,
+				names: names
+			}), tokenMin, tokenMax);
+		case "typedef":
+			if (importModule) error(EImportHx, tokenMin, tokenMax);
+			
+			var name = getIdent();
+			if (!name.isTypeIdentifier())
+				error(ECustom('Type name should start with an uppercase letter'), tokenMin, tokenMax);
+			
+			var params = parseParams();
+			
 			ensureToken(TOp("="));
+			
 			var t = parseType();
-			return DTypedef({
+			switch (t) {
+				case CTPath(_, _):
+					ensure(TSemicolon);
+				
+				default:
+					maybe(TSemicolon);
+			}
+			
+			return mkd(DTypedef({
 				name : name,
 				meta : meta,
 				params : params,
 				isPrivate : isPrivate,
 				t : t,
-			});
+			}), tokenMin, tokenMax);
 		default:
 			unexpected(TId(ident));
 		}
 		return null;
+	}
+	
+	function parseEnumField():EnumFieldDecl {
+		var arguments:Array<Argument> = null;
+		var meta = parseMetadata();
+		var id = getIdent();
+		
+		if (maybe(TPOpen))
+			arguments = parseFunctionArgs(false);
+		
+		ensure(TSemicolon);
+		
+		return {
+			name: id,
+			meta: meta,
+			arguments: arguments
+		};
 	}
 
 	function parseField() : FieldDecl {
@@ -1440,6 +1534,8 @@ class Parser {
 			switch( id ) {
 			case "override":
 				access.push(AOverride);
+			case "dynamic":
+				access.push(ADynamic);
 			case "public":
 				access.push(APublic);
 			case "private":

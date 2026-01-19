@@ -20,6 +20,7 @@
  * DEALINGS IN THE SOFTWARE.
  */
 package insanity.backend;
+
 import insanity.backend.Expr;
 import insanity.backend.Exception;
 
@@ -129,6 +130,7 @@ class Printer {
 			return;
 		}
 		switch( e.e ) {
+			case EDecl(d): add('decl'); // TODO
 			case EUsing(path): add('using ${path.join('.')}');
 			case EImport(path, INormal): add('import ${path.join('.')}');
 			case EImport(path, IAsName(alias)): add('import ${path.join('.')} as $alias');
@@ -371,6 +373,8 @@ class Printer {
 
 	public static function errorToString( e : Error, ?p:ParserException ) {
 		var message = switch( e ) {
+			case EImportHx: 'Only import and using is allowed in import.hx files';
+			case EHasNoSuper: 'Current class does not have a super';
 			case EUnknownType(t): 'Type not found: $t';
 			case EUnknownField(o, f): '$o has no field $f';
 			case EInvalidChar(c): "Invalid character: '"+(StringTools.isEof(c) ? "EOF" : String.fromCharCode(c))+"' ("+c+")";
