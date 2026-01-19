@@ -317,7 +317,7 @@ class AbstractMacro {
 							kind: FProp(
 								typeIsMe ? 'get' : 'default', 'never',
 								typeIsMe ? TPath(abstractT) : macro:Dynamic,
-								typeIsMe ? null : e.map(mapIdent)
+								typeIsMe ? null : e?.map(mapIdent)
 							)
 						});
 						

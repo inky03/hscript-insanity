@@ -192,9 +192,20 @@ class ScriptedMacro {
 					})};
 				}
 				
-				hasConstructor = true;
-				constructorExpr = {pos: pos, expr: EMeta({pos: pos, name: ':privateAccess'}, mapConstructor(type))};
-				//trace(constructorExpr.toString());
+				switch (mapConstructor(type).expr) {
+					default:
+					case EFunction(_, fun):
+						hasConstructor = true;
+						
+						fields.push({
+							pos: pos, meta: [{pos: pos, name: ':privateAccess'}], name: '__constructSuper',
+							kind: FFun({
+								args: fun.args,
+								expr: {pos: pos, expr: EMeta({pos: pos, name: ':privateAccess'}, fun.expr)},
+								ret: fun.ret
+							})
+						});
+				}
 			}
 			
 			for (field in typeFields) {
@@ -334,13 +345,6 @@ class ScriptedMacro {
 									var defaultValue:Expr = defaults[i];
 									
 									var t = mapGeneric(arg.t.toComplexType());
-									/*switch (t) {
-										case TPath(p):
-											if (p.sub == 'Null')
-												t = macro:Dynamic;
-										default:
-									}
-									if (!arg.opt) t = macro:Dynamic;*/
 									
 									{
 										name: arg.name,
@@ -388,8 +392,18 @@ class ScriptedMacro {
 				})
 			});
 		}
+		if (!hasConstructor) {
+			fields.push({
+				pos: pos, name: '__constructSuper',
+				kind: FFun({
+					args: [],
+					expr: macro throw '${__base.path} does not have a constructor',
+					ret: macro:Void
+				})
+			});
+		}
 		
-		var constructExpr = macro {
+		var newExpr = macro {
 			__vars = new Map();
 			__curAccess = '';
 			__func = '';
@@ -407,7 +421,6 @@ class ScriptedMacro {
 			
 			__fields = [];
 			var constructor:Dynamic = null;
-			var classConstructor = ${hasConstructor ? constructorExpr : macro null};
 			function setInstanceFields(i:Dynamic) {
 				var instanceFields:Array<String> = i.instanceFields;
 				if (instanceFields == null) return;
@@ -423,7 +436,7 @@ class ScriptedMacro {
 					if (Reflect.isFunction(f)) superLocals.set(field, {r: f});
 				}
 				
-				__interp.locals.set('super', {r: insanity.backend.Expr.Mirror.MSuper(superLocals, classConstructor)});
+				__interp.locals.set('super', {r: insanity.backend.Expr.Mirror.MSuper(superLocals, __constructSuper)});
 			}
 			function setFields(t:insanity.backend.types.Scripted.InsanityScriptedClass, isSuper:Bool = false) {
 				for (field in t.decl.fields) {
@@ -471,7 +484,8 @@ class ScriptedMacro {
 							
 							__interp.locals.get(f).r = __interp.buildFunction(f, fun.args, fun.expr, fun.ret, superLocals);
 						case KVar(v):
-							__interp.locals.get(f).r = (v.expr == null ? null : __interp.exprReturn(v.expr, v.type));
+							if (__interp.locals.exists(f))
+								__interp.locals.get(f).r = (v.expr == null ? null : __interp.exprReturn(v.expr, v.type));
 					}
 					
 					__vars.set(f, __interp.locals.get(f));
@@ -496,27 +510,18 @@ class ScriptedMacro {
 			setSuperFields(base.extending);
 			setFields(base);
 			
-			if (constructor == null) constructor = classConstructor;
-			if (constructor != null) {
-				if (__safe) {
-					try { Reflect.callMethod(this, constructor, arguments); }
-					catch (e:Dynamic) { __base.onInstanceError(e, 'new', this); }
-				} else {
-					Reflect.callMethod(this, constructor, arguments);
-				}
+			if (__safe) {
+				try { Reflect.callMethod(this, constructor, arguments); }
+				catch (e:Dynamic) { __base.onInstanceError(e, 'new', this); }
 			} else {
-				if (__safe) {
-					__base.onInstanceError('${base.path} does not have a constructor', 'new', this);
-				} else {
-					throw '${base.path} does not have a constructor';
-				}
+				Reflect.callMethod(this, constructor, arguments);
 			}
 		};
 		fields.push({
 			pos: pos, name: '__construct',
 			kind: FFun({
 				args: [{name: 'base', type: macro:insanity.backend.types.Scripted.InsanityScriptedClass}, {name: 'arguments', type: macro:Array<Dynamic>}],
-				expr: constructExpr,
+				expr: newExpr,
 				ret: macro:Void
 			})
 		});
