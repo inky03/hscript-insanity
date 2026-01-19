@@ -1,5 +1,7 @@
 package insanity.custom;
 
+import insanity.custom.InsanityType;
+
 class InsanityReflect {
 	public inline static function hasField(o:Dynamic, field:String):Bool {
 		if (o is ICustomReflection) {
@@ -70,6 +72,7 @@ class InsanityReflect {
 	}
 
 	public inline static function isEnumValue(v:Dynamic):Bool {
+		if (v is ICustomEnumValueType) return true;
 		return Reflect.isEnumValue(v);
 	}
 	

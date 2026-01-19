@@ -104,7 +104,7 @@ class Tools {
 	}
 
 	public static inline function mk( e : ExprDef, pos : Position ) {
-		return { e : e, pos: { pmin : pos.pmin, pmax : pos.pmax, origin : pos.origin, line : pos.line } };
+		return { e : e, pos: { pmin : pos.pmin, pmax : pos.pmax, origin : pos.origin, line : pos.line, column : pos.column } };
 	}
 
 	public static inline function getKeyIterator<T>( e : Expr, callb : String -> String -> Expr -> T ) {

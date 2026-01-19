@@ -72,6 +72,7 @@ class Interp {
 	var stack : CallStack;
 	
 	var inTry : Bool;
+	var captures : Map<String, Dynamic>;
 	var declared : Array<{ n : String, old : Variable }>;
 	var returnValue : Dynamic;
 	
@@ -88,6 +89,7 @@ class Interp {
 		
 		imports = new Map();
 		usings = new Array();
+		captures = new Map();
 		variables = new Map();
 		
 		declared = new Array();
@@ -506,7 +508,7 @@ class Interp {
 		}
 	}
 	
-	inline function resolveMirror(v:Dynamic, calling:Bool = false):Dynamic {
+	inline function resolveMirror(v:Dynamic):Dynamic {
 		if (v is Mirror) {
 			switch (v) {
 				default:
@@ -515,7 +517,8 @@ class Interp {
 					if (curAccess == f) { return Reflect.field(t, f); }
 					else { return Reflect.getProperty(t, f); }
 				case MEnumValue(t, i):
-					if (calling) return Reflect.makeVarArgs(function(params:Array<Dynamic>) return createEnum(t, i, params));
+					if (!Type.allEnums(t).contains(Type.getEnumConstructs(t)[i]))
+						return Reflect.makeVarArgs(function(params:Array<Dynamic>) return createEnum(t, i, params));
 					return createEnum(t, i);
 				case MAbstractEnumValue(t, i):
 					return createAbstractEnum(t, i);
@@ -525,20 +528,23 @@ class Interp {
 		}
 	}
 
-	function resolve(id:String, calling:Bool = false) : Dynamic {
+	function resolve(id:String) : Dynamic {
+		if (captures.exists(id))
+			return captures.get(id);
+		
 		if (imports.exists(id)) {
 			var v:Dynamic = imports.get(id);
 			
 			if (v == null)
 				error(ECustom('Module $id does not define type $id'));
 			
-			return resolveMirror(v, calling);
+			return resolveMirror(v);
 		}
 		
 		if (!variables.exists(id))
 			error(EUnknownVariable(id));
 		
-		return resolveMirror(variables.get(id), calling);
+		return resolveMirror(variables.get(id));
 	}
 	
 	function importType(name:String, t:Dynamic, enumValueImport:Bool = true) {
@@ -848,7 +854,7 @@ class Interp {
 		return f;
 	}
 
-	public function expr( e : Expr, ?t : CType, calling:Bool = false ) : Dynamic {
+	public function expr( e : Expr, ?t : CType ) : Dynamic {
 		Type.environment = environment;
 		accessingInterp = this;
 		position = e.pos;
@@ -873,7 +879,7 @@ class Interp {
 			}
 		case EIdent(id):
 			if (locals.exists(id)) return getLocal(id);
-			return resolve(id, calling);
+			return resolve(id);
 		case EVar(n,t,e,get,set):
 			var ne:Dynamic = (e == null ? null : expr(e, t));
 			
@@ -925,14 +931,14 @@ class Interp {
 			
 			switch( Tools.expr(e) ) {
 				case EField(e,f,m):
-					var obj = expr(e, true);
+					var obj = expr(e);
 					if ( obj == null ) {
 						if (m) return null;
 						error(EInvalidAccess(f));
 					}
 					return fcall(obj,f,args);
 				default:
-					return call(null,expr(e, true),args);
+					return call(null,expr(e),args);
 			}
 		case EIf(econd,e1,e2):
 			return if( expr(econd) == true ) expr(e1) else if( e2 == null ) null else expr(e2);
@@ -1076,22 +1082,92 @@ class Interp {
 		case ETernary(econd,e1,e2):
 			return if( expr(econd) == true ) expr(e1) else expr(e2);
 		case ESwitch(e, cases, def):
+			var hasCapture:Bool = false;
+			function mapCapture(e:Expr) {
+				return switch (e.e) {
+					case EIdent('_') | EIdent(_.isTypeIdentifier() => false):
+						hasCapture = true; e;
+					case EIdent(id):
+						e;
+					case EVar(_):
+						hasCapture = true; e;
+					default: e.map(mapCapture);
+				}
+			}
+			function checkCapture(e:Expr) {
+				hasCapture = false;
+				e.map(mapCapture);
+				return hasCapture;
+			}
+			
 			var val : Dynamic = expr(e);
 			var match = false;
 			for( c in cases ) {
-				for( v in c.values ) {
-					var check = expr(v);
-					
-					if (check == val) {
-						match = true;
-					} else if (val is ICustomEnumValueType && check is ICustomEnumValueType) {
-						match = cast(val, ICustomEnumValueType).eq(check);
-					} else {
-						try {
-							if (Type.getEnum(val) != null && Type.getEnum(check) != null)
-								match = Type.enumEq(val, check);
-						} catch (e:Dynamic) {}
+				for( e in c.values ) {
+					function test(e:Expr, match:Dynamic, makeCapture:Bool = true) {
+						return switch (e.e) {
+							case EIdent(id):
+								if (!imports.exists(id) && !variables.exists(id)) {
+									if (id != '_' && (id.isTypeIdentifier() || !makeCapture))
+										throw 'Unknown identifier: $id, pattern variables must be lower-case or with \'var \' prefix';
+									captures.set(id, match);
+								}
+								true;
+							case EField(ve, f, m):
+								test(ve, match, false);
+								matchValues(get(expr(ve), f, m), match);
+							case EVar(id):
+								captures.set(id, match);
+								true;
+							case EConst(_):
+								(expr(e) == match);
+							case EParent(e):
+								test(e, match);
+							case EBinop('=>', e1, e2):
+								test(e1, match, false);
+								matchValues(expr(e1), expr(e2));
+							case EObject(f):
+								for (f in f) {
+									if (!Reflect.hasField(match, f.name) || !test(f.e, Reflect.field(match, f.name)))
+										return false;
+								}
+								true;
+							case EArrayDecl(a):
+								if (a.length != match.length)
+									return false;
+								for (i => e in a) {
+									if (!test(e, match[i]))
+										return false;
+								}
+								true;
+							case ECall(ce, params):
+								if (checkCapture(ce)) {
+									test(ce, match);
+								} else {
+									var v = expr(ce);
+									
+									var ev = Reflect.callMethod(null, v, [for (_ in params) null]);
+									if (Type.getEnum(ev) == Type.getEnum(match) && Type.enumConstructor(ev) == Type.enumConstructor(match)) {
+										var matchParams = Type.enumParameters(match);
+										
+										for (i => param in params) {
+											if (!test(param, matchParams[i]))
+												return false;
+										}
+									} else {
+										return false;
+									}
+								}
+								
+								true;
+							default:
+								false;
+						}
 					}
+					
+					match = test(e, val);
+					
+					captures.remove('_');
 					
 					if (match) break;
 				}
@@ -1100,8 +1176,12 @@ class Interp {
 					break;
 				}
 			}
+			
 			if( !match )
 				val = def == null ? null : expr(def);
+			
+			captures.clear();
+			
 			return val;
 		case EMeta(meta, args, e):
 			return exprMeta(meta, args, e);
@@ -1111,6 +1191,18 @@ class Interp {
 			return expr(e);
 		}
 		return null;
+	}
+	
+	public static function matchValues(v:Dynamic, with:Dynamic):Bool {
+		if (v == with) {
+			return true;
+		} else if (v is ICustomEnumValueType && with is ICustomEnumValueType) {
+			return cast(v, ICustomEnumValueType).eq(with);
+		} else if (Reflect.isEnumValue(v) && Type.getEnum(v) != null && Type.getEnum(with) != null) {
+			return Type.enumEq(v, with);
+		}
+		
+		return false;
 	}
 	
 	function tryCast(e:Dynamic, ?type):Dynamic {

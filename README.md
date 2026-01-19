@@ -315,6 +315,12 @@ it represents my Dwindling mental state as i figure how to modify this library !
 	- [ ] explicit type checking?
 - `switch` keyword
 	- [ ] complex pattern matching
+		- [X] capture variables
+		- [X] extractors
+		- [X] enum
+		- [X] array
+		- [X] struct
+		- [ ] guard conditions
 - `Printer` class
 	- [ ] fix printed expressions with escape characters
 	- [ ] module declaration to string ?

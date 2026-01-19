@@ -864,17 +864,33 @@ class Parser {
 					var c = { values : [], expr : null };
 					cases.push(c);
 					while( true ) {
-						var e = parseExpr();
+						var e:Expr;
+						
+						if (maybe(TId('var'))) {
+							e = mk(EVar(getIdent()), p1);
+						} else {
+							e = parseExpr();
+						}
+						
 						c.values.push(e);
 						tk = token();
+						
 						switch( tk ) {
-						case TComma:
-							// next expr
-						case TDoubleDot:
-							break;
-						default:
-							unexpected(tk);
-							break;
+							case TComma:
+								// next expr
+							case TDoubleDot:
+								break;
+							default:
+								unexpected(tk);
+								break;
+						}
+					}
+					for (i => ca in c.values) {
+						switch (ca.e) {
+							case EBinop('|', a, b):
+								c.values[i] = a;
+								c.values.insert(i + 1, b);
+							default:
 						}
 					}
 					var exprs = [];
