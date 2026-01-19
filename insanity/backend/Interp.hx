@@ -1128,12 +1128,16 @@ class Interp {
 								test(e1, match, false);
 								matchValues(expr(e1), expr(e2));
 							case EObject(f):
+								if (!Reflect.isObject(match))
+									return false;
 								for (f in f) {
 									if (!Reflect.hasField(match, f.name) || !test(f.e, Reflect.field(match, f.name)))
 										return false;
 								}
 								true;
 							case EArrayDecl(a):
+								if (!match is Array)
+									return false;
 								if (a.length != match.length)
 									return false;
 								for (i => e in a) {

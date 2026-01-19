@@ -856,12 +856,7 @@ class Parser {
 		case "switch":
 			var e = parseExpr();
 			var def = null, cases = [];
-			var brace = false;
-			if (maybe(TPOpen)) {
-				brace = true;
-			} else {
-				ensure(TBrOpen);
-			}
+			ensure(TBrOpen);
 			while( true ) {
 				var tk = token();
 				switch( tk ) {
@@ -951,9 +946,7 @@ class Parser {
 						mk(EBlock([]), tokenMin, tokenMin);
 					else
 						mk(EBlock(exprs), pmin(exprs[0]), pmax(exprs[exprs.length - 1]));
-				case TPClose if (brace):
-					break;
-				case TBrClose if (!brace):
+				case TBrClose:
 					break;
 				default:
 					unexpected(tk);
