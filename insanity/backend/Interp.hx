@@ -975,15 +975,15 @@ class Interp {
 		case EArrayDecl(arr):
 			var compr:Dynamic = null;
 			
-			function attemptMap(e:Expr):Dynamic {
+			function exprCompr(e:Expr, inFor:Bool = false):Dynamic {
 				switch (Tools.expr(e)) {
 					case EBlock(e):
 						var v = Interp.void;
 						for (e in e)
-							v = attemptMap(e);
+							v = exprCompr(e, inFor);
 						return v;
 					case EParent(e):
-						return attemptMap(e);
+						return exprCompr(e, inFor);
 					case EFor(n, it, e):
 						var old = declared.length;
 						declared.push({n: n, old: locals.get(n)});
@@ -993,7 +993,7 @@ class Interp {
 							locals.set(n, {r: it.next()});
 							
 							if (!loopRun(function() {
-								var v:Dynamic = attemptMap(e);
+								var v:Dynamic = exprCompr(e, true);
 								
 								if (v is ExprDef) {
 									switch (v) {
@@ -1029,12 +1029,12 @@ class Interp {
 						
 						return Interp.void;
 					default:
-						return expr(e, true, true);
+						return expr(e, inFor, inFor);
 				}
 			}
 			
 			if (arr.length == 1) {
-				attemptMap(arr[0]);
+				exprCompr(arr[0]);
 				
 				if (compr != null)
 					return compr;
@@ -1174,7 +1174,7 @@ class Interp {
 				for( exr in c.values ) {
 					captures.clear();
 					
-					function test(e:Expr, match:Dynamic) {
+					function test(e:Expr, match:Dynamic, deep:Bool = true) {
 						return switch (e.e) {
 							case EIdent(id):
 								if (!imports.exists(id) && !variables.exists(id)) {
@@ -1192,11 +1192,15 @@ class Interp {
 								true;
 							case EConst(_):
 								(expr(e) == match);
-							case EParent(e):
-								test(e, match);
+							case EParent(exr):
+								test(exr, match);
 							case EBinop('=>', e1, e2):
 								captures.set('_', match);
-								matchValues(expr(e1), expr(e2));
+								
+								var a:Dynamic = expr(e1);
+								test(e2, a);
+								
+								matchValues(a, expr(e2));
 							case EBinop('|', e1, e2):
 								test(e1, match);
 								test(e2, match);
@@ -1240,18 +1244,11 @@ class Interp {
 								
 								true;
 							default:
-								throw EUnrecognizedPattern(null);
+								error(EUnrecognizedPattern(e));
 						}
 					}
 					
-					try {
-						match = test(exr, val);
-					} catch (e:Error) {
-						switch (e) {
-							case EUnrecognizedPattern(_): error(EUnrecognizedPattern(exr));
-							default: error(e);
-						}
-					}
+					match = test(exr, val);
 					
 					captures.remove('_');
 					

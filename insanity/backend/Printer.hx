@@ -155,11 +155,13 @@ class Printer {
 						add("{\n");
 						tabs += "\t";
 					}
+					
 					for( e in el ) {
 						add(tabs);
 						expr(e);
 						add(";\n");
 					}
+					
 					if (-- level > 0) {
 						tabs = tabs.substr(1);
 						add(tabs);
@@ -304,6 +306,7 @@ class Printer {
 						add(",\n");
 					}
 					tabs = tabs.substr(1);
+					add(tabs);
 					add("}");
 				}
 			case ETernary(c,e1,e2):
@@ -313,25 +316,42 @@ class Printer {
 				add(" : ");
 				expr(e2);
 			case ESwitch(e, cases, def):
-				add("switch( ");
+				add("switch ");
 				expr(e);
-				add(") {");
+				add(" {\n");
+				
+				level ++;
+				tabs += '\t';
+				
 				for( c in cases ) {
+					add(tabs);
 					add("case ");
 					var first = true;
 					for( v in c.values ) {
 						if( first ) first = false else add(", ");
 						expr(v);
 					}
+					if (c.guard != null) {
+						add(' if( ');
+						expr(c.guard);
+						add(' )');
+					}
 					add(": ");
 					expr(c.expr);
 					add(";\n");
 				}
+				
 				if( def != null ) {
+					add(tabs);
 					add("default: ");
 					expr(def);
 					add(";\n");
 				}
+				
+				level --;
+				tabs = tabs.substr(1);
+				
+				add(tabs);
 				add("}");
 			case EMeta(name, args, e):
 				add("@");
