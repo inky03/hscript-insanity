@@ -356,7 +356,7 @@ class Parser {
 			}
 		}
 		
-		return parseExprNext(mk(EParent(se)));
+		return mk(EParent(se));
 	}
 
 	function parseExpr(?type) {
@@ -370,7 +370,7 @@ class Parser {
 				e = mk(EIdent(id));
 			return parseExprNext(e);
 		case TConst(CString(s, true)):
-			return interpolateString(s);
+			return parseExprNext(interpolateString(s));
 		case TConst(c):
 			return parseExprNext(mk(EConst(c)));
 		case TPOpen:
@@ -410,7 +410,7 @@ class Parser {
 			}
 			return unexpected(tk);
 		case TBrOpen:
-			tk = token(false);
+			tk = token();
 			switch( tk ) {
 			case TBrClose:
 				return parseExprNext(mk(EObject([]),p1));
@@ -423,10 +423,12 @@ class Parser {
 					return parseExprNext(parseObject(p1));
 				default:
 				}
+			case TConst(CString(s, true)):
+				push(tk);
 			case TConst(c):
 				if( allowJSON ) {
 					switch( c ) {
-					case CString(_):
+					case CString(s):
 						var tk2 = token();
 						push(tk2);
 						push(tk);
@@ -513,18 +515,6 @@ class Parser {
 				a.push(parseExpr());
 				tk = token();
 			}
-			if( a.length == 1 && a[0] != null )
-				switch( expr(a[0]) ) {
-				case EFor(_), EWhile(_), EDoWhile(_):
-					var tmp = "__a_" + (uid++);
-					var e = mk(EBlock([
-						mk(EVar(tmp, null, mk(EArrayDecl([]), p1)), p1),
-						mapCompr(tmp, a[0]),
-						mk(EIdent(tmp),p1),
-					]),p1);
-					return parseExprNext(e);
-				default:
-				}
 			return parseExprNext(mk(EArrayDecl(a), p1));
 		case TMeta(id) if( allowMetadata ):
 			var args = parseMetaArgs();
@@ -580,29 +570,6 @@ class Parser {
 			}
 		}
 		return args;
-	}
-
-	function mapCompr( tmp : String, e : Expr ) {
-		if( e == null ) return null;
-		var edef = switch( expr(e) ) {
-		case EFor(v, it, e2):
-			EFor(v, it, mapCompr(tmp, e2));
-		case EForGen(it, e2):
-			EForGen(it, mapCompr(tmp, e2));
-		case EWhile(cond, e2):
-			EWhile(cond, mapCompr(tmp, e2));
-		case EDoWhile(cond, e2):
-			EDoWhile(cond, mapCompr(tmp, e2));
-		case EIf(cond, e1, e2) if( e2 == null ):
-			EIf(cond, mapCompr(tmp, e1), null);
-		case EBlock([e]):
-			EBlock([mapCompr(tmp, e)]);
-		case EParent(e2):
-			EParent(mapCompr(tmp, e2));
-		default:
-			ECall( mk(EField(mk(EIdent(tmp), pmin(e), pmax(e)), "push"), pmin(e), pmax(e)), [e]);
-		}
-		return mk(edef, pmin(e), pmax(e));
 	}
 
 	function makeUnop( op, e ) {
@@ -1109,7 +1076,7 @@ class Parser {
 				if( op == "<" ) {
 					params = [];
 					while( true ) {
-						switch( token() ) {
+						switch( token(false) ) {
 						case TConst(c):
 							params.push(CTExpr(mk(EConst(c))));
 						case tk:

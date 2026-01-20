@@ -28,6 +28,7 @@ import insanity.backend.types.Scripted;
 import haxe.PosInfos;
 import haxe.Constraints.IMap;
 
+import Type as HaxeType;
 import Reflect as HaxeReflect;
 
 import insanity.custom.InsanityType.ICustomEnumValueType;
@@ -76,6 +77,7 @@ class Interp {
 	var declared : Array<{ n : String, old : Variable }>;
 	var returnValue : Dynamic;
 	
+	static var void(default, never):Dynamic = {};
 	static var accessingInterp:Interp = null;
 	var position : Position = { origin: 'hscript', line: 0 };
 	var curAccess : String = '';
@@ -851,7 +853,7 @@ class Interp {
 		return f;
 	}
 
-	public function expr( e : Expr, ?t : CType ) : Dynamic {
+	public function expr( e : Expr, ?t : CType, void : Bool = false, mapCompr : Bool = false ) : Dynamic {
 		Type.environment = environment;
 		accessingInterp = this;
 		position = e.pos;
@@ -891,18 +893,20 @@ class Interp {
 			
 			return null;
 		case EParent(e):
-			return expr(e);
+			return expr(e, void, mapCompr);
 		case EBlock(exprs):
 			var loc = Lambda.count(locals);
 			var old = declared.length;
 			var v = null;
 			for( e in exprs )
-				v = expr(e);
+				v = expr(e, void, mapCompr);
 			if (loc > 0)
 				restore(old);
 			return v;
 		case EField(e,f,m):
 			return get(expr(e),f,m);
+		case EBinop('=>', e1, e2) if (mapCompr):
+			return e;
 		case EBinop(op,e1,e2):
 			var fop = binops.get(op);
 			if( fop == null ) error(EInvalidOp(op));
@@ -939,7 +943,7 @@ class Interp {
 					return call(null,expr(e),args);
 			}
 		case EIf(econd,e1,e2):
-			return if( expr(econd) == true ) expr(e1) else if( e2 == null ) null else expr(e2);
+			return if (expr(econd)) expr(e1, void, mapCompr) else if (e2 == null) (void ? Interp.void : null) else expr(e2, void, mapCompr);
 		case EWhile(econd,e):
 			whileLoop(econd,e);
 			return null;
@@ -964,11 +968,78 @@ class Interp {
 		case EContinue:
 			throw SContinue;
 		case EReturn(e):
-			returnValue = e == null ? null : expr(e);
+			returnValue = e == null ? null : expr(e, void, mapCompr);
 			throw SReturn;
 		case EFunction(params,fexpr,name,ret,id):
 			return buildFunction(name, params, fexpr, ret, id);
 		case EArrayDecl(arr):
+			var compr:Dynamic = null;
+			
+			function attemptMap(e:Expr):Dynamic {
+				switch (Tools.expr(e)) {
+					case EBlock(e):
+						var v = Interp.void;
+						for (e in e)
+							v = attemptMap(e);
+						return v;
+					case EParent(e):
+						return attemptMap(e);
+					case EFor(n, it, e):
+						var old = declared.length;
+						declared.push({n: n, old: locals.get(n)});
+						
+						var it = makeIterator(expr(it, true, true));
+						while (it.hasNext()) {
+							locals.set(n, {r: it.next()});
+							
+							if (!loopRun(function() {
+								var v:Dynamic = attemptMap(e);
+								
+								if (v is ExprDef) {
+									switch (v) {
+										default:
+										case EBinop('=>', e1, e2):
+											var key:Dynamic = expr(e1);
+											
+											if (key is String) {
+												compr ??= new haxe.ds.StringMap();
+											} else if (key is Int) {
+												compr ??= new haxe.ds.IntMap();
+											} else if (HaxeReflect.isEnumValue(key)) {
+												compr ??= new haxe.ds.EnumValueMap();
+											} else {
+												compr ??= new haxe.ds.ObjectMap();
+											}
+											
+											compr.set(key, expr(e2));
+											return;
+									}
+								}
+								
+								if (v != Interp.void) {
+									compr ??= new Array();
+									
+									compr.push(v);
+								}
+							}))
+								break;
+						}
+						
+						restore(old);
+						
+						return Interp.void;
+					default:
+						return expr(e, true, true);
+				}
+			}
+			
+			if (arr.length == 1) {
+				attemptMap(arr[0]);
+				
+				if (compr != null)
+					return compr;
+			}
+			
 			if ( arr.length > 0 && Tools.expr(arr[0]).match(EBinop("=>", _)) ) { // infer from keys ...
 				var keys = [];
 				var values = [];
@@ -1081,20 +1152,19 @@ class Interp {
 			return if( expr(econd) == true ) expr(e1) else expr(e2);
 		case ESwitch(e, cases, def):
 			var hasCapture:Bool = false;
-			function mapCapture(e:Expr) {
-				return switch (e.e) {
+			function iterCapture(e:Expr) {
+				switch (e.e) {
 					case EIdent('_') | EIdent(_.isTypeIdentifier() => false):
-						hasCapture = true; e;
+						hasCapture = true;
 					case EIdent(id):
-						e;
 					case EVar(_):
-						hasCapture = true; e;
-					default: e.map(mapCapture);
+						hasCapture = true;
+					default: e.iter(iterCapture);
 				}
 			}
 			function checkCapture(e:Expr) {
 				hasCapture = false;
-				e.map(mapCapture);
+				e.iter(iterCapture);
 				return hasCapture;
 			}
 			
@@ -1191,13 +1261,13 @@ class Interp {
 					if (match) break;
 				}
 				if( match ) {
-					val = expr(c.expr);
+					val = expr(c.expr, void, mapCompr);
 					break;
 				}
 			}
 			
 			if( !match )
-				val = def == null ? null : expr(def);
+				val = def == null ? null : expr(def, void, mapCompr);
 			
 			captures.clear();
 			
@@ -1209,7 +1279,7 @@ class Interp {
 		case ECheckType(e,_):
 			return expr(e);
 		}
-		return null;
+		return (void ? Interp.void : null);
 	}
 	
 	public static function matchValues(v:Dynamic, with:Dynamic):Bool {
@@ -1390,7 +1460,7 @@ class Interp {
 			isAllString = isAllString && (key is String);
 			isAllInt = isAllInt && (key is Int);
 			isAllObject = isAllObject && Reflect.isObject(key);
-			isAllEnum = isAllEnum && Reflect.isEnumValue(key);
+			isAllEnum = isAllEnum && HaxeReflect.isEnumValue(key);
 		}
 
 		#if (haxe_ver >= 4.1)
