@@ -1,21 +1,21 @@
-# hscript-insanity
+# HscriptInsanity
+
+> [!NOTE]
+> This project is inspired by [hscript-iris](https://github.com/pisayesiwsi/hscript-iris) and [RuleScript](https://github.com/Kriptel/RuleScript)!<br>
+> Give these projects a look as well!
 
 > [!TIP]
-> this is my first time messing with code and macros this complex so ... 
-> i apologize for any terribly mid code u might encounter !! (feel free to PR)
+> This is my first time messing with / writing code this complex so I apologize in advance for any bad code!! (feel free to [PR](https://github.com/inky03/hscript-insanity/pulls)) <br>
+> This project is also still a heavy work in progress... see the [TO-DO](#to-do) for all implemented / missing features!
 
-experimental fork of [hscript](https://github.com/HaxeFoundation/hscript)!! (parse and evaluate Haxe expressions dynamically)
-
-! this project is inspired by [hscript-iris](https://github.com/pisayesiwsi/hscript-iris) and [rulescript](https://github.com/Kriptel/RuleScript) !
-
-still a heavy work in progress, have patience ...
+Experimental fork of [Hscript](https://github.com/HaxeFoundation/hscript) (Parse and evaluate Haxe expressions dynamically).
 
 
 ## Features & amendments
 
 ### Simple `Script` class
 
-allows you to define code, give it a name, and run it easily
+Allows you to load code from a string, give it a name, and run it easily!
 
 ```hx
 import insanity.Script;
@@ -31,16 +31,16 @@ script.start();
 script.call('testFunction', 1, 2, 3);
 ```
 
-you can also edit the `variables` map in a Script to expose certain variables on a script. by default, `this` is defined as the Script instance
+You can also edit the `variables` map in a Script to expose certain variables on a script. By default, `this` is defined as the Script instance.
 
 
 ### Scripted modules and types (with `Module` and `Environment`)
 
 > [!WARNING]
-> this feature is experimental and currently very unfinished. <br>
-> CLASS and ENUM types are supported (TYPEDEFS (alias) and ABSTRACTS may be supported later)
+> This feature is experimental and still incomplete. <br>
+> CLASS, TYPEDEF (alias) and ENUM types are supported (ABSTRACTS and MODULE LEVEL FIELDS may be supported later)
 
-you can load custom modules from string and use them in scripts !!
+You can load custom modules from strings and use them in scripts!
 
 ```hx
 var path:String = 'test/source/TestModule.hxs';
@@ -60,7 +60,7 @@ var script:Script = new Script(File.getContent(path), path, environment);
 script.start();
 ```
 
-you can also define types in a script itself, for example:
+...or you can define module types in a script itself, for example:
 
 ```hx
 class TestClass {
@@ -77,7 +77,7 @@ such as (maybe expectedly) not being importable in other scripts !
 */
 ```
 
-if you want to make a haxe class extendable in scripted classes, extend your class and add the `IScripted` interface like the following:
+If you want to make a Haxe class extendable for scripting, extend your class and add the `IScripted` interface like the following example:
 
 ```hx
 class BaseThing {
@@ -94,15 +94,15 @@ class ScriptedThing extends BaseThing implements insanity.IScripted {}
 ### Abstracts
 
 > [!WARNING]
-> this feature is Very experimental and has only been tested with interp, i apologize for any issues that might currently arise from trying to use it. 
-> add the `@:build(insanity.backend.macro.AbstractMacro.build())` metadata to your abstracts to make them usable in Insanity
+> This feature is very experimental. Use with caution! <br>
+> Add the `@:build(insanity.backend.macro.AbstractMacro.build())` metadata to your abstracts to make them usable in Hscript.
 
-you can import abstracts and use MOST of their features !! (see the Todo for all implemented / missing features)
+Importing abstracts and abstract featurs are *mostly* supported.
 
-due to type parameter limitations, you must Explicitly cast an expression to the desired abstract type.. recommendably , store it in a local variable to modify it with ease.<br>
-you can also include a type parameter for an implicit cast in variable / method argument declarations.
+Due to technical limitations, you must *explicitly* cast an expression to the desired type (recommendably, store it in a local variable to modify it with less overhead).<br>
+You can also include a type parameter for an implicit cast in variable / method argument declarations.
 
-enum abstracts should also be supported !
+Enum abstracts are also supported!
 
 ```hx
 import flixel.util.FlxColor;
@@ -119,11 +119,11 @@ trace(colorToString(color)); // (red: 255 | green: 128 | blue: 64)
 
 ### Imports
 
-the [`import`](https://haxe.org/manual/type-system-import.html) keyword is supported
+The [`import`](https://haxe.org/manual/type-system-import.html) keyword is supported!
 
-you can import classes by module or package path (wildcard), similarly to actual haxe. you may also even import a single class or a static field, and give it an alias !
+You can import classes by module or package path (wildcard), similarly to actual Haxe. Importing a single class or class field is supported, as well as aliases!
 
-all bottom level classes like Reflect, Type and your Main application class should similarly also be exposed by default in scripts
+All bottom level classes like Reflect, Type and your Main application class should similarly also be exposed by default in scripts.
 
 ```hx
 import sys.*; // sys package wildcard
@@ -133,14 +133,15 @@ trace(FileSystem.exists('Main.hx'));
 trace(get({hi: 123}, 'hi'));
 ```
 
-you can also import type alias typedefs ! due to type parameters being mostly stripped at runtime, adding support for importing anonymous structure typedefs is not very practical
+You can also import type alias typedefs!<br>
+Due to type parameters being mostly stripped at runtime, adding support for importing anonymous structure typedefs is not very practical.
 
-all type information is registered in `insanity.backend.TypeCollection.main`
+All compile-time type information is accessible in `insanity.backend.TypeCollection.main`.
 
 
 ### Using (static extension)
 
-the [`using`](https://haxe.org/manual/lf-static-extension.html) keyword is supported (to most capacity)
+The [`using`](https://haxe.org/manual/lf-static-extension.html) keyword is supported (to most capacity)!
 
 ```hx
 using Lambda;
@@ -158,9 +159,9 @@ trace(array); // [1, 2, 10, 4, 5]
 
 ### Enums
 
-enums can be imported or created in hscript and support constructors.
+Enums can be imported or created in Hscript and support constructors.
 
-basic enum matching in a switch statement is also implemented !
+[Enum matching in switch-case statements is also fully implemented!](#pattern-matching)
 
 ```hx
 // in source code ...
@@ -178,7 +179,7 @@ trace(Bye);
 
 ### String interpolation
 
-string interpolation with $ is fully supported !
+Haxe's [string interpolation](https://haxe.org/manual/lf-string-interpolation.html) feature is fully supported!
 
 ```hx
 var test:Int = 1234;
@@ -189,12 +190,23 @@ trace('hello $test ${'can also be nested!! $$${test + 3210}'}');
 
 ### Pattern matching
 
-Haxe's [switch-case pattern matching features](https://haxe.org/manual/lf-pattern-matching.html) are fully implemented ! (see examples)
+Haxe's [switch-case pattern matching features](https://haxe.org/manual/lf-pattern-matching.html) feature is fully supported!
+
+```haxe
+var struct:Dynamic = {name: 'Haxe', rating: 'Awesome'};
+
+trace(switch (struct) {
+	case {name: a, rating: b}:
+		'$a is $b';
+	default:
+		'no awesome language found';
+}); // Haxe is Awesome
+```
 
 
 ### Property accessors
 
-haxe's [property accessors](https://haxe.org/manual/class-field-property.html) can be defined in local variables within scripts and module types
+Haxe's [property accessors](https://haxe.org/manual/class-field-property.html) can be defined in variables within scripts and scripted classes!
 
 ```hx
 var customSetter(default, set):Dynamic = 123;
@@ -210,7 +222,7 @@ customSetter = 456;
 
 ### Regex
 
-haxe's [special regex syntax](https://haxe.org/manual/std-regex.html) can now be used to make a new regular expression in hscript (instead of `new EReg`)
+Haxe's [RegEx syntax](https://haxe.org/manual/std-regex.html) can now be used in Hscript (instead of just `new EReg`)!
 
 ```hx
 trace(~/hx/i.replace('HX is Awesome', 'Haxe')); // Haxe is Awesome
@@ -219,9 +231,9 @@ trace(~/hx/i.replace('HX is Awesome', 'Haxe')); // Haxe is Awesome
 
 ### Call stack
 
-script interpreter exceptions now throw an `InterpException`, which contains more detailed error info more akin to Haxe's exception call stack
+`Script` program exceptions now throw an `InterpException`, containing more detailed error info more akin to Haxe's exception call stack.
 
-also imposes a limit for the call stack before a Stack overflow exception (200 by default, can be adjusted with `callStackDepth` in an `Interp` instance)
+Also imposes a limit for the call stack before a Stack overflow exception (200 by default, can be adjusted with `callStackDepth` in an `Interp` instance)
 
 ```
 Exception: ouch...
@@ -233,33 +245,34 @@ Called from Main.main (Main.hx line 10 column 3)
 
 ### Null coalescing operator
 
-albeit partially supported in base hscript (`?.`) the other [null coalescing operators](https://haxe.org/manual/expression-null-coalesce.html) (`??` and `??=`) are now implemented
+~~Albeit partially supported in the original library (`?.`) the other [null coalescing operators](https://haxe.org/manual/expression-null-coalesce.html) (`??` and `??=`) are now implemented~~
 
-also fixes unintended behavior with `ident?.method()` throwing an error is the ident is null
+~~also fixes unintended behavior with `ident?.method()` throwing an error is the ident is null~~<br>
+(these seem to be implemented in the original library too now!)
 
 
 ### Function arguments
 
 - **Rest**
 	
-	allows [rest argument](https://api.haxe.org/haxe/Rest.html) to be used in a function
+	[Rest argument](https://api.haxe.org/haxe/Rest.html) can now be used in functions
 	
 - **Optional arguments**
 	
-	providing a default value for an argument now treats it as optional, regardless of a `?` preceding the argument name (which is , presumably, unintended behavior...)
+	Providing a default value for an argument now treats it as optional, regardless of a `?` preceding the argument name (which is, presumably, unintended behavior in the original library)
 	
-	also fixed a bug where default argument values didn't work as intended in specific conditions
+	A bug where default argument values didn't work as intended in specific conditions is also corrected.
 	
 	```hx
 	function test(?arg = false, arg2 = false) {
 		trace(arg);
-		trace(arg2); // argument would not be considered optional by the parser previously
+		trace(arg2);
 	}
 	```
 
 ## Map declaration
 
-you can declare an empty map with type parameters. in base hscript, `[]` usually just represents an empty array
+You can now declare empty maps, inferring from type parameters (in the original library, `[]` usually just declares an empty array).
 
 ```hx
 var map:Map<String, Dynamic> = [];
@@ -269,13 +282,19 @@ var array = [];
 trace(Type.typeof(array));
 ```
 
+[Map comprehension](https://haxe.org/manual/lf-map-comprehension.html) is now also supported, joining array comprehension!
 
-## Why is it called hscript-insanity
+```haxe
+var map:Map<Int, String> = [for (i in 0 ... 5) i => 'number ${i}'];
+```
 
-it represents my Dwindling mental state as i figure how to modify this library !
+
+## So why is it called hscript-insanity
+
+It represents my dwindling mental state as I figure how to modify this library!!
 
 
-## Todo
+## TO-DO
 
 ### compiled
 
@@ -316,6 +335,8 @@ it represents my Dwindling mental state as i figure how to modify this library !
 
 ### other
 
+- `import` keyword
+	- [ ] module level fields
 - `using` keyword
 	- [ ] explicit type checking?
 - `switch` keyword
