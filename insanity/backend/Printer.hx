@@ -403,7 +403,7 @@ class Printer {
 			case EUnterminatedString: "Unterminated string";
 			case EUnterminatedComment: "Unterminated comment";
 			case EUnterminatedRegex: "Unterminated regular expression";
-			case EInvalidPreprocessor(str): "Invalid preprocessor (" + str + ")";
+			case EInvalidPreprocessor(str): "Invalid conditional expression (" + str + ")";
 			case EUnknownVariable(v): "Unknown identifier: "+v;
 			case EInvalidIterator(v): "Invalid iterator: "+v;
 			case EInvalidOp(op): "Invalid operator: "+op;

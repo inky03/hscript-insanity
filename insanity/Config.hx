@@ -6,7 +6,7 @@ import insanity.custom.*;
 #if hl import insanity.custom.HL; #end
 
 class Config {
-	public static var preprocessorValues:Map<String, String> = Defines.appendCompilerDefines([
+	public static var preprocessorValues:Map<String, Dynamic> = Defines.appendCompilerDefines([
 		'insanity' => '1'
 	]);
 	

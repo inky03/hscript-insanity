@@ -122,15 +122,29 @@ class Parser {
 			["->"],
 			["in","is"]
 		];
+		
 		opPriority = new Map();
 		opRightAssoc = new Map();
-		for( i in 0...priorities.length )
+		for( i in 0...priorities.length ) {
 			for( x in priorities[i] ) {
 				opPriority.set(x, i);
 				if( i == 10 ) opRightAssoc.set(x, true);
 			}
+		}
+		
 		for( x in ["!", "++", "--", "~"] ) // unary "-" handled in parser directly!
 			opPriority.set(x, x == "++" || x == "--" ? -1 : -2);
+		
+		preprocessorBinops = [
+			'&&' => function(a:Dynamic, b:Dynamic) return (a && b),
+			'||' => function(a:Dynamic, b:Dynamic) return (a || b),
+			'==' => function(a:Dynamic, b:Dynamic) return (a == b),
+			'!=' => function(a:Dynamic, b:Dynamic) return (a != b),
+			'>=' => function(a:Dynamic, b:Dynamic) return (a >= b),
+			'<=' => function(a:Dynamic, b:Dynamic) return (a <= b),
+			'>' => function(a:Dynamic, b:Dynamic) return (a > b),
+			'<' => function(a:Dynamic, b:Dynamic) return (a < b)
+		];
 	}
 
 	inline function get_currentPos() return readPos + offset;
@@ -1959,6 +1973,7 @@ class Parser {
 	}
 
 	var preprocStack : Array<{ r : Bool }>;
+	var preprocessorBinops : Map<String, Dynamic -> Dynamic -> Bool>;
 
 	function parsePreproCond() {
 		var tk = token();
@@ -1975,21 +1990,28 @@ class Parser {
 		}
 	}
 
-	function evalPreproCond( e : Expr ) {
+	function evalPreproCond( e : Expr ) : Dynamic {
 		switch( expr(e) ) {
 		case EIdent(id):
-			return preprocValue(id) != null;
+			return preprocValue(id);
+		case EConst(CInt(v)):
+			return v;
+		case EConst(CFloat(v)):
+			return v;
+		case EConst(CString(v)):
+			return v;
 		case EUnop("!", _, e):
 			return !evalPreproCond(e);
 		case EParent(e):
 			return evalPreproCond(e);
-		case EBinop("&&", e1, e2):
-			return evalPreproCond(e1) && evalPreproCond(e2);
-		case EBinop("||", e1, e2):
-			return evalPreproCond(e1) || evalPreproCond(e2);
+		case EBinop(op, e1, e2) if (preprocessorBinops.exists(op)):
+			return preprocessorBinops.get(op)(evalPreproCond(e1), evalPreproCond(e2));
+		case EBinop(op, _, _):
+			error(EInvalidPreprocessor('Unsupported operation $op'), currentPos, currentPos);
+			return null;
 		default:
-			error(EInvalidPreprocessor("Can't eval " + expr(e).getName()), currentPos, currentPos);
-			return false;
+			error(EInvalidPreprocessor(expr(e).getName()), currentPos, currentPos);
+			return null;
 		}
 	}
 
@@ -1997,14 +2019,18 @@ class Parser {
 		switch( id ) {
 		case "if":
 			var e = parsePreproCond();
-			if( evalPreproCond(e) ) {
+			var v:Dynamic = evalPreproCond(e);
+			
+			if (v != null && v != false) {
 				preprocStack.push({ r : true });
 				return token();
 			}
+			
 			preprocStack.push({ r : false });
 			skipTokens();
+			
 			return token();
-		case "else", "elseif" if( preprocStack.length > 0 ):
+		case "else", "elseif" if (preprocStack.length > 0):
 			if( preprocStack[preprocStack.length - 1].r ) {
 				preprocStack[preprocStack.length - 1].r = false;
 				skipTokens();
@@ -2018,7 +2044,7 @@ class Parser {
 				preprocStack.pop();
 				return preprocess("if");
 			}
-		case "end" if( preprocStack.length > 0 ):
+		case "end" if (preprocStack.length > 0):
 			preprocStack.pop();
 			return token();
 		default:
@@ -2032,12 +2058,12 @@ class Parser {
 		var pos = currentPos;
 		while( true ) {
 			var tk = token();
-			if( tk == TEof )
-				error(EInvalidPreprocessor("Unclosed"), pos, pos);
 			if( preprocStack[spos] != obj ) {
 				push(tk);
 				break;
 			}
+			if( tk == TEof )
+				error(EInvalidPreprocessor("Unclosed"), pos, pos);
 		}
 	}
 
