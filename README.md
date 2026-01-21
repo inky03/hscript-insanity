@@ -11,9 +11,9 @@
 Experimental fork of [Hscript](https://github.com/HaxeFoundation/hscript) (Parse and evaluate Haxe expressions dynamically).
 
 
-## Features & amendments
+## Features & Amendments
 
-### Simple `Script` class
+### Simple [`Script`](insanity/Script.hx) class
 
 Allows you to load code from a string, give it a name, and run it easily!
 
@@ -35,7 +35,7 @@ You can also edit the `variables` map in a `Script` to define custom globals on 
 By default, `this` and `interp` are defined as the `Script` instance.
 
 
-### Scripted modules and types (with `Module` and `Environment`)
+### Scripted modules and types (with [`Module`](insanity/Module.hx) and [`Environment`](insanity/Environment.hx))
 
 > [!WARNING]
 > This feature is experimental and still incomplete. <br>
@@ -78,7 +78,7 @@ such as (maybe expectedly) not being importable in other scripts !
 */
 ```
 
-If you want to make a Haxe class extendable for scripting, extend your class and add the `IScripted` interface like the following example:
+To make a Haxe class extendable for scripting, extend it and implement the `insanity.IScripted` interface, like the following example:
 
 ```hx
 class BaseThing {
@@ -93,6 +93,15 @@ By default, `module` is defined as the `Module` instance in modules, and `interp
 
 (NOTE: currently only most behavior is properly implemented from extending classes. while i dont see why implement the interface in the base class, some things might have to be promptly fixed to correctly support them ...)
 
+
+### Global script configs (with [`Config`](insanity/Config.hx))
+
+[`insanity.Config`](insanity/Config.hx) allows you to define custom behaviors, such as...
+- proxying or blacklisting types, modules and packages
+- defining default global variables, and
+- defining default imports!
+
+These behaviors will be applied globally, to all scripts.
 
 
 ### Abstracts
@@ -140,7 +149,7 @@ trace(get({hi: 123}, 'hi'));
 You can also import type alias typedefs!<br>
 Due to type parameters being mostly stripped at runtime, adding support for importing anonymous structure typedefs is not very practical.
 
-All compile-time type information is accessible in `insanity.backend.TypeCollection.main`.
+All compile-time type information is accessible in [`insanity.backend.TypeCollection.main`](insanity/backend/TypeCollection.hx).
 
 
 ### Using (static extension)
@@ -163,8 +172,7 @@ trace(array); // [1, 2, 10, 4, 5]
 
 ### Enums
 
-Enums can be imported or created in Hscript and support constructors.
-
+Enums can be imported or created in Hscript and support constructors.<br>
 [Enum matching in switch-case statements is also fully implemented!](#pattern-matching)
 
 ```hx
@@ -224,9 +232,9 @@ customSetter = 456;
 ```
 
 
-### Regex
+### Regular expression syntax
 
-Haxe's [RegEx syntax](https://haxe.org/manual/std-regex.html) can now be used in Hscript (instead of just `new EReg`)!
+Haxe's [regular expression syntax](https://haxe.org/manual/std-regex.html) can now be used in Hscript (instead of just `new EReg`)!
 
 ```hx
 trace(~/hx/i.replace('HX is Awesome', 'Haxe')); // Haxe is Awesome
@@ -247,11 +255,11 @@ Called from Main.main (Main.hx line 10 column 3)
 ```
 
 
-### Null coalescing operator
+### Null coalescing operators
 
-~~Albeit partially supported in the original library (`?.`) the other [null coalescing operators](https://haxe.org/manual/expression-null-coalesce.html) (`??` and `??=`) are now implemented~~
-
+~~Albeit partially supported in the original library (`?.`) the other [null coalescing operators](https://haxe.org/manual/expression-null-coalesce.html) (`??` and `??=`) are now implemented~~<br>
 ~~also fixes unintended behavior with `ident?.method()` throwing an error is the ident is null~~<br>
+
 (these seem to be implemented in the original library too now!)
 
 
@@ -324,16 +332,20 @@ It represents my dwindling mental state as I figure how to modify this library!!
 
 - types
 	- [X] classes
-		- [X] extends Nothing (or scripted class)
-		- [X] extends Real types
+ 		- extends
+			- [X] Nothing (or scripted class)
+			- [X] Real types
+  		- fields
+			- [X] property getters & setters
+				- [X] accessor error checking in modules
+      		- [X] scripted toString
+  			- [ ] iterables (untested)
 	- [X] enums
 	- [X] typedefs (type alias only)
 	- [ ] abstracts
 
 - general
 	- [X] fix compile errors in HashLink (for now)
-	- [X] property getters & setters
-		- [ ] accessor error checking in modules
 	- [ ] fix module exceptions (can merge call stack?)
 	- [ ] abstract type fields (currently untested)
 
