@@ -283,6 +283,21 @@ Called from Main.main (Main.hx line 10 column 3)
 	}
 	```
 
+
+## Conditionals & defines
+
+Scripts now include the default compilation defines / preprocessor values by default, and you can add custom defines in [`Config`](insanity/Config.hx).<br>
+Comparisons are now also supported in conditionals!
+
+```haxe
+#if (haxe >= '4.3.7')
+	// ...
+#end
+```
+
+A small EOF bug with conditionals has also been fixed.
+
+
 ## Map declaration
 
 You can now declare empty maps, inferring from type parameters (in the original library, `[]` usually just declares an empty array).
