@@ -410,14 +410,16 @@ class ScriptedMacro {
 			
 			__base = base;
 			__safe = base.safe;
-			__interp = new insanity.backend.Interp(base.interp.environment);
+			__interp = new insanity.backend.Interp(base.interp.environment, this);
 			__interp.pushStack(insanity.backend.CallStack.StackItem.SModule(base.module?.path ?? base.name));
 			
-			__interp.setDefaults(true, false);
+			__interp.setDefaults();
 			__interp.variables.set('this', this);
+			__interp.variables.set('interp', __interp);
+			
 			for (u in base.interp.usings) __interp.usings.push(u);
 			for (k => i in base.interp.imports) __interp.imports.set(k, i);
-			// for (k => v in base.interp.variables) __interp.variables.set(k, v);
+			for (k => v in base.interp.variables) if (!__interp.variables.exists(k)) __interp.variables.set(k, v);
 			
 			__fields = [];
 			var constructor:Dynamic = null;

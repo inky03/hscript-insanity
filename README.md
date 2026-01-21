@@ -89,7 +89,7 @@ class ScriptedThing extends BaseThing implements insanity.IScripted {}
 ```
 
 You can also edit the `variables` map in a `Module` or `Environment` to define custom globals on subtypes and submodules, respectively.<br>
-By default, `module` is defined as the `Module` instance in modules.
+By default, `module` is defined as the `Module` instance in modules, and `interp` as the class `Interp` in scripted classes.
 
 (NOTE: currently only most behavior is properly implemented from extending classes. while i dont see why implement the interface in the base class, some things might have to be promptly fixed to correctly support them ...)
 
