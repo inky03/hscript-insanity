@@ -1365,65 +1365,53 @@ class Interp {
 	}
 
 	function makeIterator( v : Dynamic ) : Iterator<Dynamic> {
-		#if js
-		// don't use try/catch (very slow)
 		if( v is Array )
 			return (v : Array<Dynamic>).iterator();
-		if( v.iterator != null ) v = v.iterator();
 		
-		#else
-		
+		var iter = Reflect.field(v, 'iterator');
 		#if hl
-		var iter = Reflect.getProperty(v, 'iterator');
-		if (iter != null)
-			v = Reflect.callMethod(v, iter, []);
-		else
-		#elseif cpp
-		if ( v.iterator != null )
-		#end
-			try { v = v.iterator(); } catch( e : Dynamic ) {};
-		
+		if (iter != null) v = Reflect.callMethod(v, iter, []);
+		#else
+		v = (iter != null ? iter() : null);
 		#end
 		
-		if ( v.hasNext == null || v.next == null ) error(EInvalidIterator(v));
+		if ( Reflect.field(v, 'hasNext') == null || Reflect.field(v, 'next') == null ) error(EInvalidIterator(v));
 		
 		return v;
 	}
 
 	function makeKeyValueIterator( v : Dynamic ) : KeyValueIterator<Dynamic,Dynamic> {
-		#if js
-		// don't use try/catch (very slow)
-		if( v is Array )
-			return (v : Array<Dynamic>).keyValueIterator();
-		if( v.keyValueIterator != null ) v = v.keyValueIterator();
+		if ((v is haxe.ds.IntMap) || (v is haxe.ds.StringMap) || (v is haxe.ds.ObjectMap) || (v is haxe.ds.EnumValueMap)) {
+			return (v:IMap<Dynamic, Dynamic>).keyValueIterator();
+		} else if (v is Array) {
+			return (v:Array<Dynamic>).keyValueIterator();
+		}
 		
-		#else
-		
+		var iter = Reflect.field(v, 'keyValueIterator');
 		#if hl
-		var iter = Reflect.getProperty(v, 'keyValueIterator');
-		if (iter != null)
-			v = Reflect.callMethod(v, iter, []);
-		else
-		#elseif cpp
-		if ( v.keyValueIterator != null )
-		#end
-			try { v = v.keyValueIterator(); } catch( e : Dynamic ) {};
-		
+		if (iter != null) v = Reflect.callMethod(v, iter, []);
+		#else
+		v = (iter != null ? iter() : null);
 		#end
 		
-		if( v.hasNext == null || v.next == null ) error(EInvalidIterator(v));
+		if ( Reflect.field(v, 'hasNext') == null || Reflect.field(v, 'next') == null ) error(EInvalidIterator(v));
+		
 		return v;
 	}
 
 	function forLoop(n,it,e) {
 		var old = declared.length;
 		declared.push({ n : n, old : locals.get(n) });
+		
 		var it = makeIterator(expr(it));
-		while( it.hasNext() ) {
-			locals.set(n,{ r : it.next() });
+		var next = Reflect.field(it, 'next'), hasNext = Reflect.field(it, 'hasNext');
+		
+		while( hasNext() ) {
+			locals.set(n,{ r : next() });
 			if( !loopRun(() -> expr(e)) )
 				break;
 		}
+		
 		restore(old);
 	}
 
@@ -1431,14 +1419,18 @@ class Interp {
 		var old = declared.length;
 		declared.push({ n : vk, old : locals.get(vk) });
 		declared.push({ n : vv, old : locals.get(vv) });
+		
 		var it = makeKeyValueIterator(expr(it));
-		while( it.hasNext() ) {
-			var v = it.next();
+		var next = Reflect.field(it, 'next'), hasNext = Reflect.field(it, 'hasNext');
+		
+		while( hasNext() ) {
+			var v = next();
 			locals.set(vk,{ r : v.key });
 			locals.set(vv,{ r : v.value });
 			if( !loopRun(() -> expr(e)) )
 				break;
 		}
+		
 		restore(old);
 	}
 

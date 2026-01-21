@@ -339,7 +339,7 @@ It represents my dwindling mental state as I figure how to modify this library!!
 			- [X] property getters & setters
 				- [X] accessor error checking in modules
       		- [X] scripted toString
-  			- [ ] iterables (untested)
+  			- [X] iterables and iterators
 	- [X] enums
 	- [X] typedefs (type alias only)
 	- [ ] abstracts

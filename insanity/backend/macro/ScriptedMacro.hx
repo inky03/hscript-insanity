@@ -596,7 +596,6 @@ class ScriptedMacro {
 					if (instanceFields.contains(field) || Reflect.hasField(this, field)) {
 						return Reflect.field(this, field);
 					} else if (__vars.exists(field)) {
-						trace(__vars);
 						return __vars.get(field).r;
 					}
 					return null;
