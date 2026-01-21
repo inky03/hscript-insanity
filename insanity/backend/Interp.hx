@@ -1371,7 +1371,7 @@ class Interp {
 		#if hl
 		if (iter != null) v = Reflect.callMethod(v, iter, []);
 		#else
-		v = (iter != null ? iter() : null);
+		v = (iter != null ? iter() : v);
 		#end
 		
 		if ( Reflect.field(v, 'hasNext') == null || Reflect.field(v, 'next') == null ) error(EInvalidIterator(v));
@@ -1390,7 +1390,7 @@ class Interp {
 		#if hl
 		if (iter != null) v = Reflect.callMethod(v, iter, []);
 		#else
-		v = (iter != null ? iter() : null);
+		v = (iter != null ? iter() : v);
 		#end
 		
 		if ( Reflect.field(v, 'hasNext') == null || Reflect.field(v, 'next') == null ) error(EInvalidIterator(v));
@@ -1424,6 +1424,10 @@ class Interp {
 		
 		while( hasNext() ) {
 			var v = next();
+			
+			if (v.key == null) error(EUnknownField(v, 'key'));
+			if (v.value == null) error(EUnknownField(v, 'value'));
+			
 			locals.set(vk,{ r : v.key });
 			locals.set(vv,{ r : v.value });
 			if( !loopRun(() -> expr(e)) )
