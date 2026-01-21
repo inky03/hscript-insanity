@@ -84,8 +84,8 @@ class InsanityReflect {
 		return Reflect.copy(o);
 	}
 	
-	@:overload(function(f:Array<Dynamic>->Void):Dynamic {})
-	public static function makeVarArgs(f:Array<Dynamic>->Dynamic):Dynamic {
+	@:overload(function(f:Array<Dynamic> -> Void):Dynamic {})
+	public static function makeVarArgs(f:Array<Dynamic> -> Dynamic):Dynamic {
 		return Reflect.makeVarArgs(f);
 	}
 }

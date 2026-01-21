@@ -31,7 +31,10 @@ class InsanityType {
 		}
 	}
 	
-	public static inline function getSuperClass(c:Class<Dynamic>):Class<Dynamic> {
+	public static inline function getSuperClass(c:Dynamic):Dynamic {
+		if (c is InsanityScriptedClass)
+			return cast(c, InsanityScriptedClass).extending;
+		
 		var c:Class<Dynamic> = Type.getSuperClass(c);
 		if (c == null) return null;
 		
@@ -62,7 +65,7 @@ class InsanityType {
 		return (ConfigUtil.assertBlacklisted(Config.typeProxy.get(name) ?? t));
 	}
 	
-	public static inline function resolveEnum(name:String):Enum<Dynamic> {
+	public static inline function resolveEnum(name:String):Dynamic {
 		var t:Dynamic = environment?.resolve(name);
 		if (t != null && t is InsanityScriptedEnum) return t;
 		
