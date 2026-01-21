@@ -258,7 +258,10 @@ class InsanityScriptedClass implements IInsanityType implements ICustomReflectio
 	}
 	
 	public function toString():String {
-		return path; //(Type.getClassName(Type.getClass(this)) + '<$path>');
+		if (interp.locals.exists('toString'))
+			return interp.locals.get('toString').r();
+		
+		return 'InsanityScriptedClass<$path>';
 	}
 	
 	public function typeCreateInstance(arguments:Array<Dynamic>):Dynamic {
@@ -472,7 +475,9 @@ class InsanityScriptedEnum implements IInsanityType implements ICustomReflection
 		}
 	}
 	
-	public function toString():String { return path; }
+	public function toString():String {
+		return 'InsanityScriptedEnum<$path>';
+	}
 	
 	public function typeGetEnumName():String { return path; }
 	public function typeCreateEnum(constr:String, ?arguments:Array<Dynamic>):Dynamic {

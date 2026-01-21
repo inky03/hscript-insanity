@@ -387,7 +387,12 @@ class ScriptedMacro {
 				pos: pos, access: [APublic], name: 'toString',
 				kind: FFun({
 					args: [],
-					expr: macro return __base.path,
+					expr: macro {
+						if (__interp.locals.exists('toString'))
+							return __interp.locals.get('toString').r();
+						
+						return __base.path;
+					},
 					ret: macro:String
 				})
 			});

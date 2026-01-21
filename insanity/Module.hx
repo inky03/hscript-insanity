@@ -113,6 +113,8 @@ class Module {
 			start(environment);
 		
 		try {
+			type.initializing = true;
+			
 			type.init(environment, interp);
 			
 			type.initializing = false;
@@ -129,7 +131,6 @@ class Module {
 	}
 	
 	public function startTypes(?environment:Environment):Map<String, IInsanityType> {
-		for (type in types) type.initializing = true;
 		for (type in types) startType(environment, type);
 		
 		var i:Int = onInitialized.length;

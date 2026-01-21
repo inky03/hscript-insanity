@@ -22,6 +22,7 @@
 package insanity.backend;
 
 import insanity.backend.Expr;
+import insanity.custom.InsanityType;
 
 using insanity.backend.TypeCollection;
 using insanity.backend.types.Abstract;
@@ -138,9 +139,8 @@ class Tools {
 	
 	public static inline function resolve(path:String, ?env:Environment):Dynamic {
 		var type:Dynamic = env?.resolve(path);
-		type ??= Config.typeProxy.get(path);
-		type ??= Type.resolveClass(path);
-		type ??= Type.resolveEnum(path);
+		type ??= InsanityType.resolveClass(path);
+		type ??= InsanityType.resolveEnum(path);
 		type ??= AbstractTools.resolve(path);
 		
 		return type;

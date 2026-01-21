@@ -114,9 +114,12 @@ class Interp {
 		if (bottomLevel)
 			importPath([''], IAll); // import all bottom level classes
 		
-		variables.set('null', null);
-		variables.set('true', true);
-		variables.set('false', false);
+		for (k => v in Config.defaultVariables)
+			variables.set(k, v);
+		
+		for (k => v in Config.defaultImports)
+			importType(k, v);
+		
 		variables.set('trace', Reflect.makeVarArgs(function(el) {
 			var inf = posInfos();
 			var v = el.shift();

@@ -1,6 +1,7 @@
 package insanity.custom;
 
 import insanity.backend.types.Scripted;
+import insanity.Config;
 import Type.ValueType;
 
 class InsanityType {
@@ -11,7 +12,10 @@ class InsanityType {
 			var o:ICustomClassType = cast o;
 			return o.typeGetClass();
 		} else {
-			return Type.getClass(o);
+			var t:Class<Dynamic> = Type.getClass(o);
+			if (t == null) return null;
+			
+			return (ConfigUtil.assertBlacklisted(Config.typeProxy.get(Type.getClassName(t))));
 		}
 	}
 	
@@ -20,12 +24,18 @@ class InsanityType {
 			var o:ICustomEnumValueType = cast o;
 			return o.typeGetEnum();
 		} else {
-			return Type.getEnum(o);
+			var t:Enum<Dynamic> = Type.getEnum(o);
+			if (t == null) return null;
+			
+			return (ConfigUtil.assertBlacklisted(Config.typeProxy.get(Type.getEnumName(t))));
 		}
 	}
 	
 	public static inline function getSuperClass(c:Class<Dynamic>):Class<Dynamic> {
-		return Type.getSuperClass(c);
+		var c:Class<Dynamic> = Type.getSuperClass(c);
+		if (c == null) return null;
+		
+		return (ConfigUtil.assertBlacklisted(Config.typeProxy.get(Type.getClassName(c)) ?? c));
 	}
 	
 	public static inline function getClassName(c:Dynamic):String {
@@ -49,14 +59,17 @@ class InsanityType {
 		t = Type.resolveClass(name);
 		if (t == null) return null;
 		
-		return (Config.typeProxy.get(Type.getClassName(t)) ?? t); // prevent resolved type from bypassing proxy (lol)
+		return (ConfigUtil.assertBlacklisted(Config.typeProxy.get(name) ?? t));
 	}
 	
 	public static inline function resolveEnum(name:String):Enum<Dynamic> {
 		var t:Dynamic = environment?.resolve(name);
 		if (t != null && t is InsanityScriptedEnum) return t;
 		
-		return Type.resolveEnum(name);
+		t = Type.resolveEnum(name);
+		if (t == null) return null;
+		
+		return (ConfigUtil.assertBlacklisted(Config.typeProxy.get(name) ?? t));
 	}
 	
 	public static inline function createInstance(cl:Dynamic, args:Array<Dynamic>):Dynamic {
