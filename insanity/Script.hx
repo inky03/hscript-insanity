@@ -18,7 +18,8 @@ class Script {
 	
 	public function new(string:String, name:String = 'hscript', ?environment:Environment):Void {
 		parser.allowTypes = parser.allowJSON = true;
-		interp = new Interp(environment);
+		interp = new Interp(environment, this);
+		interp.defineGlobals = true;
 		
 		this.name = name;
 		
@@ -41,6 +42,12 @@ class Script {
 			if (program == null) throw 'Program is uninitialized';
 			
 			setDefaults();
+			
+			if (interp.environment != null) {
+				for (k => v in interp.environment.variables)
+					if (!variables.exists(k)) variables.set(k, v);
+			}
+			
 			return interp.execute(program);
 		} catch (e:haxe.Exception) {
 			onProgramError(e);
@@ -65,7 +72,8 @@ class Script {
 	public function setDefaults():Void {
 		interp.setDefaults();
 		
-		interp.variables.set('this', this);
+		variables.set('this', this);
+		variables.set('interp', this);
 	}
 	
 	public dynamic function onParsingError(e:haxe.Exception):Void {

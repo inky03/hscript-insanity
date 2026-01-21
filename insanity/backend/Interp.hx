@@ -62,8 +62,10 @@ class Interp {
 	public var imports : Map<String, Dynamic>;
 	public var variables : Map<String, Dynamic>;
 	
+	public var parent : Dynamic = null;
 	public var environment : Environment;
 	
+	public var defineGlobals:Bool = false;
 	public var superConstructorAllowed:Bool = false;
 	
 	var locals (get, never) : Map<String, Variable>;
@@ -80,21 +82,24 @@ class Interp {
 	static var void(default, never):Dynamic = {};
 	static var accessingInterp:Interp = null;
 	var position : Position = { origin: 'hscript', line: 0 };
+	var origin (get, never) : String;
 	var curAccess : String = '';
 	
 	public var canDefer:Bool = false;
 	public var canInit:Bool = true;
 
-	public function new(?environment:Environment) {
+	public function new(?environment:Environment, ?parent:Dynamic) {
 		this.environment = environment;
+		this.parent = parent;
+		
 		stack = new CallStack();
 		
 		imports = new Map();
 		usings = new Array();
 		captures = new Map();
 		variables = new Map();
-		
 		declared = new Array();
+		
 		setDefaults();
 		initOps();
 	}
@@ -119,12 +124,17 @@ class Interp {
 			haxe.Log.trace(Std.string(v), inf);
 		}));
 	}
+	
+	public function toString() : String {
+		return '(parent: $parent | origin: $origin)';
+	}
 
 	public function posInfos(): PosInfos {
 		return cast { fileName : position.origin, lineNumber : position.line };
 	}
 	
 	function get_locals():Map<String, Variable> { return stack.last()?.locals; }
+	function get_origin():String { return position.origin; }
 
 	function initOps() {
 		binops = new Map();
@@ -198,6 +208,11 @@ class Interp {
 			
 			variables.set(name, v);
 		} else {
+			if (stack.length <= 1 && defineGlobals) { // global scope
+				variables.set(name, v);
+				return v;
+			}
+			
 			error(EUnknownVariable(name));
 		}
 		
@@ -846,7 +861,11 @@ class Interp {
 				locals.set(name, ref);
 				capturedLocals.set(name, ref); // allow self-recursion
 			} else { // global function
-				locals.set(name, {r: f});
+				if (defineGlobals) {
+					variables.set(name, f);
+				} else {
+					locals.set(name, {r: f});
+				}
 			}
 		}
 		

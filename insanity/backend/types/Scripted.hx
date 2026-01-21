@@ -72,7 +72,7 @@ class InsanityScriptedClass implements IInsanityType implements ICustomReflectio
 		if (baseInterp != null) {
 			for (u in baseInterp.usings) interp.usings.push(u);
 			for (k => i in baseInterp.imports) interp.imports.set(k, i);
-			// for (k => v in baseInterp.variables) interp.variables.set(k, v);
+			for (k => v in baseInterp.variables) if (!interp.variables.exists(k)) interp.variables.set(k, v);
 		}
 		
 		interp.pushStack(insanity.backend.CallStack.StackItem.SModule(module?.path ?? name));

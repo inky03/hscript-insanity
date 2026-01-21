@@ -7,6 +7,7 @@ class Environment {
 	public var modules:Map<String, Module> = [];
 	public var types:TypeCollection;
 	
+	public var variables:Map<String, Dynamic> = [];
 	public var onInitialized:Array<Map<String, IInsanityType> -> Bool> = [];
 	
 	public function new(?modules:Array<Module>) {
@@ -14,6 +15,7 @@ class Environment {
 			for (module in modules)
 				this.modules.set(module.path, module);
 		}
+		
 		rebuildTypes();
 	}
 	

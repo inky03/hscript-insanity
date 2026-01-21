@@ -27,9 +27,12 @@ class Module {
 	public var starting:Bool = false;
 	public var started:Bool = false;
 	
+	public var variables(get, never):Map<String, Dynamic>;
+	inline function get_variables():Map<String, Dynamic> { return interp.variables; }
+	
 	public function new(string:String, name:String = 'Module', pack:Array<String>, origin:String = 'hscript'):Void {
 		parser.allowTypes = parser.allowJSON = true;
-		interp = new Interp();
+		interp = new Interp(this);
 		
 		this.origin = origin;
 		this.name = name;
@@ -69,7 +72,12 @@ class Module {
 	
 	public function init(?environment:Environment):Void {
 		interp.environment = environment;
-		interp.setDefaults();
+		setDefaults();
+		
+		if (environment != null) {
+			for (k => v in environment.variables)
+				if (!variables.exists(k)) variables.set(k, v);
+		}
 		
 		for (type in types)
 			interp.imports.set(type.name, type);
@@ -131,6 +139,12 @@ class Module {
 	public function snapshot():Void {
 		for (type in types)
 			type.snapshot();
+	}
+	
+	public function setDefaults():Void {
+		interp.setDefaults();
+		
+		variables.set('module', this);
 	}
 	
 	public dynamic function onParsingError(e:haxe.Exception):Void {

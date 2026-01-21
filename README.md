@@ -31,7 +31,8 @@ script.start();
 script.call('testFunction', 1, 2, 3);
 ```
 
-You can also edit the `variables` map in a Script to expose certain variables on a script. By default, `this` is defined as the Script instance.
+You can also edit the `variables` map in a `Script` to define custom globals on a script.<br>
+By default, `this` and `interp` are defined as the `Script` instance.
 
 
 ### Scripted modules and types (with `Module` and `Environment`)
@@ -87,6 +88,9 @@ class BaseThing {
 class ScriptedThing extends BaseThing implements insanity.IScripted {}
 ```
 
+You can also edit the `variables` map in a `Module` or `Environment` to define custom globals on subtypes and submodules, respectively.<br>
+By default, `module` is defined as the `Module` instance in modules.
+
 (NOTE: currently only most behavior is properly implemented from extending classes. while i dont see why implement the interface in the base class, some things might have to be promptly fixed to correctly support them ...)
 
 
@@ -97,7 +101,7 @@ class ScriptedThing extends BaseThing implements insanity.IScripted {}
 > This feature is very experimental. Use with caution! <br>
 > Add the `@:build(insanity.backend.macro.AbstractMacro.build())` metadata to your abstracts to make them usable in Hscript.
 
-Importing abstracts and abstract featurs are *mostly* supported.
+Importing abstracts and abstract features are *mostly* supported.
 
 Due to technical limitations, you must *explicitly* cast an expression to the desired type (recommendably, store it in a local variable to modify it with less overhead).<br>
 You can also include a type parameter for an implicit cast in variable / method argument declarations.
