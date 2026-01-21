@@ -113,19 +113,24 @@ class Module {
 			start(environment);
 		
 		try {
-			type.failed = false;
 			type.init(environment, interp);
+			
+			type.initializing = false;
+			type.initialized = true;
 		} catch (e:haxe.Exception) {
 			type.failed = true;
-			onModuleError(e, type);
+			type.initialized = false;
+			type.initializing = false;
+			
+			onTypeError(e, type);
 		}
 		
 		return type;
 	}
 	
 	public function startTypes(?environment:Environment):Map<String, IInsanityType> {
-		for (type in types)
-			startType(environment, type);
+		for (type in types) type.initializing = true;
+		for (type in types) startType(environment, type);
 		
 		var i:Int = onInitialized.length;
 		while (-- i >= 0) {
@@ -153,7 +158,7 @@ class Module {
 	public dynamic function onProgramError(e:haxe.Exception):Void {
 		trace('Module program stopped unexpectedly!\n' + e.details());
 	}
-	public dynamic function onModuleError(e:haxe.Exception, type:IInsanityType):Void {
+	public dynamic function onTypeError(e:haxe.Exception, type:IInsanityType):Void {
 		trace('Failed to load type ${type.name} for module $path!\n' + e.details());
 	}
 	

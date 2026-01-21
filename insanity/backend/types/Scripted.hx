@@ -64,8 +64,6 @@ class InsanityScriptedClass implements IInsanityType implements ICustomReflectio
 	}
 	
 	public function init(?env:Environment, ?baseInterp:Interp, restore:Bool = true):Void {
-		initializing = true;
-		
 		interp.environment = env;
 		interp.setDefaults(true, baseInterp == null);
 		
@@ -214,9 +212,6 @@ class InsanityScriptedClass implements IInsanityType implements ICustomReflectio
 					throw 'Field $f is declared \'override\' but doesn\'t override any field'; // TODO (Suggestion: ) ?
 			}
 		}
-		
-		initialized = true;
-		initializing = false;
 	}
 	public function snapshot():Void {
 		for (field in decl.fields) {
@@ -365,8 +360,6 @@ class InsanityScriptedTypedef implements IInsanityType {
 	}
 	
 	public function init(?env:Environment, ?baseInterp:Interp, restore:Bool = true):Void {
-		initializing = true;
-		
 		alias = null;
 		
 		switch (decl.t) {
@@ -417,9 +410,6 @@ class InsanityScriptedTypedef implements IInsanityType {
 			default:
 				trace('Non type-alias typedefs are not supported');
 		}
-		
-		initialized = true;
-		initializing = false;
 	}
 	
 	public function snapshot():Void {}
@@ -452,8 +442,6 @@ class InsanityScriptedEnum implements IInsanityType implements ICustomReflection
 	}
 	
 	public function init(?env:Environment, ?baseInterp:Interp, restore:Bool = true):Void {
-		initializing = true;
-		
 		values = decl.names.copy();
 		constructs = decl.constructs.copy();
 		constructFunctions = new Map();
@@ -482,9 +470,6 @@ class InsanityScriptedEnum implements IInsanityType implements ICustomReflection
 				}));
 			}
 		}
-		
-		initialized = true;
-		initializing = false;
 	}
 	
 	public function toString():String { return path; }
