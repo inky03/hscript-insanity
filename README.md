@@ -97,9 +97,10 @@ By default, `module` is defined as the `Module` instance in modules, and `interp
 ### Global script configs (with [`Config`](insanity/Config.hx))
 
 [`insanity.Config`](insanity/Config.hx) allows you to define custom behaviors, such as...
-- proxying or blacklisting types, modules and packages
-- defining default global variables, and
-- defining default imports!
+- Proxying or blacklisting types, modules and packages
+- defining preprocessors for conditionals,
+- defining variables, and
+- defining imports!
 
 These behaviors will be applied globally, to all scripts.
 

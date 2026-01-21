@@ -12,7 +12,7 @@ using haxe.macro.ComplexTypeTools;
 #end
 
 class AbstractMacro {
-	static function build():Array<Field> {
+	public static macro function build():Array<Field> {
 		var pos = Context.currentPos();
 		var type = Context.getLocalType();
 		var fields = Context.getBuildFields();

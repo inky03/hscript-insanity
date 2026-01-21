@@ -9,7 +9,7 @@ using haxe.macro.ExprTools;
 using haxe.macro.TypeTools;
 
 class HLMacro {
-	public static function build(e:Expr):Array<Field> {
+	public static macro function build(e:Expr):Array<Field> {
 		var pos = Context.currentPos();
 		var fields:Array<Field> = Context.getBuildFields();
 		

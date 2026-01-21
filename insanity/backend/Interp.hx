@@ -104,21 +104,20 @@ class Interp {
 		initOps();
 	}
 
-	public function setDefaults(wipe:Bool = true, bottomLevel:Bool = true) {
+	public function setDefaults(wipe:Bool = true, includeConfig:Bool = true) {
 		if (wipe) {
 			imports.clear();
 			usings.resize(0);
 			variables.clear();
 		}
 		
-		if (bottomLevel)
-			importPath([''], IAll); // import all bottom level classes
-		
-		for (k => v in Config.defaultVariables)
-			variables.set(k, v);
-		
-		for (k => v in Config.defaultImports)
-			importType(k, v);
+		if (includeConfig) {
+			for (k => v in Config.globalVariables)
+				variables.set(k, v);
+			
+			for (k => v in Config.globalImports)
+				importPath(k.split('.'), v);
+		}
 		
 		variables.set('trace', Reflect.makeVarArgs(function(el) {
 			var inf = posInfos();

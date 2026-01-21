@@ -1,16 +1,23 @@
 package insanity;
 
+import insanity.backend.macro.Defines;
+import insanity.backend.Expr;
 import insanity.custom.*;
 #if hl import insanity.custom.HL; #end
 
 class Config {
-	public static var defaultVariables:Map<String, Dynamic> = [
+	public static var preprocessorValues:Map<String, String> = Defines.appendCompilerDefines([
+		'insanity' => '1'
+	]);
+	
+	public static var globalVariables:Map<String, Dynamic> = [
 		'null' => null,
 		'true' => true,
 		'false' => false
 	];
 	
-	public static var defaultImports:Map<String, Dynamic> = [
+	public static var globalImports:Map<String, ImportMode> = [
+		'' => IAll
 	];
 	
 	@:unreflective public static var typeProxy:Map<String, Dynamic> = [
