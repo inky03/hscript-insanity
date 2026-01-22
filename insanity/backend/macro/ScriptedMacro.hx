@@ -449,19 +449,27 @@ class ScriptedMacro {
 				for (field in t.decl.fields) {
 					var f:String = field.name;
 					
-					if (field.access.contains(AStatic)) continue;
+					if (f == 'new' || field.access.contains(AStatic)) continue;
 					
 					switch (field.kind) {
 						case KFunction(fun):
 							__interp.locals.set(f, {r: null, access: field.access});
+							
 						case KVar(v):
-							if (instanceFields.contains(f)) { Reflect.setField(this, f, __interp.exprReturn(v.expr)); }
-							else { __interp.locals.set(f, {r: null, access: field.access, get: v.get, set: v.set}); }
+							if (instanceFields.contains(f)) {
+								Reflect.setField(this, f, __interp.exprReturn(v.expr));
+							} else {
+								var l = {r: null, access: field.access, get: v.get, set: v.set};
+								if (v.get != null) l.get = v.get;
+								if (v.set != null) l.set = v.set;
+								
+								__interp.locals.set(f, l);
+							}
 					}
 				}
 				
 				var superLocals:Map<String, insanity.backend.Interp.Variable> = __interp.duplicate(__interp.locals);
-				for (loc => v in t.interp.locals)
+				for (loc => v in t.__vars)
 					superLocals.set(loc, v);
 				
 				var instanceFields:Array<String> = t.extending?.instanceFields;
@@ -490,6 +498,7 @@ class ScriptedMacro {
 							}
 							
 							__interp.locals.get(f).r = __interp.buildFunction(f, fun.args, fun.expr, fun.ret, superLocals);
+							
 						case KVar(v):
 							if (__interp.locals.exists(f))
 								__interp.locals.get(f).r = (v.expr == null ? null : __interp.exprReturn(v.expr, v.type));
@@ -519,7 +528,7 @@ class ScriptedMacro {
 			
 			if (__safe) {
 				try { Reflect.callMethod(this, constructor, arguments); }
-				catch (e:Dynamic) { __base.onInstanceError(e, 'new', this); }
+				catch (e:Dynamic) { base.onInstanceError(e, 'new', this); }
 			} else {
 				Reflect.callMethod(this, constructor, arguments);
 			}

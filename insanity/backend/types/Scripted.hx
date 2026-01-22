@@ -82,6 +82,7 @@ class InsanityScriptedClass implements IInsanityType implements ICustomReflectio
 		
 		var overridingFields:Array<String> = [];
 		var knownFields:Array<String> = [];
+		
 		for (field in decl.fields) {
 			var f:String = field.name;
 			
@@ -98,12 +99,27 @@ class InsanityScriptedClass implements IInsanityType implements ICustomReflectio
 			
 			if (!field.access.contains(AStatic)) continue;
 			
+			var l:Variable = {r: null, access: field.access};
+			
+			switch (field.kind) {
+				default:
+				case KVar(v):
+					if (v.get != null) l.get = v.get;
+					if (v.set != null) l.set = v.set;
+			}
+			
+			interp.locals.set(f, l);
+		}
+		
+		for (field in decl.fields) {
+			var f:String = field.name;
+			
+			if (f == 'new' || !field.access.contains(AStatic)) continue;
+			
 			switch (field.kind) {
 				case KFunction(fun):
-					interp.locals.set(f, {
-						r: interp.buildFunction(f, fun.args, fun.expr, fun.ret),
-						access: field.access
-					});
+					interp.locals.get(f).r = interp.buildFunction(f, fun.args, fun.expr, fun.ret, interp.locals);
+					
 				case KVar(v):
 					if (restore) {
 						var snapshot:Bool = snapshotAll;
@@ -112,35 +128,20 @@ class InsanityScriptedClass implements IInsanityType implements ICustomReflectio
 						if (snapshot && Module.snapshots.exists(path)) {
 							var fields:Map<String, Dynamic> = Module.snapshots.get(path);
 							if (fields.exists(f)) {
-								interp.locals.set(f, {
-									r: fields.get(f),
-									access: field.access,
-									get: v.get,
-									set: v.set
-								});
+								interp.locals.get(f).r = fields.get(f);
 								continue;
 							}
 						}
 					}
 					
 					try {
-						interp.locals.set(f, {
-							r: (v.expr == null ? null : interp.exprReturn(v.expr, v.type)),
-							access: field.access,
-							get: v.get,
-							set: v.set
-						});
+						interp.locals.get(f).r = (v.expr == null ? null : interp.exprReturn(v.expr, v.type));
 					} catch (d:Defer) {
 						var signal = (env?.onInitialized ?? module.onInitialized);
 						
 						signal.push(function(_) {
 							try {
-								interp.locals.set(f, {
-									r: interp.exprReturn(v.expr, v.type),
-									access: field.access,
-									get: v.get,
-									set: v.set
-								});
+								interp.locals.get(f).r = interp.exprReturn(v.expr, v.type);
 							} catch (e:haxe.Exception) {
 								trace('Error on expression for field $f: $e');
 							}

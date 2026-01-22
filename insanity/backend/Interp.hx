@@ -764,7 +764,7 @@ class Interp {
 	}
 	
 	public function buildFunction(?name:String, params:Array<Argument>, fexpr:Expr, ?ret:CType, ?id:Int, ?functionLocals:Map<String, Variable>, su:Bool = false) {
-		var capturedLocals = (functionLocals ?? duplicate(locals));
+		var capturedLocals = (functionLocals == null ? duplicate(locals) : null);
 		
 		var hasOpt = false, hasRest = false, minParams = 0;
 		
@@ -810,11 +810,12 @@ class Interp {
 				args = args2;
 			}
 			var old = declared.length;
-			pushStack(name == null ? SLocalFunction(id) : SMethod(position.origin, name), duplicate(capturedLocals));
+			pushStack(name == null ? SLocalFunction(id) : SMethod(position.origin, name), functionLocals ?? duplicate(capturedLocals));
 			
 			for( i in 0...params.length ) {
 				var name:String = params[i].name;
-				if (locals.exists(name)) declared.push({n: name, old: locals.get(name)});
+				
+				declared.push({n: name, old: locals.get(name)});
 				
 				if (i == params.length - 1 && hasRest) {
 					locals.set(name, {r: args.slice(params.length - 1)});
