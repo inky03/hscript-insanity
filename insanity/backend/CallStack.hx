@@ -14,6 +14,7 @@ class CallStack {
 	inline function get_length():Int return stack.length;
 	
 	public inline function last() { return stack[stack.length - 1]; }
+	public inline function first() { return stack[0]; }
 	
 	public function toString():String {
 		var b = new StringBuf();

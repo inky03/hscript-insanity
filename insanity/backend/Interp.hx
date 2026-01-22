@@ -37,7 +37,7 @@ import insanity.custom.InsanityType as Type;
 import insanity.custom.InsanityStd as Std;
 
 using StringTools;
-using insanity.backend.Tools;
+using insanity.tools.Tools;
 using insanity.backend.TypeCollection;
 using insanity.backend.types.Abstract;
 
@@ -135,7 +135,7 @@ class Interp {
 		return cast { fileName : position.origin, lineNumber : position.line };
 	}
 	
-	function get_locals():Map<String, Variable> { return stack.last()?.locals; }
+	function get_locals():Map<String, Variable> { return stack.first()?.locals; }
 	function get_origin():String { return position.origin; }
 
 	function initOps() {
@@ -177,7 +177,7 @@ class Interp {
 		assignOp("??=",function(v1,v2) return v1 ?? v2);
 	}
 
-	function setVar( name : String, v : Dynamic ) {
+	function setVar( name : String, v : Dynamic ) : Dynamic {
 		if (AbstractTools.isAbstract(v))
 			v = v.__a;
 		
@@ -764,7 +764,7 @@ class Interp {
 	}
 	
 	public function buildFunction(?name:String, params:Array<Argument>, fexpr:Expr, ?ret:CType, ?id:Int, ?functionLocals:Map<String, Variable>, su:Bool = false) {
-		var capturedLocals = duplicate(locals);
+		var capturedLocals = (functionLocals ?? duplicate(locals));
 		
 		var hasOpt = false, hasRest = false, minParams = 0;
 		
@@ -809,18 +809,12 @@ class Interp {
 					args2 = args2.concat(args.slice(params.length));
 				args = args2;
 			}
-			var old = (functionLocals == null && params.length > 0 ? new Map() : null);
+			var old = declared.length;
 			pushStack(name == null ? SLocalFunction(id) : SMethod(position.origin, name), duplicate(capturedLocals));
 			
-			if (functionLocals != null) {
-				old = duplicate(locals);
-				locals.clear();
-				for (loc => v in functionLocals)
-					locals.set(loc, v);
-			}
 			for( i in 0...params.length ) {
 				var name:String = params[i].name;
-				if (locals.exists(name)) old.set(name, locals.get(name));
+				if (locals.exists(name)) declared.push({n: name, old: locals.get(name)});
 				
 				if (i == params.length - 1 && hasRest) {
 					locals.set(name, {r: args.slice(params.length - 1)});
@@ -845,11 +839,7 @@ class Interp {
 				r = tryCast(exprReturn(fexpr), ret);
 			}
 			
-			if (old != null) {
-				if (functionLocals != null) locals.clear();
-				for (loc => value in old)
-					locals.set(loc, value);
-			}
+			restore(old);
 			stack.stack.shift();
 			superConstructorAllowed = false;
 			
@@ -902,17 +892,15 @@ class Interp {
 			if (locals.exists(id)) return getLocal(id);
 			return resolve(id);
 		case EVar(n,t,e,get,set):
-			var ne:Dynamic = (e == null ? null : expr(e, t));
+			declared.push({n: n, old: locals.get(n)});
 			
-			declared.push({ n : n, old : locals.get(n) });
+			var v:Dynamic = (e == null ? null : expr(e, t));
+			var l:Variable = (AbstractTools.isAbstract(v) ? {r: v.__a, a: v} : {r: v});
 			
-			if (AbstractTools.isAbstract(ne)) {
-				locals.set(n,{ r : ne.__a, a: ne, get: get, set: set });
-			} else {
-				locals.set(n,{ r : ne, get: get, set: set });
-			}
+			if (get != null) l.get = get;
+			if (set != null) l.set = set;
 			
-			return null;
+			locals.set(n, l);
 		case EParent(e):
 			return expr(e, void, mapCompr);
 		case EBlock(exprs):
@@ -1054,13 +1042,6 @@ class Interp {
 				}
 			}
 			
-			if (arr.length == 1) {
-				exprCompr(arr[0]);
-				
-				if (compr != null)
-					return compr;
-			}
-			
 			if ( arr.length > 0 && Tools.expr(arr[0]).match(EBinop("=>", _)) ) { // infer from keys ...
 				var keys = [];
 				var values = [];
@@ -1076,6 +1057,13 @@ class Interp {
 				}
 				return makeMap(keys,values);
 			} else { // infer from type declaration ... (empty map)
+				if (arr.length == 1) {
+					exprCompr(arr[0]);
+					
+					if (compr != null)
+						return compr;
+				}
+				
 				switch (t) {
 					case CTPath(path, params): // hell
 						var fullPath:String = path.join('.');

@@ -4,8 +4,8 @@ import insanity.backend.types.Scripted;
 import insanity.backend.Exception;
 import insanity.backend.Parser;
 import insanity.backend.Interp;
-import insanity.backend.Tools;
 import insanity.backend.Expr;
+import insanity.tools.Tools;
 
 class Module {
 	public static var snapshots:Map<String, Map<String, Dynamic>> = [];

@@ -3,9 +3,7 @@ package insanity.backend.types;
 import insanity.custom.InsanityReflect;
 import insanity.custom.InsanityType;
 
-import insanity.backend.Printer;
 import insanity.backend.Interp;
-import insanity.backend.Tools;
 import insanity.backend.Expr;
 import insanity.Environment;
 import insanity.Module;

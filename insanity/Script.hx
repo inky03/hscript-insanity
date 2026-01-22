@@ -13,6 +13,8 @@ class Script {
 	public var interp:Interp = null;
 	public var program:Expr = null;
 	
+	public var failed:Bool = false;
+	
 	public var variables(get, never):Map<String, Dynamic>;
 	inline function get_variables():Map<String, Dynamic> { return interp.variables; }
 	
@@ -41,6 +43,7 @@ class Script {
 		try {
 			if (program == null) throw 'Program is uninitialized';
 			
+			failed = false;
 			setDefaults();
 			
 			if (interp.environment != null) {
@@ -51,6 +54,7 @@ class Script {
 			return interp.execute(program);
 		} catch (e:haxe.Exception) {
 			onProgramError(e);
+			failed = true;
 		}
 		
 		return null;

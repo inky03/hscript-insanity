@@ -24,7 +24,7 @@ package insanity.backend;
 import insanity.backend.Expr;
 import insanity.backend.Exception;
 
-using insanity.backend.Tools;
+using insanity.tools.Tools;
 
 enum Token {
 	TEof;

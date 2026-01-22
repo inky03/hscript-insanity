@@ -1,11 +1,11 @@
 package insanity;
 
-import insanity.backend.macro.Defines;
+#if (!macro) import insanity.tools.Defines; #end
 import insanity.backend.Expr;
 import insanity.custom.*;
 #if hl import insanity.custom.HL; #end
 
-class Config {
+class Config { #if (!macro)
 	public static var preprocessorValues:Map<String, Dynamic> = Defines.appendCompilerDefines([
 		'insanity' => '1'
 	]);
@@ -40,7 +40,7 @@ class Config {
 		ByType => [
 		],
 	];
-}
+#end }
 
 class ConfigUtil {
 	public static function typeIsBlacklisted(type:Dynamic):Bool {
