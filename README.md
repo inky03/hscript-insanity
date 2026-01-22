@@ -25,7 +25,7 @@ function testFunction(a, b, c)
 	trace(a + b + c);
 
 trace("hi!!");
-');
+', 'MyScript');
 
 script.start();
 script.call('testFunction', [1, 2, 3]);

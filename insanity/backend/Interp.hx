@@ -139,30 +139,31 @@ class Interp {
 	function get_origin():String { return position.origin; }
 
 	function initOps() {
-		binops = new Map();
-		binops.set("+",function(e1,e2) return expr(e1) + expr(e2));
-		binops.set("-",function(e1,e2) return expr(e1) - expr(e2));
-		binops.set("*",function(e1,e2) return expr(e1) * expr(e2));
-		binops.set("/",function(e1,e2) return expr(e1) / expr(e2));
-		binops.set("%",function(e1,e2) return expr(e1) % expr(e2));
-		binops.set("&",function(e1,e2) return expr(e1) & expr(e2));
-		binops.set("|",function(e1,e2) return expr(e1) | expr(e2));
-		binops.set("^",function(e1,e2) return expr(e1) ^ expr(e2));
-		binops.set("<<",function(e1,e2) return expr(e1) << expr(e2));
-		binops.set(">>",function(e1,e2) return expr(e1) >> expr(e2));
-		binops.set(">>>",function(e1,e2) return expr(e1) >>> expr(e2));
-		binops.set("==",function(e1,e2) return expr(e1) == expr(e2));
-		binops.set("!=",function(e1,e2) return expr(e1) != expr(e2));
-		binops.set(">=",function(e1,e2) return expr(e1) >= expr(e2));
-		binops.set("<=",function(e1,e2) return expr(e1) <= expr(e2));
-		binops.set(">",function(e1,e2) return expr(e1) > expr(e2));
-		binops.set("<",function(e1,e2) return expr(e1) < expr(e2));
-		binops.set("||",function(e1,e2) return expr(e1) == true || expr(e2) == true);
-		binops.set("&&",function(e1,e2) return expr(e1) == true && expr(e2) == true);
-		binops.set("=",assign);
-		binops.set("...",function(e1,e2) return new IntIterator(expr(e1),expr(e2)));
-		binops.set("is",function(e1,e2) return #if (haxe_ver >= 4.2) Std.isOfType #else Std.is #end (expr(e1), expr(e2)));
-		binops.set("??",function(e1,e2) return expr(e1) ?? expr(e2));
+		binops = [
+			"=" => assign,
+			"+" => function(e1,e2) return expr(e1) + expr(e2),
+			"-" => function(e1,e2) return expr(e1) - expr(e2),
+			"*" => function(e1,e2) return expr(e1) * expr(e2),
+			"/" => function(e1,e2) return expr(e1) / expr(e2),
+			"%" => function(e1,e2) return expr(e1) % expr(e2),
+			"&" => function(e1,e2) return expr(e1) & expr(e2),
+			"|" => function(e1,e2) return expr(e1) | expr(e2),
+			"^" => function(e1,e2) return expr(e1) ^ expr(e2),
+			"<<" => function(e1,e2) return expr(e1) << expr(e2),
+			">>" => function(e1,e2) return expr(e1) >> expr(e2),
+			">>>" => function(e1,e2) return expr(e1) >>> expr(e2),
+			"==" => function(e1,e2) return expr(e1) == expr(e2),
+			"!=" => function(e1,e2) return expr(e1) != expr(e2),
+			">=" => function(e1,e2) return expr(e1) >= expr(e2),
+			"<=" => function(e1,e2) return expr(e1) <= expr(e2),
+			">" => function(e1,e2) return expr(e1) > expr(e2),
+			"<" => function(e1,e2) return expr(e1) < expr(e2),
+			"||" => function(e1,e2) return expr(e1) == true || expr(e2) == true,
+			"&&" => function(e1,e2) return expr(e1) == true && expr(e2) == true,
+			"..." => function(e1,e2) return new IntIterator(expr(e1),expr(e2)),
+			"is" => function(e1,e2) return #if (haxe_ver >= 4.2) Std.isOfType #else Std.is #end (expr(e1), expr(e2)),
+			"??" => function(e1,e2) return expr(e1) ?? expr(e2)
+		];
 		assignOp("+=",function(v1:Dynamic,v2:Dynamic) return v1 + v2);
 		assignOp("-=",function(v1:Float,v2:Float) return v1 - v2);
 		assignOp("*=",function(v1:Float,v2:Float) return v1 * v2);
@@ -461,13 +462,6 @@ class Interp {
 		}
 		return null;
 	}
-
-	function duplicate(h : Map<String, Variable>) {
-		var h2 = new Map();
-		for (k => v in h)
-			h2.set(k, v);
-		return h2;
-	}
 	
 	function pushStack(?item:StackItem, ?locals:Map<String, Variable>) {
 		var last:Stack = stack.stack.shift();
@@ -479,11 +473,14 @@ class Interp {
 			}});
 		}
 		if (item != null) {
-			stack.stack.unshift({locals: locals ?? new Map(), item: item});
+			stack.stack.unshift({locals: locals ?? duplicate(), item: item});
 			
 			if (stack.length > callStackDepth)
 				error(ECustom('Stack overflow'));
 		}
+	}
+	inline function duplicate(?h : Map<String, Variable>) : Map<String, Variable> {
+		return (h == null ? new Map() : h.copy());
 	}
 
 	function restore( old : Int ) {
@@ -840,7 +837,12 @@ class Interp {
 				r = tryCast(exprReturn(fexpr), ret);
 			}
 			
-			restore(old);
+			if (functionLocals != null) {
+				restore(old);
+			} else {
+				declared.resize(0);
+			}
+			
 			stack.stack.shift();
 			superConstructorAllowed = false;
 			
