@@ -56,7 +56,7 @@ class Script {
 		return null;
 	}
 	
-	public function call(variable:String, ...args:Any):Any {
+	public function call(variable:String, ?args:Array<Dynamic>):Any {
 		if (interp == null) throw 'Interpreter is uninitialized';
 		
 		var fun = (variables.get(variable) ?? interp.getLocal(variable));
@@ -66,7 +66,7 @@ class Script {
 			return null;
 		}
 		
-		return Reflect.callMethod(interp, fun, args.toArray());
+		return Reflect.callMethod(interp, fun, args ?? []);
 	}
 	
 	public function setDefaults():Void {

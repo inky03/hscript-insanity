@@ -28,7 +28,7 @@ trace("hi!!");
 ');
 
 script.start();
-script.call('testFunction', 1, 2, 3);
+script.call('testFunction', [1, 2, 3]);
 ```
 
 You can also edit the `variables` map in a `Script` to define custom globals on a script.<br>
