@@ -77,7 +77,8 @@ class Script {
 		interp.setDefaults();
 		
 		variables.set('this', this);
-		variables.set('interp', this);
+		variables.set('script', this);
+		variables.set('interp', interp);
 	}
 	
 	public dynamic function onParsingError(e:haxe.Exception):Void {

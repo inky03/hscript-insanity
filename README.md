@@ -32,7 +32,7 @@ script.call('testFunction', [1, 2, 3]);
 ```
 
 You can also edit the `variables` map in a `Script` to define custom globals on a script.<br>
-By default, `this` and `interp` are defined as the `Script` instance.
+By default, `this` and `script` are defined as the `Script` instance, and `interp` as the instance's interpreter.
 
 
 ### Scripted modules and types (with [`Module`](insanity/Module.hx) and [`Environment`](insanity/Environment.hx))
@@ -89,7 +89,7 @@ class ScriptedThing extends BaseThing implements insanity.IScripted {}
 ```
 
 You can also edit the `variables` map in a `Module` or `Environment` to define custom globals on subtypes and submodules, respectively.<br>
-By default, `module` is defined as the `Module` instance in modules, and `interp` as the class `Interp` in scripted classes.
+By default, `module` is defined as the `Module` instance in modules, and `interp` as the class interpreter in scripted classes.
 
 (NOTE: currently only most behavior is properly implemented from extending classes. while i dont see why implement the interface in the base class, some things might have to be promptly fixed to correctly support them ...)
 
