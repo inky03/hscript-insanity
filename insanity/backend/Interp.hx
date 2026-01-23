@@ -68,6 +68,7 @@ class Interp {
 	public var defineGlobals:Bool = false;
 	public var superConstructorAllowed:Bool = false;
 	
+	static var localsPool : Array<Map<String, Variable>> = [];
 	var locals (get, never) : Map<String, Variable>;
 	var binops : Map<String, Expr -> Expr -> Dynamic >;
 	
@@ -479,8 +480,26 @@ class Interp {
 				error(ECustom('Stack overflow'));
 		}
 	}
-	inline function duplicate(?h : Map<String, Variable>) : Map<String, Variable> {
-		return (h == null ? new Map() : h.copy());
+	function shiftStack(put:Bool = true):Stack {
+		var item:Stack = stack.stack.shift();
+		
+		if (put) localsPool.push(item.locals);
+		
+		return item;
+	}
+	inline function duplicate(?h:Map<String, Variable>):Map<String, Variable> {
+		if (localsPool.length > 0) {
+			var locals:Map<String, Variable> = localsPool.pop();
+			
+			if (h != null) {
+				locals.clear();
+				for (k => v in h) locals.set(k, v);
+			}
+			
+			return locals;
+		} else {
+			return (h?.copy() ?? new Map());
+		}
 	}
 
 	function restore( old : Int ) {
@@ -826,7 +845,7 @@ class Interp {
 				try {
 					r = tryCast(exprReturn(fexpr), ret);
 				} catch( e : Dynamic ) {
-					stack.stack.shift();
+					shiftStack();
 					#if neko
 					neko.Lib.rethrow(e);
 					#else
@@ -840,10 +859,10 @@ class Interp {
 			if (functionLocals != null) {
 				restore(old);
 			} else {
-				declared.resize(0);
+				declared.resize(old);
 			}
 			
-			stack.stack.shift();
+			shiftStack(functionLocals == null);
 			superConstructorAllowed = false;
 			
 			return r;
@@ -963,7 +982,7 @@ class Interp {
 			doWhileLoop(econd,e);
 			return null;
 		case EFor(v,it,e):
-			forLoop(v,it,e);
+			forLoop(v,it,expr.bind(e));
 			return null;
 		case EForGen(it,e):
 			Tools.getKeyIterator(it, function(vk,vv,it) {
@@ -972,7 +991,7 @@ class Interp {
 					error(ECustom("Invalid for expression"));
 					return;
 				}
-				forKeyValueLoop(vk,vv,it,e);
+				forKeyValueLoop(vk,vv,it,expr.bind(e));
 			});
 			return null;
 		case EBreak:
@@ -987,61 +1006,71 @@ class Interp {
 		case EArrayDecl(arr):
 			var compr:Dynamic = null;
 			
-			function exprCompr(e:Expr, inFor:Bool = false):Dynamic {
-				switch (Tools.expr(e)) {
+			var exprCompr:(e:Expr, ?inFor:Bool) -> Dynamic = null;
+			
+			function forExpr(e:Expr) {
+				var v:Dynamic = exprCompr(e, true);
+				
+				if (v is ExprDef) {
+					switch (v) {
+						default:
+						case EBinop('=>', e1, e2):
+							var key:Dynamic = expr(e1);
+							
+							if (key is String) {
+								compr ??= new haxe.ds.StringMap();
+							} else if (key is Int) {
+								compr ??= new haxe.ds.IntMap();
+							} else if (HaxeReflect.isEnumValue(key)) {
+								compr ??= new haxe.ds.EnumValueMap();
+							} else {
+								compr ??= new haxe.ds.ObjectMap();
+							}
+							
+							compr.set(key, expr(e2));
+							return;
+					}
+				}
+				
+				if (v != Interp.void) {
+					compr ??= new Array();
+					
+					compr.push(v);
+				}
+			}
+			
+			exprCompr = function(e:Expr, inFor:Bool = false):Dynamic {
+				return switch (Tools.expr(e)) {
 					case EBlock(e):
 						var v = Interp.void;
-						for (e in e)
-							v = exprCompr(e, inFor);
-						return v;
+						
+						for (e in e) v = exprCompr(e, inFor);
+						
+						v;
+						
 					case EParent(e):
-						return exprCompr(e, inFor);
+						exprCompr(e, inFor);
+						
 					case EFor(n, it, e):
-						var old = declared.length;
-						declared.push({n: n, old: locals.get(n)});
+						forLoop(n, it, forExpr.bind(e));
 						
-						var it = makeIterator(expr(it, true, true));
-						while (it.hasNext()) {
-							locals.set(n, {r: it.next()});
+						Interp.void;
+						
+					case EForGen(it, e):
+						Tools.getKeyIterator(it, function(vk, vv, it) {
+							if (vk == null) {
+								position = it.pos;
+								error(ECustom('Invalid for expression'));
+								return;
+							}
 							
-							if (!loopRun(function() {
-								var v:Dynamic = exprCompr(e, true);
-								
-								if (v is ExprDef) {
-									switch (v) {
-										default:
-										case EBinop('=>', e1, e2):
-											var key:Dynamic = expr(e1);
-											
-											if (key is String) {
-												compr ??= new haxe.ds.StringMap();
-											} else if (key is Int) {
-												compr ??= new haxe.ds.IntMap();
-											} else if (HaxeReflect.isEnumValue(key)) {
-												compr ??= new haxe.ds.EnumValueMap();
-											} else {
-												compr ??= new haxe.ds.ObjectMap();
-											}
-											
-											compr.set(key, expr(e2));
-											return;
-									}
-								}
-								
-								if (v != Interp.void) {
-									compr ??= new Array();
-									
-									compr.push(v);
-								}
-							}))
-								break;
-						}
+							forKeyValueLoop(vk, vv, it, forExpr.bind(e));
+						});
 						
-						restore(old);
+						Interp.void;
 						
-						return Interp.void;
 					default:
-						return expr(e, inFor, inFor);
+						expr(e, inFor, inFor);
 				}
 			}
 			
@@ -1338,7 +1367,7 @@ class Interp {
 	function doWhileLoop(econd,e) {
 		var old = declared.length;
 		do {
-			if( !loopRun(() -> expr(e)) )
+			if( !loopRun(expr.bind(e)) )
 				break;
 		}
 		while( expr(econd) == true );
@@ -1348,7 +1377,7 @@ class Interp {
 	function whileLoop(econd,e) {
 		var old = declared.length;
 		while( expr(econd) == true ) {
-			if( !loopRun(() -> expr(e)) )
+			if( !loopRun(expr.bind(e)) )
 				break;
 		}
 		restore(old);
@@ -1389,23 +1418,24 @@ class Interp {
 		return v;
 	}
 
-	function forLoop(n,it,e) {
+	function forLoop(n,it,ef:Dynamic) {
 		var old = declared.length;
-		declared.push({ n : n, old : locals.get(n) });
+		declared.push({n: n, old: locals.get(n)});
 		
 		var it = makeIterator(expr(it));
 		var next = Reflect.field(it, 'next'), hasNext = Reflect.field(it, 'hasNext');
 		
 		while( hasNext() ) {
-			locals.set(n,{ r : next() });
-			if( !loopRun(() -> expr(e)) )
+			locals.set(n, {r: next()});
+			
+			if (!loopRun(ef))
 				break;
 		}
 		
 		restore(old);
 	}
 
-	function forKeyValueLoop(vk,vv,it,e) {
+	function forKeyValueLoop(vk,vv,it,ef:Dynamic) {
 		var old = declared.length;
 		declared.push({ n : vk, old : locals.get(vk) });
 		declared.push({ n : vv, old : locals.get(vv) });
@@ -1419,9 +1449,10 @@ class Interp {
 			if (v.key == null) error(EUnknownField(v, 'key'));
 			if (v.value == null) error(EUnknownField(v, 'value'));
 			
-			locals.set(vk,{ r : v.key });
-			locals.set(vv,{ r : v.value });
-			if( !loopRun(() -> expr(e)) )
+			locals.set(vk, {r: v.key});
+			locals.set(vv, {r: v.value});
+			
+			if (!loopRun(ef))
 				break;
 		}
 		
