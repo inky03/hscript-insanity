@@ -756,6 +756,7 @@ class Interp {
 				
 				var cls = new InsanityScriptedClass(m);
 				cls.init(environment, this);
+				cls.initialized = true;
 				
 				imports.set(m.name, cls);
 			
@@ -764,6 +765,7 @@ class Interp {
 				
 				var cls = new InsanityScriptedEnum(m);
 				cls.init(environment, this);
+				cls.initialized = true;
 				
 				imports.set(m.name, cls);
 			
@@ -772,6 +774,7 @@ class Interp {
 				
 				var cls = new InsanityScriptedTypedef(m);
 				cls.init(environment, this);
+				cls.initialized = true;
 				
 				if (cls.alias != null) imports.set(m.name, cls.alias);
 			
