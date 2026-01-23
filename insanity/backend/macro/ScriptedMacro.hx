@@ -40,6 +40,7 @@ class ScriptedMacro {
 		var hasConstructor:Bool = false;
 		var hasToString:Bool = false;
 		
+		// should probably rewrite this later,  with New knowledge
 		function setFields(type:ClassType, ?types:Array<Type>) {
 			var typeFields:Array<ClassField> = type.fields.get();
 			
@@ -47,6 +48,16 @@ class ScriptedMacro {
 			if (types != null) {
 				for (i => t in types) {
 					var classParam = type.params[i];
+					switch (t.follow()) {
+						default:
+						case TInst(t, p):
+							switch(t.get().kind) {
+								default:
+								case KTypeParameter(t):
+									generics.set(classParam.name, t[0].follow().toComplexType());
+									continue;
+							}
+					}
 					generics.set(classParam.name, t.follow().toComplexType());
 				}
 			}
@@ -77,6 +88,25 @@ class ScriptedMacro {
 					
 					function mapSuper(e:Expr) {
 						return switch(e.expr) {
+							case ENew(t, params):
+								var newParams:Array<Expr> = [];
+								for (param in params) {
+									switch (param.expr) {
+										case EConst(CIdent('null')):
+											// todo check dynamic params ? this could get ugly
+										default:
+											newParams.push(param);
+									}
+								}
+								
+								if (StringTools.endsWith(t.name, '_Impl_'))
+									t.name = t.name.replace('_Impl_', '');
+								
+								{
+									pos: pos,
+									expr: ENew(t, [for (param in newParams) param.map(mapSuper)])
+								}
+								
 							case ECall(e, params):
 								var newParams:Array<Expr> = [];
 								for (param in params) {
@@ -87,6 +117,7 @@ class ScriptedMacro {
 											newParams.push(param);
 									}
 								}
+								
 								{
 									pos: pos,
 									expr: ECall(switch (e.expr) {
@@ -95,15 +126,22 @@ class ScriptedMacro {
 										default:
 											e.map(mapSuper);
 									},
-									newParams)
+									[for (param in newParams) param.map(mapSuper)])
 								}
+								
+							case EConst(CIdent('super')):
+								mapConstructor(type.superClass.t.get());
+								
 							default:
 								e.map(mapSuper);
 						}
 					}
 					
 					var constrExpr = expr.map(mapSuper);
-					var body:Array<Expr> = [constrExpr];
+					var body:Array<Expr> = switch (constrExpr) {
+						case {pos: _, expr: EBlock(a)}: a;
+						case e: [e];
+					}
 					
 					for (field in type.fields.get()) {
 						switch (field.kind) {
@@ -135,7 +173,7 @@ class ScriptedMacro {
 											{
 												pos: pos,
 												expr: ENew(
-													{pack: p, name: n, params: [for (p in tp) TPType(p.toComplexType())]},
+													{pack: p, name: n, params: [for (p in tp) TPType(p.follow().toComplexType() ?? macro:Dynamic)]},
 													[for (param in params) {
 														switch (param.t) {
 															case TAbstract(a, p):
@@ -157,7 +195,6 @@ class ScriptedMacro {
 									}
 								}
 								var expr = mapTyped(e);
-								// body.unshift(macro trace($v {field.name} + ' -> ' + $i {field.name}));
 								body.unshift(macro Reflect.setField(this, $v {field.name}, $expr));
 						}
 					}
@@ -584,8 +621,12 @@ class ScriptedMacro {
 			pos: pos, name: '__interp',
 			kind: FVar(macro:insanity.backend.Interp),
 		}, {
-			pos: pos, access: [APublic, AStatic], name: 'baseClass',
-			kind: FVar(macro:String, macro $v {path.join('.')})
+			pos: pos, access: [APublic, AStatic], name: 'getBaseClass',
+			kind: FFun({
+				args: [],
+				expr: macro return $v {path.join('.')},
+				ret: macro:String
+			})
 		}, {
 			pos: pos, access: [APublic], name: 'reflectHasField',
 			kind: FFun({
@@ -728,18 +769,16 @@ class ScriptedMacro {
 				}
 			}
 			
-			self.meta.add('typedScripted', [macro $v {map}], self.pos);
+			self.meta.add('typedScripted', [macro $v {haxe.Serializer.run(map)}], self.pos);
 		});
 		
 		return macro {
-			var meta:Array<String> = cast haxe.rtti.Meta.getType($p {_name.split('.')}).typedScripted[0];
+			var meta:Array<String> = cast haxe.Unserializer.run(haxe.rtti.Meta.getType($p {_name.split('.')}).typedScripted[0]);
 			var map:Map<String, Dynamic> = [];
-			
-			insanity.backend.types.Scripted.InsanityDummyClass.baseClass; // shrug
 			
 			for (cls in meta) {
 				var scripted:Dynamic = Type.resolveClass(cls);
-				map.set(scripted.baseClass ?? '', cast scripted);
+				map.set(scripted.getBaseClass(), cast scripted);
 			}
 				
 			cast map;

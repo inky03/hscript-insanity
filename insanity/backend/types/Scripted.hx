@@ -199,7 +199,7 @@ class InsanityScriptedClass implements IInsanityType implements ICustomReflectio
 						if (!foundOverridingFields.contains(field))
 							foundOverridingFields.push(field);
 					} else if (knownFields.contains(field)) {
-						throw 'Field $field should be declared with \'override\' since it is inherited from superclass ${Reflect.field(cls, 'baseClass')}';
+						throw 'Field $field should be declared with \'override\' since it is inherited from superclass ${cls.getBaseClass()}';
 					}
 				}
 			}
