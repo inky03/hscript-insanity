@@ -1979,8 +1979,9 @@ class Parser {
 		var tk = token();
 		return switch( tk ) {
 		case TPOpen:
-			push(TPOpen);
-			parseExpr();
+			var e = parseExpr();
+			ensure(TPClose);
+			e;
 		case TId(id):
 			mk(EIdent(id), tokenMin, tokenMax);
 		case TOp("!"):
@@ -2001,7 +2002,8 @@ class Parser {
 		case EConst(CString(v)):
 			return v;
 		case EUnop("!", _, e):
-			return !evalPreproCond(e);
+			var v:Dynamic = evalPreproCond(e);
+			return (v is Bool ? !v : v == null);
 		case EParent(e):
 			return evalPreproCond(e);
 		case EBinop(op, e1, e2) if (preprocessorBinops.exists(op)):
@@ -2021,7 +2023,7 @@ class Parser {
 			var e = parsePreproCond();
 			var v:Dynamic = evalPreproCond(e);
 			
-			if (v != null && v != false) {
+			if (v != null && (!(v is Bool) || v != false)) {
 				preprocStack.push({ r : true });
 				return token();
 			}
@@ -2046,6 +2048,16 @@ class Parser {
 			}
 		case "end" if (preprocStack.length > 0):
 			preprocStack.pop();
+			return token();
+		case 'error':
+			if (preprocStack.length < 1 || preprocStack[preprocStack.length - 1].r) {
+				var string:String = switch ( expr(parseExpr()) ) {
+					case EConst(CString(v)): v;
+					default: 'Not implemented';
+				};
+				error(ECustom(string), currentPos, currentPos);
+			}
+			
 			return token();
 		default:
 			return TPrepro(id);
