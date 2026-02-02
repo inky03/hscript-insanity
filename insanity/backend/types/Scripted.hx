@@ -57,7 +57,7 @@ class InsanityScriptedClass implements IInsanityType implements ICustomReflectio
 		
 		path = Tools.pathToString(name, pack);
 		
-		interp = new Interp();
+		interp = Type.createInstance(Config.interpClass, []);
 		interp.canDefer = true;
 	}
 	
@@ -589,6 +589,13 @@ interface IInsanityType {
 @:autoBuild(insanity.backend.macro.ScriptedMacro.build())
 interface IInsanityScripted extends ICustomReflection extends ICustomClassType {
 	private var __base:InsanityScriptedClass;
+	private var __interp:insanity.backend.Interp;
+	private var __vars:Map<String, insanity.backend.Interp.Variable>;
+	
+	private var __safe:Bool;
+	private var __func:String;
+	private var __fields:Array<String>;
+	
 	private function __construct(base:InsanityScriptedClass, arguments:Array<Dynamic>):Void;
 }
 

@@ -20,7 +20,7 @@ class Script {
 	
 	public function new(string:String, name:String = 'hscript', ?environment:Environment):Void {
 		parser.allowTypes = parser.allowJSON = true;
-		interp = new Interp(environment, this);
+		interp = Type.createInstance(Config.interpClass, [environment, this]);
 		interp.defineGlobals = true;
 		
 		this.name = name;

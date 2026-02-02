@@ -6,6 +6,8 @@ import insanity.custom.*;
 #if hl import insanity.custom.HL; #end
 
 class Config { #if (!macro)
+	public static var interpClass:Class<insanity.backend.Interp> = insanity.backend.Interp;
+	
 	public static var preprocessorValues:Map<String, Dynamic> = Defines.appendCompilerDefines([
 		'insanity' => '1'
 	]);

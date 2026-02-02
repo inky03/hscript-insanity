@@ -447,12 +447,11 @@ class ScriptedMacro {
 		
 		var newExpr = macro {
 			__vars = new Map();
-			__curAccess = '';
 			__func = '';
 			
 			__base = base;
 			__safe = base.safe;
-			__interp = new insanity.backend.Interp(base.interp.environment, this);
+			__interp = Type.createInstance(insanity.Config.interpClass, [base.interp.environment, this]);
 			__interp.pushStack(insanity.backend.CallStack.StackItem.SModule(base.module?.path ?? base.name));
 			
 			__interp.setDefaults();
@@ -605,9 +604,6 @@ class ScriptedMacro {
 		}, {
 			pos: pos, access: [AStatic, APublic], name: 'unexposedFields',
 			kind: FVar(macro:Array<String>, macro $v {omittedFields}),
-		}, {
-			pos: pos, access: [AStatic, APublic], name: '__curAccess',
-			kind: FVar(macro:String),
 		}, {
 			pos: pos, name: '__vars',
 			kind: FVar(macro:Map<String, insanity.backend.Interp.Variable>),

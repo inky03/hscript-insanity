@@ -32,7 +32,7 @@ class Module {
 	
 	public function new(string:String, name:String = 'Module', pack:Array<String>, origin:String = 'hscript'):Void {
 		parser.allowTypes = parser.allowJSON = true;
-		interp = new Interp(this);
+		interp = Type.createInstance(Config.interpClass, [null, this]);
 		
 		this.origin = origin;
 		this.name = name;
