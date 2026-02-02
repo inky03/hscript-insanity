@@ -505,7 +505,12 @@ class Interp {
 	function restore( old : Int ) {
 		while( declared.length > old ) {
 			var d = declared.pop();
-			locals.set(d.n,d.old);
+			
+			if (d.old == null) {
+				locals.remove(d.n);
+			} else {
+				locals.set(d.n, d.old);
+			}
 		}
 	}
 
@@ -859,11 +864,7 @@ class Interp {
 				r = tryCast(exprReturn(fexpr), ret);
 			}
 			
-			if (functionLocals != null) {
-				restore(old);
-			} else {
-				declared.resize(old);
-			}
+			restore(old);
 			
 			shiftStack(functionLocals == null);
 			superConstructorAllowed = false;
