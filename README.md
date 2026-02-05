@@ -203,7 +203,7 @@ trace('hello $test ${'can also be nested!! $$${test + 3210}'}');
 
 ### Pattern matching
 
-Haxe's [switch-case pattern matching features](https://haxe.org/manual/lf-pattern-matching.html) feature is fully supported!
+Haxe's [switch-case pattern matching features](https://haxe.org/manual/lf-pattern-matching.html) are fully supported!
 
 ```haxe
 var struct:Dynamic = {name: 'Haxe', rating: 'Awesome'};
