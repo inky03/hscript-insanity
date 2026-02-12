@@ -45,7 +45,7 @@ enum ExprDef {
 	EDecl( t : ModuleDecl );
 	EConst( c : Const );
 	EIdent( v : String );
-	EVar( n : String, ?t : CType, ?e : Expr, ?get : String, ?set : String );
+	EVar( n : String, ?t : CType, ?e : Expr, ?get : String, ?set : String, ?isFinal : Bool );
 	EParent( e : Expr );
 	EBlock( e : Array<Expr> );
 	EField( e : Expr, f : String, ?maybe : Bool );

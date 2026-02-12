@@ -138,8 +138,15 @@ class Printer {
 			case EConst(c): addConst(c);
 			case EIdent(v):
 				add(v);
-			case EVar(n, t, e):
-				add("var " + n);
+			case EVar(n, t, e, get, set, isFinal):
+				add((isFinal ? 'final ' : 'var ') + n);
+				if (get != null) {
+					add('(');
+					add(get);
+					add(', ');
+					add(set);
+					add(')');
+				}
 				addType(t);
 				if( e != null ) {
 					add(" = ");

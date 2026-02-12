@@ -51,6 +51,7 @@ typedef Variable = {
 	var r:Dynamic;
 	var ?a:InsanityAbstract;
 	
+	var ?isFinal:Bool;
 	var ?access:Array<FieldAccess>;
 	
 	var ?get:String;
@@ -319,6 +320,9 @@ class Interp {
 		var map:Map<String, Variable> = (map ?? locals);
 		var l:Variable = map.get(id);
 		if (l == null) return null;
+		
+		if (l.isFinal)
+			throw 'Cannot assign to final';
 		
 		if (l.access != null && Reflect.isFunction(l.r) && !l.access.contains(ADynamic))
 			throw 'Cannot rebind method $id: please use \'dynamic\' before method declaration';
@@ -917,7 +921,7 @@ class Interp {
 			if (captures.exists(id)) return captures.get(id);
 			if (locals.exists(id)) return getLocal(id);
 			return resolve(id);
-		case EVar(n,t,e,get,set):
+		case EVar(n,t,e,get,set,isFinal):
 			declared.push({n: n, old: locals.get(n)});
 			
 			var v:Dynamic = (e == null ? null : expr(e, t));
@@ -925,6 +929,7 @@ class Interp {
 			
 			if (get != null) l.get = get;
 			if (set != null) l.set = set;
+			if (isFinal) l.isFinal = isFinal;
 			
 			locals.set(n, l);
 		case EParent(e):

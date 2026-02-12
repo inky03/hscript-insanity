@@ -726,7 +726,7 @@ class Parser {
 		case "var", "final":
 			var ident = getIdent();
 			var get = null, set = null;
-			if (maybe(TPOpen)) {
+			if (id == 'var' && maybe(TPOpen)) {
 				get = getIdent();
 				ensure(TComma);
 				set = getIdent();
@@ -750,7 +750,7 @@ class Parser {
 				default: unexpected(tk);
 			}
 
-			mk(EVar(ident,t,e,get,set),p1,(e == null) ? tokenMax : pmax(e));
+			mk(EVar(ident,t,e,get,set,id == 'final'),p1,(e == null) ? tokenMax : pmax(e));
 		case "while":
 			var econd = parseExpr();
 			var e = parseExpr();
