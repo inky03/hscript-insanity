@@ -138,10 +138,13 @@ class Tools {
 	}
 	
 	public static inline function resolve(path:String, ?env:Environment):Dynamic {
+		var info = (TypeCollection.main.fromPath(path) ?? env?.types.fromPath(path));
+		if (info != null) path = TypeCollection.compilePath(info[0]);
+		
 		var type:Dynamic = env?.resolve(path);
+		type ??= AbstractTools.resolve(path);
 		type ??= InsanityType.resolveClass(path);
 		type ??= InsanityType.resolveEnum(path);
-		type ??= AbstractTools.resolve(path);
 		
 		return type;
 	}

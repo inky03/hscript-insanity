@@ -47,6 +47,12 @@ enum Stop {
 	SReturn;
 }
 
+enum Resolve {
+	RNormal(f:String);
+	RMaybe(f:String);
+	RExpr(e:Expr);
+}
+
 typedef Variable = {
 	var r:Dynamic;
 	var ?a:InsanityAbstract;
@@ -77,6 +83,7 @@ class Interp {
 	var stack : CallStack;
 	
 	var inTry : Bool;
+	var resolveFields : Array<Resolve> = [];
 	var captures : Map<String, Dynamic>;
 	var declared : Array<{ n : String, old : Variable }>;
 	var returnValue : Dynamic;
@@ -965,7 +972,74 @@ class Interp {
 				restore(old);
 			return v;
 		case EField(e,f,m):
-			return get(expr(e),f,m);
+			var canResolve = (resolveFields.length == 0);
+			
+			resolveFields.unshift(m ? RMaybe(f) : RNormal(f));
+			switch (Tools.expr(e)) {
+				case EIdent(id): resolveFields.unshift(RNormal(id));
+				case EField(_, _, _): expr(e);
+				default: resolveFields.unshift(RExpr(e));
+			}
+			
+			if (canResolve) {
+				var got:Dynamic = null, gotType:TypeInfo = null, unknown:Null<String> = null;
+				
+				var fields = resolveFields;
+				resolveFields = [];
+				
+				var fullProp:String = '';
+				for (i => prop in fields) {
+					var field:String, maybe:Bool;
+					switch (prop) {
+						case RNormal(f): field = f; maybe = false;
+						case RMaybe(f): field = f; maybe = true;
+						case RExpr(e):
+							got = expr(e);
+							continue;
+					}
+					
+					if (got == null) {
+						fullProp = (fullProp.length == 0 ? field : '$fullProp.$field');
+						
+						if (i == 0) {
+							if (captures.exists(field)) {
+								got = captures.get(field);
+							} else if (locals.exists(field)) {
+								got = getLocal(field);
+							} else if (imports.exists(field) || variables.exists(field)) {
+								got = resolve(field);
+							} else {
+								unknown = field;
+							}
+							
+							if (got != null)
+								continue;
+						}
+						
+						var info = (TypeCollection.main.fromPath(fullProp) ?? environment?.types.fromPath(fullProp));
+						
+						if (info != null) {
+							unknown = null;
+							gotType = info[0];
+							
+							if (i == fields.length - 1)
+								got = gotType.resolve(environment);
+						} else if (gotType != null) {
+							var t = gotType.resolve(environment);
+							got = get(t, field, maybe);
+						}
+					} else {
+						got = get(got, field, maybe);
+					}
+				}
+				
+				if (unknown != null)
+					error(EUnknownVariable(unknown));
+				
+				return got;
+			}
+			
+			return null;
 		case EBinop('=>', e1, e2) if (mapCompr):
 			return e;
 		case EBinop(op,e1,e2):
@@ -1611,7 +1685,7 @@ class Interp {
 			#end
 		}
 		
-		if (prop == null && !hasField(o, f)) {
+		if (prop == null && hasField(o, f) == false) {
 			var fields = getFieldsClass((o is Class || o is InsanityScriptedClass) ? Type.getClassName(o) : Type.getEnumName(o));
 			if (fields != null) return Reflect.field(fields, f);
 		}
@@ -1628,7 +1702,7 @@ class Interp {
 		if (AbstractTools.isAbstract(v))
 			v = v.__a;
 		
-		if (Reflect.field(o, f) == null && !hasField(o, f)) {
+		if (Reflect.field(o, f) == null && hasField(o, f) == false) {
 			var fields = getFieldsClass((o is Class || o is InsanityScriptedClass) ? Type.getClassName(o) : Type.getEnumName(o));
 			if (fields != null) Reflect.setField(fields, f, v);
 		} else {
@@ -1638,13 +1712,13 @@ class Interp {
 		return v;
 	}
 	
-	inline function hasField(o:Dynamic, f:String):Bool {
+	inline function hasField(o:Dynamic, f:String):Null<Bool> {
 		if (o is Class || o is InsanityScriptedClass) {
 			return Type.getClassFields(o).contains(f);
 		} else if (o is Enum || o is InsanityScriptedEnum) {
 			return Type.getEnumConstructs(o).contains(f);
 		} else {
-			return false;
+			return null;
 		}
 	}
 	
@@ -1708,7 +1782,7 @@ class Interp {
 	}
 
 	function cnew( cl : String, args : Array<Dynamic> ) : Dynamic {
-		var c = Type.resolveClass(cl);
+		var c = Tools.resolve(cl, environment);
 		c ??= resolve(cl);
 		
 		if (canDefer && c is IInsanityType && !c.initialized)
