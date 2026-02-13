@@ -59,6 +59,39 @@ class Module {
 						new InsanityScriptedEnum(m, this);
 					case DTypedef(m):
 						new InsanityScriptedTypedef(m, this);
+					case DField(m):
+						var fieldsPath:String = Tools.pathToString('_$name.${name}_Fields_', pack);
+						var t:InsanityScriptedClass = cast types.get(fieldsPath);
+						
+						var d:FieldDecl = {
+							name: m.name,
+							meta: m.meta,
+							kind: m.kind,
+							access: (m.isPrivate ? [AStatic, APrivate] : [AStatic, APublic])
+						};
+						
+						if (t == null) { // creates Dummy class for the module level fields
+							var fieldsModule:ClassDecl = {
+								name: '${name}_Fields_',
+								params: {},
+								meta: [],
+								fields: [d],
+								isExtern: false,
+								isPrivate: false,
+								implement: null,
+								extend: null,
+							};
+							
+							var cl = new InsanityScriptedClass(fieldsModule, this);
+							cl.pack = cl.pack.copy(); cl.pack.push('_$name');
+							cl.path = Tools.pathToString(cl.name, cl.pack);
+							
+							types.set(fieldsPath, cl);
+						} else {
+							@:privateAccess t.decl.fields.push(d);
+						}
+						
+						continue;
 				}
 				
 				types.set(Tools.pathToString(type.name, pack), type);

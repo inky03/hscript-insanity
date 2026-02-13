@@ -79,7 +79,7 @@ class Environment {
 				var info:TypeInfo = {
 					kind: k,
 					module: module.path,
-					pack: module.pack,
+					pack: type.pack,
 					name: type.name,
 				};
 				

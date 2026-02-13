@@ -1504,6 +1504,18 @@ class Parser {
 				isPrivate : isPrivate,
 				t : t,
 			}), tokenMin, tokenMax);
+		case "var", "final", "function":
+			push(TId(ident));
+			
+			var f = parseField();
+			
+			return mkd(DField({
+				name : f.name,
+				meta : f.meta,
+				kind : f.kind,
+				params : null,
+				isPrivate : isPrivate,
+			}), tokenMin, tokenMax);
 		default:
 			unexpected(TId(ident));
 		}
@@ -1563,7 +1575,7 @@ class Parser {
 			case "var", "final":
 				var name = getIdent();
 				var get = null, set = null;
-				if( maybe(TPOpen) ) {
+				if( id != 'final' && maybe(TPOpen) ) {
 					get = getIdent();
 					ensure(TComma);
 					set = getIdent();
@@ -1591,6 +1603,7 @@ class Parser {
 						set : set,
 						type : type,
 						expr : expr,
+						isFinal : (id == 'final')
 					}),
 				};
 			default:

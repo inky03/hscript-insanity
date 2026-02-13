@@ -39,7 +39,7 @@ By default, `this` and `script` are defined as the `Script` instance, and `inter
 
 > [!WARNING]
 > This feature is experimental and still incomplete. <br>
-> CLASS, TYPEDEF (alias) and ENUM types are supported (ABSTRACTS and MODULE LEVEL FIELDS may be supported later)
+> CLASS, TYPEDEF (alias only), ENUM types and MODULE LEVEL FIELDS are supported (ABSTRACTS may be supported later)
 
 You can load custom modules from strings and use them in scripts!
 
@@ -147,7 +147,7 @@ trace(FileSystem.exists('Main.hx'));
 trace(get({hi: 123}, 'hi'));
 ```
 
-You can also import type alias typedefs!<br>
+You can also import type alias typedefs, and module-level fields!<br>
 Due to type parameters being mostly stripped at runtime, adding support for importing anonymous structure typedefs is not very practical.
 
 All compile-time type information is accessible in [`insanity.backend.TypeCollection.main`](insanity/backend/TypeCollection.hx).
@@ -358,6 +358,7 @@ It represents my dwindling mental state as I figure how to modify this library!!
   			- [X] iterables and iterators
 	- [X] enums
 	- [X] typedefs (type alias only)
+	- [X] module-level fields
 	- [ ] abstracts
 
 - general
@@ -368,7 +369,7 @@ It represents my dwindling mental state as I figure how to modify this library!!
 ### other
 
 - `import` keyword
-	- [ ] module level fields
+	- [X] module level fields
 - `using` keyword
 	- [ ] explicit type checking?
 - `switch` keyword

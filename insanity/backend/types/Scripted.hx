@@ -106,6 +106,7 @@ class InsanityScriptedClass implements IInsanityType implements ICustomReflectio
 				case KVar(v):
 					if (v.get != null) l.get = v.get;
 					if (v.set != null) l.set = v.set;
+					if (v.isFinal != null) l.isFinal = v.isFinal;
 			}
 			
 			interp.locals.set(f, l);
@@ -257,7 +258,7 @@ class InsanityScriptedClass implements IInsanityType implements ICustomReflectio
 	}
 	
 	public function toString():String {
-		if (interp.locals.exists('toString'))
+		if (interp.locals?.exists('toString'))
 			return interp.locals.get('toString').r();
 		
 		return 'InsanityScriptedClass<$path>';

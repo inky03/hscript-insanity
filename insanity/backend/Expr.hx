@@ -98,6 +98,7 @@ enum ModuleDeclDef {
 	DPackage( path : Array<String> );
 	DImport( path : Array<String>, mode : ImportMode );
 	DUsing( path : Array<String> );
+	DField( c : ModuleFieldDecl );
 	DClass( c : ClassDecl );
 	DEnum( c : EnumDecl );
 	DTypedef( c : TypeDecl );
@@ -139,6 +140,10 @@ typedef EnumFieldDecl = {
 	var ?arguments:Array<Argument>;
 }
 
+typedef ModuleFieldDecl = {> ModuleType,
+	var kind : FieldKind;
+}
+
 enum FieldAccess {
 	APublic;
 	APrivate;
@@ -165,6 +170,7 @@ typedef VarDecl = {
 	var set : Null<String>;
 	var expr : Null<Expr>;
 	var type : Null<CType>;
+	var isFinal : Null<Bool>;
 }
 
 enum ImportMode {

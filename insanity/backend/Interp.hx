@@ -664,9 +664,18 @@ class Interp {
 					if (field != null) {
 						var t:Dynamic = null;
 						for (type in types) {
-							if (type.name == path[i]) {
+							if (type.name == path[i])
 								t = type.resolve(environment);
-								break;
+							
+							if (type.name == '${path[i]}_Fields_') {
+								var t = type.resolve(environment);
+								
+								if (!Type.getClassFields(t).contains(field)) continue;
+								
+								switch (mode) {
+									case IAsName(alias): return imports.set(alias, MProperty(t, field));
+									default: return imports.set(field, MProperty(t, field));
+								}
 							}
 						}
 						
@@ -711,6 +720,18 @@ class Interp {
 							
 							for (type in types) {
 								if (type.name.indexOf('_Impl_') > -1) continue;
+								
+								if (type.name.endsWith('_Fields_')) {
+									var t = type.resolve(environment);
+									
+									if (imports.get(path[i]) == null)
+										imports.set(path[i], t);
+									
+									for (field in Reflect.fields(t))
+										imports.set(field, MProperty(t, field));
+									
+									continue;
+								}
 								
 								importType(type.name, type.kind == 'abstract' ? AbstractTools.resolve(type.compilePath()) : type.resolve(environment));
 							}
@@ -1577,7 +1598,7 @@ class Interp {
 			}
 		}
 		
-		return {
+		var prop = {
 			#if php
 				// https://github.com/HaxeFoundation/haxe/issues/4915
 				try {
@@ -1589,18 +1610,53 @@ class Interp {
 				Reflect.getProperty(o, f);
 			#end
 		}
+		
+		if (prop == null && !hasField(o, f)) {
+			var fields = getFieldsClass((o is Class || o is InsanityScriptedClass) ? Type.getClassName(o) : Type.getEnumName(o));
+			if (fields != null) return Reflect.field(fields, f);
+		}
+		
+		return prop;
 	}
 
 	function set( o : Dynamic, f : String, v : Dynamic ) : Dynamic {
+		if (o == null) error(EInvalidAccess(f));
+		
 		if (canDefer && o is IInsanityType && !o.initialized)
 			throw DDefer;
 		
 		if (AbstractTools.isAbstract(v))
 			v = v.__a;
 		
-		if( o == null ) error(EInvalidAccess(f));
-		Reflect.setProperty(o,f,v);
+		if (Reflect.field(o, f) == null && !hasField(o, f)) {
+			var fields = getFieldsClass((o is Class || o is InsanityScriptedClass) ? Type.getClassName(o) : Type.getEnumName(o));
+			if (fields != null) Reflect.setField(fields, f, v);
+		} else {
+			Reflect.setProperty(o,f,v);
+		}
+		
 		return v;
+	}
+	
+	inline function hasField(o:Dynamic, f:String):Bool {
+		if (o is Class || o is InsanityScriptedClass) {
+			return Type.getClassFields(o).contains(f);
+		} else if (o is Enum || o is InsanityScriptedEnum) {
+			return Type.getEnumConstructs(o).contains(f);
+		} else {
+			return false;
+		}
+	}
+	
+	inline function getFieldsClass(path:String):Dynamic {
+		if (path.endsWith('_Fields_')) return null;
+		
+		if (path.startsWith('InsanityAbstract_')) path = Type.resolveClass(path).impl;
+		
+		var pack = path.substr(0, path.lastIndexOf('.') + 1);
+		var name = path.substr(path.lastIndexOf('.') + 1);
+		
+		return Tools.resolve('${pack}_$name.${name}_Fields_', environment);
 	}
 
 	function fcall( o : Dynamic, f : String, args : Array<Dynamic> ) : Dynamic {
