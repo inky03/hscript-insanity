@@ -78,7 +78,7 @@ enum ExprDef {
 
 typedef Argument = { name : String, ?t : CType, ?opt : Bool, ?value : Expr, ?rest : Bool };
 
-typedef Metadata = Array<{ name : String, params : Array<Expr> }>;
+typedef Metadata = Array<MetadataEntry>; typedef MetadataEntry = { name : String, params : Array<Expr> };
 
 enum CType {
 	CTPath( path : Array<String>, ?params : Array<CType> );

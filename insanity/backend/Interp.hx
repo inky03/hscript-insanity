@@ -83,6 +83,7 @@ class Interp {
 	var stack : CallStack;
 	
 	var inTry : Bool;
+	var metas : Metadata = [];
 	var resolveFields : Array<Resolve> = [];
 	var captures : Map<String, Dynamic>;
 	var declared : Array<{ n : String, old : Variable }>;
@@ -305,13 +306,16 @@ class Interp {
 				return (l.a ?? l.r);
 			case 'never':
 				throw 'This expression cannot be accessed for reading'; return null;
+			case 'get' | 'dynamic' if (getMeta(':bypassAccessor') != null):
+				return (l.a ?? l.r);
 			case 'get' | 'dynamic':
 				if (curAccess == id) return l.r;
 				
-				if (map.exists('get_$id')) {
+				var hasLocal:Bool = locals.exists('get_$id');
+				if (hasLocal || variables.exists('get_$id')) {
 					var prevAccess:String = curAccess;
 					curAccess = id;
-					var v = Reflect.callMethod(this, map.get('get_$id').r, []);
+					var v = Reflect.callMethod(this, hasLocal ? locals.get('get_$id').r : variables.get('get_$id'), []);
 					curAccess = prevAccess;
 					return v;
 				}
@@ -340,13 +344,16 @@ class Interp {
 				return l.r = v;
 			case 'never':
 				throw 'This expression cannot be accessed for writing'; return null;
+			case 'set' | 'dynamic' if (getMeta(':bypassAccessor') != null):
+				return l.r = v;
 			case 'set' | 'dynamic':
 				if (curAccess == id) return l.r = v;
 				
-				if (map.exists('set_$id')) {
+				var hasLocal:Bool = locals.exists('set_$id');
+				if (hasLocal || variables.exists('set_$id')) {
 					var prevAccess:String = curAccess;
 					curAccess = id;
-					Reflect.callMethod(this, map.get('set_$id').r, [v]);
+					Reflect.callMethod(this, hasLocal ? locals.get('set_$id').r : variables.get('set_$id'), [v]);
 					curAccess = prevAccess;
 					return l.r;
 				}
@@ -1297,20 +1304,110 @@ class Interp {
 			return if( expr(econd) == true ) expr(e1) else expr(e2);
 		case ESwitch(e, cases, def):
 			var hasCapture:Bool = false;
+			
 			function iterCapture(e:Expr) {
 				switch (e.e) {
 					case EIdent('_') | EIdent(_.isTypeIdentifier() => false):
 						hasCapture = true;
+						
 					case EIdent(id):
+					
 					case EVar(_):
 						hasCapture = true;
-					default: e.iter(iterCapture);
+						
+					default:
+						e.iter(iterCapture);
 				}
 			}
+			
 			function checkCapture(e:Expr) {
 				hasCapture = false;
 				e.iter(iterCapture);
 				return hasCapture;
+			}
+			
+			function testCase(e:Expr, match:Dynamic, deep:Bool = true) {
+				return switch (e.e) {
+					case EIdent(id):
+						if (imports.exists(id) || variables.exists(id))
+							return matchValues(resolve(id), match);
+						
+						if (id != '_' && id.isTypeIdentifier())
+							throw 'Unknown identifier: $id, pattern variables must be lower-case or with \'var \' prefix';
+						
+						captures.set(id, match);
+						return true;
+						
+					case EField(ve, f, m):
+						testCase(ve, match);
+						matchValues(get(expr(ve), f, m), match);
+						
+					case EVar(id):
+						captures.set(id, match);
+						true;
+						
+					case EConst(_):
+						(expr(e) == match);
+						
+					case EParent(exr):
+						testCase(exr, match);
+						
+					case EBinop('=>', e1, e2):
+						captures.set('_', match);
+						
+						var a:Dynamic = expr(e1);
+						testCase(e2, a);
+						
+						matchValues(a, expr(e2));
+						
+					case EBinop('|', e1, e2):
+						testCase(e1, match);
+						testCase(e2, match);
+						(matchValues(match, expr(e1)) || matchValues(match, expr(e2)));
+						
+					case EObject(f):
+						if (!Reflect.isObject(match))
+							return false;
+						for (f in f) {
+							if (!Reflect.hasField(match, f.name) || !testCase(f.e, Reflect.field(match, f.name)))
+								return false;
+						}
+						true;
+						
+					case EArrayDecl(a):
+						if (!match is Array)
+							return false;
+						if (a.length != match.length)
+							return false;
+						for (i => e in a) {
+							if (!testCase(e, match[i]))
+								return false;
+						}
+						true;
+						
+					case ECall(ce, params):
+						if (checkCapture(ce)) {
+							testCase(ce, match);
+						} else {
+							var v = expr(ce);
+							
+							var ev = Reflect.callMethod(null, v, [for (_ in params) null]);
+							if (Type.getEnum(ev) == Type.getEnum(match) && Type.enumConstructor(ev) == Type.enumConstructor(match)) {
+								var matchParams = Type.enumParameters(match);
+								
+								for (i => param in params) {
+									if (!testCase(param, matchParams[i]))
+										return false;
+								}
+							} else {
+								return false;
+							}
+						}
+						true;
+						
+					default:
+						error(EUnrecognizedPattern(e));
+				}
 			}
 			
 			var val : Dynamic = expr(e);
@@ -1319,81 +1416,7 @@ class Interp {
 				for( exr in c.values ) {
 					captures.clear();
 					
-					function test(e:Expr, match:Dynamic, deep:Bool = true) {
-						return switch (e.e) {
-							case EIdent(id):
-								if (!imports.exists(id) && !variables.exists(id)) {
-									if (id != '_' && id.isTypeIdentifier())
-										throw 'Unknown identifier: $id, pattern variables must be lower-case or with \'var \' prefix';
-									captures.set(id, match);
-									return true;
-								}
-								matchValues(resolve(id), match);
-							case EField(ve, f, m):
-								test(ve, match);
-								matchValues(get(expr(ve), f, m), match);
-							case EVar(id):
-								captures.set(id, match);
-								true;
-							case EConst(_):
-								(expr(e) == match);
-							case EParent(exr):
-								test(exr, match);
-							case EBinop('=>', e1, e2):
-								captures.set('_', match);
-								
-								var a:Dynamic = expr(e1);
-								test(e2, a);
-								
-								matchValues(a, expr(e2));
-							case EBinop('|', e1, e2):
-								test(e1, match);
-								test(e2, match);
-								(matchValues(match, expr(e1)) || matchValues(match, expr(e2)));
-							case EObject(f):
-								if (!Reflect.isObject(match))
-									return false;
-								for (f in f) {
-									if (!Reflect.hasField(match, f.name) || !test(f.e, Reflect.field(match, f.name)))
-										return false;
-								}
-								true;
-							case EArrayDecl(a):
-								if (!match is Array)
-									return false;
-								if (a.length != match.length)
-									return false;
-								for (i => e in a) {
-									if (!test(e, match[i]))
-										return false;
-								}
-								true;
-							case ECall(ce, params):
-								if (checkCapture(ce)) {
-									test(ce, match);
-								} else {
-									var v = expr(ce);
-									
-									var ev = Reflect.callMethod(null, v, [for (_ in params) null]);
-									if (Type.getEnum(ev) == Type.getEnum(match) && Type.enumConstructor(ev) == Type.enumConstructor(match)) {
-										var matchParams = Type.enumParameters(match);
-										
-										for (i => param in params) {
-											if (!test(param, matchParams[i]))
-												return false;
-										}
-									} else {
-										return false;
-									}
-								}
-								
-								true;
-							default:
-								error(EUnrecognizedPattern(e));
-						}
-					}
-					
-					match = test(exr, val);
+					match = testCase(exr, val);
 					
 					captures.remove('_');
 					
@@ -1415,13 +1438,36 @@ class Interp {
 			
 			return val;
 		case EMeta(meta, args, e):
-			return exprMeta(meta, args, e);
+			var r:Dynamic, old = metas.length; metas.push({ name : meta, params : args });
+			
+			try {
+				r = expr(e);
+				metas.resize(old);
+			} catch (e:Dynamic) {
+				metas.resize(old);
+				#if neko neko.Lib.rethrow(e); #else throw e; #end
+			}
+			
+			return r;
 		case ECast(e, t):
 			return tryCast(expr(e), t);
 		case ECheckType(e,_):
 			return expr(e);
 		}
 		return (void ? Interp.void : null);
+	}
+	
+	inline function getMeta(name:String):MetadataEntry {
+		var entry:MetadataEntry = null;
+		
+		for (meta in metas) {
+			if (meta.name == name) {
+				entry = meta;
+				break;
+			}
+		}
+		
+		return entry;
 	}
 	
 	public static function matchValues(v:Dynamic, with:Dynamic):Bool {
@@ -1462,10 +1508,6 @@ class Interp {
 		}
 		
 		return e;
-	}
-
-	function exprMeta(meta,args,e) : Dynamic {
-		return expr(e);
 	}
 
 	function doWhileLoop(econd,e) {
@@ -1672,22 +1714,27 @@ class Interp {
 			}
 		}
 		
-		var prop = {
-			#if php
-				// https://github.com/HaxeFoundation/haxe/issues/4915
-				try {
+		var bypassAccessor:Bool = (getMeta(':bypassAccessor') != null);
+		var prop = (
+			if (bypassAccessor) {
+				Reflect.field(o, f);
+			} else {
+				#if php
+					// https://github.com/HaxeFoundation/haxe/issues/4915
+					try {
+						Reflect.getProperty(o, f);
+					} catch (e:Dynamic) {
+						Reflect.field(o, f);
+					}
+				#else
 					Reflect.getProperty(o, f);
-				} catch (e:Dynamic) {
-					Reflect.field(o, f);
-				}
-			#else
-				Reflect.getProperty(o, f);
-			#end
-		}
+				#end
+			}
+		);
 		
 		if (prop == null && hasField(o, f) == false) {
 			var fields = getFieldsClass((o is Class || o is InsanityScriptedClass) ? Type.getClassName(o) : Type.getEnumName(o));
-			if (fields != null) return Reflect.field(fields, f);
+			if (fields != null) return (bypassAccessor ? Reflect.field(fields, f) : Reflect.getProperty(fields, f));
 		}
 		
 		return prop;
@@ -1702,11 +1749,15 @@ class Interp {
 		if (AbstractTools.isAbstract(v))
 			v = v.__a;
 		
+		var bypassAccessor:Bool = (getMeta(':bypassAccessor') != null);
+		
 		if (Reflect.field(o, f) == null && hasField(o, f) == false) {
 			var fields = getFieldsClass((o is Class || o is InsanityScriptedClass) ? Type.getClassName(o) : Type.getEnumName(o));
-			if (fields != null) Reflect.setField(fields, f, v);
+			if (fields != null) (bypassAccessor ? Reflect.setField(fields, f, v) : Reflect.setProperty(fields, f, v));
+		} else if (bypassAccessor) {
+			Reflect.setProperty(o, f, v);
 		} else {
-			Reflect.setProperty(o,f,v);
+			Reflect.setField(o, f, v);
 		}
 		
 		return v;
