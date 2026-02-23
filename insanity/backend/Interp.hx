@@ -892,7 +892,7 @@ class Interp {
 				try {
 					r = tryCast(exprReturn(fexpr), ret);
 				} catch( e : Dynamic ) {
-					shiftStack();
+					shiftStack(functionLocals == null);
 					#if neko
 					neko.Lib.rethrow(e);
 					#else
@@ -1755,9 +1755,9 @@ class Interp {
 			var fields = getFieldsClass((o is Class || o is InsanityScriptedClass) ? Type.getClassName(o) : Type.getEnumName(o));
 			if (fields != null) (bypassAccessor ? Reflect.setField(fields, f, v) : Reflect.setProperty(fields, f, v));
 		} else if (bypassAccessor) {
-			Reflect.setProperty(o, f, v);
-		} else {
 			Reflect.setField(o, f, v);
+		} else {
+			Reflect.setProperty(o, f, v);
 		}
 		
 		return v;
