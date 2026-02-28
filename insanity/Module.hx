@@ -22,7 +22,7 @@ class Module {
 	public var types:Map<String, IInsanityType> = [];
 	public var onInitialized:Array<Map<String, IInsanityType> -> Bool> = [];
 	
-	public var importModules:Array<ImportModule> = [];
+	public var subModules:Array<Module> = [];
 	
 	public var starting:Bool = false;
 	public var started:Bool = false;
@@ -50,57 +50,61 @@ class Module {
 			for (decl in declList) {
 				decls.push(decl);
 				
-				var type:IInsanityType = switch (decl.d) {
-					default:
-						continue;
-					case DClass(m):
-						new InsanityScriptedClass(m, this);
-					case DEnum(m):
-						new InsanityScriptedEnum(m, this);
-					case DTypedef(m):
-						new InsanityScriptedTypedef(m, this);
-					case DField(m):
-						var fieldsPath:String = Tools.pathToString('_$name.${name}_Fields_', pack);
-						var t:InsanityScriptedClass = cast types.get(fieldsPath);
-						
-						var d:FieldDecl = {
-							name: m.name,
-							meta: m.meta,
-							kind: m.kind,
-							access: (m.isPrivate ? [AStatic, APrivate] : [AStatic, APublic])
-						};
-						
-						if (t == null) { // creates Dummy class for the module level fields
-							var fieldsModule:ClassDecl = {
-								name: '${name}_Fields_',
-								params: {},
-								meta: [],
-								fields: [d],
-								isExtern: false,
-								isPrivate: false,
-								implement: null,
-								extend: null,
-							};
-							
-							var cl = new InsanityScriptedClass(fieldsModule, this);
-							cl.pack = cl.pack.copy(); cl.pack.push('_$name');
-							cl.path = Tools.pathToString(cl.name, cl.pack);
-							
-							types.set(fieldsPath, cl);
-						} else {
-							@:privateAccess t.decl.fields.push(d);
-						}
-						
-						continue;
-				}
+				var type:IInsanityType = loadType(decl);
 				
-				types.set(Tools.pathToString(type.name, pack), type);
+				if (type != null) types.set(Tools.pathToString(type.name, pack), type);
 			}
 		} catch (e:haxe.Exception) {
 			onParsingError(e);
 		}
 		
 		return decls;
+	}
+	
+	public function loadType(decl):IInsanityType {
+		return switch (decl.d) {
+			default:
+				null;
+			case DClass(m):
+				new InsanityScriptedClass(m, this);
+			case DEnum(m):
+				new InsanityScriptedEnum(m, this);
+			case DTypedef(m):
+				new InsanityScriptedTypedef(m, this);
+			case DField(m):
+				var fieldsPath:String = Tools.pathToString('_$name.${name}_Fields_', pack);
+				var t:InsanityScriptedClass = cast types.get(fieldsPath);
+				
+				var d:FieldDecl = {
+					name: m.name,
+					meta: m.meta,
+					kind: m.kind,
+					access: (m.isPrivate ? [AStatic, APrivate] : [AStatic, APublic])
+				};
+				
+				if (t == null) { // creates Dummy class for the module level fields
+					var fieldsModule:ClassDecl = {
+						name: '${name}_Fields_',
+						params: {},
+						meta: [],
+						fields: [d],
+						isExtern: false,
+						isPrivate: false,
+						implement: null,
+						extend: null,
+					};
+					
+					var cl = new InsanityScriptedClass(fieldsModule, this);
+					cl.pack = cl.pack.copy(); cl.pack.push('_$name');
+					cl.path = Tools.pathToString(cl.name, cl.pack);
+					
+					types.set(fieldsPath, cl);
+				} else {
+					@:privateAccess t.decl.fields.push(d);
+				}
+				
+				null;
+		}
 	}
 	
 	public function init(?environment:Environment):Void {
@@ -122,11 +126,17 @@ class Module {
 			
 			starting = true;
 			
-			for (module in importModules) {
-				module.start(environment);
-				
-				for (u in module.interp.usings) interp.usings.push(u);
-				for (n => i in module.interp.imports) interp.imports.set(n, i);
+			for (module in subModules) {
+				if (module is ImportModule) {
+					module.start(environment);
+					
+					for (u in module.interp.usings) interp.usings.push(u);
+					for (n => i in module.interp.imports) interp.imports.set(n, i);
+				} else {
+					var mainType:IInsanityType = module.types.get(module.path);
+					
+					if (mainType != null) module.interp.imports.set(mainType.name, mainType);
+				}
 			}
 			
 			interp.canInit = true;

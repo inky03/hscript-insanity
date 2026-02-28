@@ -144,13 +144,13 @@ class InsanityScriptedClass implements IInsanityType implements ICustomReflectio
 							try {
 								interp.locals.get(f).r = interp.exprReturn(v.expr, v.type);
 							} catch (e:haxe.Exception) {
-								trace('Error on expression for field $f: $e');
+								onExpressionError(e, f, v.expr);
 							}
 							
 							return false;
 						});
 					} catch (e:haxe.Exception) {
-						trace('Error on expression for field $f: $e');
+						onExpressionError(e, f, v.expr);
 					}
 			}
 			
@@ -333,8 +333,11 @@ class InsanityScriptedClass implements IInsanityType implements ICustomReflectio
 		return [for (field in __vars.keys()) field];
 	}
 	
+	public dynamic function onExpressionError(error:Dynamic, field:String, ?expr:Expr):Void {
+		trace('Error on field $field of $path: $error');
+	}
 	public dynamic function onInstanceError(error:Dynamic, fun:String, ?instance:IInsanityScripted):Void {
-		trace('Error on instance of $name ($fun): $error');
+		trace('Error on function $fun of $path: $error');
 	}
 }
 

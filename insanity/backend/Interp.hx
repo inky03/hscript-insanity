@@ -96,7 +96,7 @@ class Interp {
 	var curAccess : String = '';
 	
 	public var canDefer:Bool = false;
-	public var canInit:Bool = true;
+	public var canInit:Bool = false;
 
 	public function new(?environment:Environment, ?parent:Dynamic) {
 		this.environment = environment;

@@ -27,9 +27,14 @@ class ImportModule extends Module {
 		try {
 			if (decls.length == 0) throw 'Module is uninitialized';
 			
+			starting = true;
+			
 			interp.environment = environment;
 			interp.setDefaults();
 			interp.executeModule(decls, path);
+			
+			starting = false;
+			started = true;
 		} catch (e:haxe.Exception) {
 			onProgramError(e);
 		}
