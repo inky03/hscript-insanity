@@ -586,7 +586,7 @@ class Interp {
 		}
 	}
 
-	function resolve(id:String) : Dynamic {
+	public function resolve(id:String) : Dynamic {
 		if (imports.exists(id)) {
 			var v:Dynamic = imports.get(id);
 			
@@ -600,6 +600,10 @@ class Interp {
 			error(EUnknownVariable(id));
 		
 		return resolveMirror(variables.get(id));
+	}
+	
+	public function isResolvable(id:String):Bool {
+		return (imports.exists(id) || variables.exists(id));
 	}
 	
 	function importType(name:String, t:Dynamic, enumValueImport:Bool = true) {
@@ -1013,7 +1017,7 @@ class Interp {
 								got = captures.get(field);
 							} else if (locals.exists(field)) {
 								got = getLocal(field);
-							} else if (imports.exists(field) || variables.exists(field)) {
+							} else if (isResolvable(field)) {
 								got = resolve(field);
 							} else {
 								unknown = field;

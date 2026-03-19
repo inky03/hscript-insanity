@@ -20,6 +20,7 @@ class Module {
 	
 	public var decls:Array<ModuleDecl> = [];
 	public var types:Map<String, IInsanityType> = [];
+	public var moduleFields:InsanityScriptedClass = null;
 	public var onInitialized:Array<Map<String, IInsanityType> -> Bool> = [];
 	
 	public var subModules:Array<Module> = [];
@@ -98,6 +99,8 @@ class Module {
 					cl.pack = cl.pack.copy(); cl.pack.push('_$name');
 					cl.path = Tools.pathToString(cl.name, cl.pack);
 					
+					moduleFields = cl;
+					
 					types.set(fieldsPath, cl);
 				} else {
 					@:privateAccess t.decl.fields.push(d);
@@ -174,6 +177,14 @@ class Module {
 	}
 	
 	public function startTypes(?environment:Environment):Map<String, IInsanityType> {
+		if (moduleFields != null)
+		{
+			startType(environment, moduleFields);
+			
+			for (field in insanity.custom.InsanityReflect.fields(moduleFields))
+				interp.imports.set(field, MProperty(moduleFields, field));
+		}
+		
 		for (type in types) startType(environment, type);
 		
 		var i:Int = onInitialized.length;
