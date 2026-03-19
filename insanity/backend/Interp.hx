@@ -1394,7 +1394,6 @@ class Interp {
 		return (void ? Interp.void : null);
 	}
 	
-	var __tempResolveFields:Array<Resolve> = [];
 	inline function resolveField(e:Expr, f:String, m:Bool = false):Dynamic
 	{
 		final canResolve = (resolveFields.length == 0);
@@ -1408,9 +1407,8 @@ class Interp {
 		
 		if (!canResolve) return null;
 		
-		__tempResolveFields.resize(0);
-		for (f in resolveFields) __tempResolveFields.push(f);
-		resolveFields.resize(0);
+		var __tempResolveFields:Array<Resolve> = resolveFields;
+		resolveFields = [];
 		
 		var got:Dynamic = null, gotType:TypeInfo = null, unknown:Null<String> = null;
 		
