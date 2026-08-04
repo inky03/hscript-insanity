@@ -1536,37 +1536,35 @@ class Interp {
 		restore(old);
 	}
 
-	function makeIterator( v : Dynamic ) : Iterator<Dynamic> {
-		if( v is Array )
-			return (v : Array<Dynamic>).iterator();
+	function makeIterator(v:Dynamic):Iterator<Dynamic>
+	{
+		if (v is Array) return (v : Array<Dynamic>).iterator();
 		
-		var iter = Reflect.field(v, 'iterator');
-		#if hl
-		if (iter != null) v = Reflect.callMethod(v, iter, []);
-		#else
-		v = (iter != null ? iter() : v);
-		#end
+		var iter:Dynamic = v.iterator;
+		v = (iter != null ? #if hl Reflect.callMethod(v, iter, []) #else (iter : haxe.Constraints.Function)() #end : v);
 		
-		if ( Reflect.field(v, 'hasNext') == null || Reflect.field(v, 'next') == null ) error(EInvalidIterator(v));
+		if (v.hasNext == null || v.next == null)
+			error(EInvalidIterator(v));
 		
 		return v;
 	}
-
-	function makeKeyValueIterator( v : Dynamic ) : KeyValueIterator<Dynamic,Dynamic> {
-		if ((v is haxe.ds.IntMap) || (v is haxe.ds.StringMap) || (v is haxe.ds.ObjectMap) || (v is haxe.ds.EnumValueMap)) {
-			return (v:IMap<Dynamic, Dynamic>).keyValueIterator();
-		} else if (v is Array) {
-			return (v:Array<Dynamic>).keyValueIterator();
+	
+	function makeKeyValueIterator(v:Dynamic):KeyValueIterator<Dynamic, Dynamic>
+	{
+		if ((v is haxe.ds.IntMap) || (v is haxe.ds.StringMap) || (v is haxe.ds.ObjectMap) || (v is haxe.ds.EnumValueMap))
+		{
+			return (v : haxe.Constraints.IMap<Dynamic, Dynamic>).keyValueIterator();
+		}
+		else if (v is Array)
+		{
+			return (v : Array<Dynamic>).keyValueIterator();
 		}
 		
-		var iter = Reflect.field(v, 'keyValueIterator');
-		#if hl
-		if (iter != null) v = Reflect.callMethod(v, iter, []);
-		#else
-		v = (iter != null ? iter() : v);
-		#end
+		var iter:Dynamic = v.keyValueIterator;
+		v = (iter != null ? #if hl Reflect.callMethod(v, iter, []) #else (iter : haxe.Constraints.Function)() #end : v);
 		
-		if ( Reflect.field(v, 'hasNext') == null || Reflect.field(v, 'next') == null ) error(EInvalidIterator(v));
+		if (v.hasNext == null || v.next == null)
+			error(EInvalidIterator(v));
 		
 		return v;
 	}
@@ -1576,7 +1574,7 @@ class Interp {
 		declared.push({n: n, old: locals.get(n)});
 		
 		var it = makeIterator(expr(it));
-		var next = Reflect.field(it, 'next'), hasNext = Reflect.field(it, 'hasNext');
+		var next:Void -> Dynamic = Reflect.field(it, 'next'), hasNext:Void -> Bool = Reflect.field(it, 'hasNext');
 		
 		while( hasNext() ) {
 			locals.set(n, {r: next()});
@@ -1594,7 +1592,7 @@ class Interp {
 		declared.push({ n : vv, old : locals.get(vv) });
 		
 		var it = makeKeyValueIterator(expr(it));
-		var next = Reflect.field(it, 'next'), hasNext = Reflect.field(it, 'hasNext');
+		var next:Void -> Dynamic = Reflect.field(it, 'next'), hasNext:Void -> Bool = Reflect.field(it, 'hasNext');
 		
 		while( hasNext() ) {
 			var v = next();
