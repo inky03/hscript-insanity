@@ -1208,7 +1208,7 @@ class Interp {
 				a.push(expr(e));
 			return cnew(cl,a);
 		case EThrow(e):
-			error(ECustom(Std.string(expr(e))));
+			throw expr(e);
 		case ETry(e,n,_,ecatch):
 			var old = declared.length;
 			var oldTry = inTry;
