@@ -121,8 +121,20 @@ class ScriptedMacro {
 								{
 									pos: pos,
 									expr: ECall(switch (e.expr) {
-										case EConst(CIdent('super')):
-											mapConstructor(type.superClass.t.get());
+										case EConst(CIdent(n)):
+											if (n == 'super') {
+												mapConstructor(type.superClass.t.get());
+											} else if (n.charAt(0) == '$$') { // ?!??!?!?!?!
+												{
+													pos: pos,
+													expr: EField({
+														pos: pos,
+														expr: EConst(CIdent('Std'))
+													}, n.substring(1), Normal)
+												}
+											} else {
+												e.map(mapSuper);
+											}
 										default:
 											e.map(mapSuper);
 									},
