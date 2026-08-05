@@ -572,6 +572,191 @@ class InsanityScriptedEnumValue implements ICustomEnumValueType {
 	}
 }
 
+@:access(insanity.backend.Interp)
+class InsanityScriptedInterface implements IInsanityType implements ICustomReflection implements ICustomClassType {
+	public var path:String;
+	public var name:String;
+	public var module:Module;
+	public var pack:Array<String>;
+	
+	public var safe:Bool = false;
+	
+	public var interp:Interp;
+	public var extending(get, never):Dynamic;
+	
+	var decl:InterfaceDecl;
+	public var interfaceFields:Map<String, VarDecl> = [];
+	public var interfaceMethods:Map<String, FunctionDecl> = [];
+	
+	public var failed:Bool = false;
+	public var initialized:Bool = false;
+	public var initializing:Bool = false;
+	
+	public function new(decl:InterfaceDecl, ?module:Module) {
+		this.name = decl.name;
+		this.pack = (module?.pack ?? []);
+		this.module = module;
+		this.decl = decl;
+		
+		path = Tools.pathToString(name, pack);
+		
+		interp = Type.createInstance(Config.interpClass, []);
+		interp.canDefer = true;
+	}
+	
+	public function init(?env:Environment, ?baseInterp:Interp, restore:Bool = true):Void {
+		interp.environment = env;
+		interp.setDefaults(true, baseInterp == null);
+		
+		if (baseInterp != null) {
+			for (k => i in baseInterp.imports) interp.imports.set(k, i);
+		}
+		
+		interp.pushStack(insanity.backend.CallStack.StackItem.SModule(module?.path ?? name));
+		
+		safe = false;
+		for (meta in decl.meta) safe = (safe || meta.name == ':safe');
+		
+		var knownFields:Array<String> = [];
+		
+		for (field in decl.fields) {
+			var f:String = field.name;
+			
+			if (f == 'new') {
+				throw 'An interface cannot have a constructor';
+			} else if (field.access.contains(AStatic)) {
+				throw 'An interface cannot declare static fields';
+			} else if (field.access.contains(AOverride)) {
+				throw 'An interface cannot declare override fields';
+			} else if (insanity.backend.macro.ScriptedMacro.ignoreFields.contains(f)) {
+				throw 'Field $f reserved for internal use!!! - HScriptInsanity';
+			} else if (knownFields.contains(f)) {
+				throw 'Duplicate class field declaration: $name.$f';
+			} else {
+				knownFields.push(f);
+			}
+			
+			switch (field.kind) {
+				case KFunction(fun):
+					interfaceMethods.set(f, fun);
+					
+				case KVar(v):
+					interfaceFields.set(f, v);
+			}
+			
+			knownFields.push(f);
+		}
+	}
+	
+	function get_extending():Dynamic {
+		return switch (decl.extend) {
+			case CTPath(path, _):
+				var p:String = path.join('.');
+				
+				var type = (module?.interp.imports.get(p) ?? interp.imports.get(p) ?? Tools.resolve(p, interp.environment));
+				if (type == null) throw 'Type not found: $p';
+				
+				ScriptedTools.resolve(type);
+			case null:
+				null;
+			default:
+				throw 'Invalid extend ${decl.extend}';
+				null;
+		}
+	}
+	
+	public function toString():String {
+		return 'InsanityScriptedInterface<$path>';
+	}
+	
+	public function typeCreateInstance(arguments:Array<Dynamic>):Dynamic {
+		return typeCreateEmptyInstance();
+	}
+	public function typeCreateEmptyInstance():Dynamic {
+		throw 'Can\'t initialize interface';
+		return null;
+	}
+	public function typeGetClass():Dynamic {
+		return null;
+	}
+	public function typeGetClassFields():Array<String> {
+		return [];
+	}
+	@:access(insanity.backend.types.InsanityScriptedClass)
+	public function typeGetInstanceFields():Array<String> {
+		var fields:Array<String> = [];
+		
+		function getFields(c:Dynamic) {
+			if (c is InsanityScriptedInterface) {
+				var i:InsanityScriptedInterface = cast c;
+				
+				for (field => _ in i.interfaceFields) {
+					if (!fields.contains(field)) fields.push(field);
+				}
+				/*not listed apparently
+				for (field => _ in i.interfaceMethods) {
+					if (!fields.contains(field)) fields.push(field);
+				}*/
+				
+				if (i.extending != null) {
+					getFields(i.extending);
+				}
+			} else if (c is InsanityScriptedClass) {
+				for (field in cast(c, InsanityScriptedClass).decl.fields) {
+					var f:String = field.name;
+					if (f == 'new' || field.access.contains(AStatic)) continue;
+					if (!fields.contains(f)) fields.push(f);
+				}
+				
+				var instance = c.instanceClass;
+				if (instance != InsanityScriptedClass)
+					getFields(instance);
+				
+				if (c.extending != null) {
+					getFields(c.extending);
+				}
+			} else if (c is Class) {
+				for (f in Type.getInstanceFields(c)) {
+					if (!fields.contains(f) && !insanity.backend.macro.ScriptedMacro.ignoreFields.contains(f))
+						fields.push(f);
+				}
+			}
+		}
+		
+		getFields(this);
+		
+		return fields;
+	}
+	
+	public function reflectHasField(field:String):Bool {
+		return false;
+	}
+	public function reflectGetField(field:String):Dynamic {
+		return null;
+	}
+	public function reflectSetField(field:String, value:Dynamic):Dynamic {
+		return null;
+	}
+	public function reflectGetProperty(property:String):Dynamic {
+		return null;
+	}
+	public function reflectSetProperty(property:String, value:Dynamic):Dynamic {
+		return null;
+	}
+	public function reflectListFields():Array<String> {
+		return [];
+	}
+	
+	public dynamic function onExpressionError(error:Dynamic, field:String, ?expr:Expr):Void {
+		trace('Error on field $field of $path: $error');
+	}
+	public dynamic function onInstanceError(error:Dynamic, fun:String, ?instance:IInsanityScripted):Void {
+		trace('Error on function $fun of $path: $error');
+	}
+	
+	public function snapshot():Void {}
+}
+
 class InsanityDummyClass implements IInsanityScripted {
 	public function new() {}
 }

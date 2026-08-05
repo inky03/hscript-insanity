@@ -102,6 +102,7 @@ enum ModuleDeclDef {
 	DClass( c : ClassDecl );
 	DEnum( c : EnumDecl );
 	DTypedef( c : TypeDecl );
+	DInterface( c : InterfaceDecl );
 }
 
 typedef ModuleType = {
@@ -114,6 +115,12 @@ typedef ModuleType = {
 typedef ClassDecl = {> ModuleType,
 	var extend : Null<CType>;
 	var implement : Array<CType>;
+	var fields : Array<FieldDecl>;
+	var isExtern : Bool;
+}
+
+typedef InterfaceDecl = {> ModuleType,
+	var extend : Null<CType>;
 	var fields : Array<FieldDecl>;
 	var isExtern : Bool;
 }
@@ -161,7 +168,7 @@ enum FieldKind {
 
 typedef FunctionDecl = {
 	var args : Array<Argument>;
-	var expr : Expr;
+	var expr : Null<Expr>;
 	var ret : Null<CType>;
 }
 

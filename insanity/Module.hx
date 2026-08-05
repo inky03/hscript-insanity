@@ -72,6 +72,8 @@ class Module {
 				new InsanityScriptedEnum(m, this);
 			case DTypedef(m):
 				new InsanityScriptedTypedef(m, this);
+			case DInterface(m):
+				new InsanityScriptedInterface(m, this);
 			case DField(m):
 				var fieldsPath:String = Tools.pathToString('_$name.${name}_Fields_', pack);
 				var t:InsanityScriptedClass = cast types.get(fieldsPath);
@@ -156,7 +158,7 @@ class Module {
 		if (type.initializing || type.initialized || type.failed) return type;
 		
 		if (starting || !started) return type;
-			start(environment);
+		start(environment);
 		
 		try {
 			type.initializing = true;

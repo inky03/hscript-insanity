@@ -1050,10 +1050,11 @@ class Parser {
 		return args;
 	}
 
-	function parseFunctionDecl() {
+	function parseFunctionDecl(isInterface:Bool = false) {
 		ensure(TPOpen);
 		var args = parseFunctionArgs();
 		var ret = null;
+		
 		if( allowTypes ) {
 			var tk = token();
 			if( tk != TDoubleDot )
@@ -1061,7 +1062,21 @@ class Parser {
 			else
 				ret = parseType();
 		}
-		return { args : args, ret : ret, body : parseExpr() };
+		
+		var body:Null<Expr> = null;
+		if (isInterface) {
+			var tk = token();
+			
+			if (tk != TSemicolon) {
+				unexpected(tk);
+				
+				// error(ECustom('An interface method cannot have a body'), tokenMin, tokenMax);
+			}
+		} else {
+			body = parseExpr();
+		}
+		
+		return { args : args, ret : ret, body : body };
 	}
 
 	function parsePath() {
@@ -1405,9 +1420,50 @@ class Parser {
 			ensure(TSemicolon);
 			
 			return mkd(DImport(path, mode), tokenMin, tokenMax);
-		case "class":
-			if (importModule) error(EImportHx, tokenMin, tokenMax);
 			
+		case ("class" | "enum" | "typedef" | "interface" | "abstract") if (importModule):
+			error(EImportHx, tokenMin, tokenMax);
+			return null;
+			
+		case "abstract":
+			error(ECustom('Scripted abstracts are not supported yet! - HScriptInsanity'), tokenMin, tokenMax);
+			return null;
+			
+		case "interface":
+			var name = getIdent();
+			if (!name.isTypeIdentifier())
+				error(ECustom('Type name should start with an uppercase letter'), tokenMin, tokenMax);
+			
+			var params = parseParams();
+			var extend = null;
+
+			while (true) {
+				var t = token();
+				switch (t) {
+					case TId('extends'):
+						extend = parseType();
+					default:
+						push(t);
+						break;
+				}
+			}
+
+			var fields = [];
+			ensure(TBrOpen);
+			while (!maybe(TBrClose))
+				fields.push(parseField(true));
+
+			return mkd(DInterface({
+				name : name,
+				meta : meta,
+				params : params,
+				extend : extend,
+				fields : fields,
+				isPrivate : isPrivate,
+				isExtern : isExtern,
+			}), tokenMin, tokenMax);
+			
+		case "class":
 			var name = getIdent();
 			if (!name.isTypeIdentifier())
 				error(ECustom('Type name should start with an uppercase letter'), tokenMin, tokenMax);
@@ -1447,9 +1503,8 @@ class Parser {
 				isPrivate : isPrivate,
 				isExtern : isExtern,
 			}), tokenMin, tokenMax);
-		case "enum":
-			if (importModule) error(EImportHx, tokenMin, tokenMax);
 			
+		case "enum":
 			var name = getIdent();
 			if (!name.isTypeIdentifier())
 				error(ECustom('Type name should start with an uppercase letter'), tokenMin, tokenMax);
@@ -1477,9 +1532,8 @@ class Parser {
 				constructs: constructs,
 				names: names
 			}), tokenMin, tokenMax);
-		case "typedef":
-			if (importModule) error(EImportHx, tokenMin, tokenMax);
 			
+		case "typedef":
 			var name = getIdent();
 			if (!name.isTypeIdentifier())
 				error(ECustom('Type name should start with an uppercase letter'), tokenMin, tokenMax);
@@ -1504,6 +1558,7 @@ class Parser {
 				isPrivate : isPrivate,
 				t : t,
 			}), tokenMin, tokenMax);
+			
 		case "var", "final", "function":
 			push(TId(ident));
 			
@@ -1516,9 +1571,11 @@ class Parser {
 				params : null,
 				isPrivate : isPrivate,
 			}), tokenMin, tokenMax);
+			
 		default:
 			unexpected(TId(ident));
 		}
+		
 		return null;
 	}
 	
@@ -1539,7 +1596,7 @@ class Parser {
 		};
 	}
 
-	function parseField() : FieldDecl {
+	function parseField(isInterface:Bool = false) : FieldDecl {
 		var meta = parseMetadata();
 		var access = [];
 		while( true ) {
@@ -1561,7 +1618,8 @@ class Parser {
 				access.push(AMacro);
 			case "function":
 				var name = getIdent();
-				var inf = parseFunctionDecl();
+				var inf = parseFunctionDecl(isInterface);
+				
 				return {
 					name : name,
 					meta : meta,
@@ -1585,6 +1643,8 @@ class Parser {
 				var expr = maybe(TOp("=")) ? parseExpr() : null;
 
 				if( expr != null ) {
+					if (isInterface) error(ECustom('An interface field cannot have an expression'), tokenMin, tokenMax);
+					
 					if( isBlock(expr) )
 						maybe(TSemicolon);
 					else

@@ -76,12 +76,20 @@ class Environment {
 			for (type in module.types) {
 				var k:String = 'class';
 				
+				if (type is InsanityScriptedTypedef) {
+					k = 'typedef';
+				} else if (type is InsanityScriptedEnum) {
+					k = 'enum';
+				}
+				
 				var info:TypeInfo = {
 					kind: k,
 					module: module.path,
 					pack: type.pack,
 					name: type.name,
 				};
+				
+				if (type is InsanityScriptedInterface) info.isInterface = true;
 				
 				var tp:Array<String> = info.pack.copy(); tp.push(info.name);
 				
