@@ -164,7 +164,7 @@ class Tools {
 		var mainAttraction:Dynamic = (collection.fromPath(path) ?? collection.fromCompilePath(path));
 		var types:Dynamic = [];
 		for (type in typeInfos) {
-			if (!type.isInterface && (type.kind == 'class' || type.kind == 'enum' || type.kind == 'abstract')) {
+			if (type.kind == 'class' || type.kind == 'enum' || type.kind == 'abstract') {
 				types.push(type);
 			} else if (mainAttraction != null && type == mainAttraction[0] && !canIgnoreWarnings) {
 				if (type.kind == 'typedef') {
