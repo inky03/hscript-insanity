@@ -35,6 +35,9 @@ class InsanityType {
 		if (c is InsanityScriptedClass)
 			return cast(c, InsanityScriptedClass).extending;
 		
+		if (c is InsanityScriptedInterface)
+			return null;
+		
 		var c:Class<Dynamic> = Type.getSuperClass(c);
 		if (c == null) return null;
 		
@@ -44,6 +47,9 @@ class InsanityType {
 	public static inline function getClassName(c:Dynamic):String {
 		if (c is InsanityScriptedClass)
 			return cast(c, InsanityScriptedClass).path;
+		
+		if (c is InsanityScriptedInterface)
+			return cast(c, InsanityScriptedInterface).path;
 		
 		return Type.getClassName(c);
 	}
@@ -57,7 +63,7 @@ class InsanityType {
 	
 	public static inline function resolveClass(name:String):Dynamic {
 		var t:Dynamic = environment?.resolve(name);
-		if (t != null && t is InsanityScriptedClass) return t;
+		if (t != null && (t is InsanityScriptedClass || t is InsanityScriptedInterface)) return t;
 		
 		t = Type.resolveClass(name);
 		if (t == null) return null;

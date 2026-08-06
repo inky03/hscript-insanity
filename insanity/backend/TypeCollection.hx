@@ -14,6 +14,28 @@ typedef TypeInfo = {
 	var ?abstractImpl:TypeInfo;
 	var ?typedefType:TypeInfo;
 	var ?isInterface:Bool;
+	
+	var ?interfaceFields:Array<InterfaceField>;
+	var ?interfaceMethods:Array<InterfaceMethod>;
+}
+
+typedef InterfaceVar = {
+	var name:String;
+	
+	var isPublic:Bool;
+}
+
+typedef InterfaceField = { > InterfaceVar,
+	var get:Null<String>;
+	var set:Null<String>;
+	
+	var isFinal:Bool;
+}
+
+typedef InterfaceMethod = { > InterfaceVar,
+	var argumentCount:Int;
+	
+	var isDynamic:Bool;
 }
 
 typedef TypeMap = {

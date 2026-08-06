@@ -29,7 +29,6 @@ using insanity.backend.types.Abstract;
 using insanity.Environment;
 
 class Tools {
-
 	public static function iter( e : Expr, f : Expr -> Void ) {
 		switch( expr(e) ) {
 		case EConst(_), EIdent(_), EImport(_, _), EUsing(_), EDecl(_):
@@ -196,5 +195,21 @@ class Tools {
 		}
 		
 		return types;
+	}
+	
+	public static function fieldDeclToErrorString(field:FieldDecl):String {
+		switch (field.kind) {
+			case KVar(v):
+				if (v.isFinal) return 'final'; // haxe errors with (default,ctor) but i say thats mid
+				
+				return Printer.varAccessToString(v.get, v.set);
+				
+			case KFunction(f):
+				if (field.access.contains(ADynamic)) return 'dynamic method';
+				
+				return 'method';
+		}
+		
+		return '???';
 	}
 }

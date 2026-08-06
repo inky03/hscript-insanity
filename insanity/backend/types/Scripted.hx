@@ -39,8 +39,11 @@ class InsanityScriptedClass implements IInsanityType implements ICustomReflectio
 	public var snapshotAll:Bool = false;
 	
 	public var interp:Interp;
+	
 	public var extending(get, never):Dynamic;
 	public var instanceClass(get, never):Dynamic;
+	
+	public var implementing:Array<Dynamic> = [];
 	
 	var decl:ClassDecl;
 	var __vars:Map<String, Variable> = [];
@@ -111,6 +114,8 @@ class InsanityScriptedClass implements IInsanityType implements ICustomReflectio
 			
 			interp.locals.set(f, l);
 		}
+		
+		implement(decl.implement);
 		
 		for (field in decl.fields) {
 			var f:String = field.name;
@@ -213,6 +218,152 @@ class InsanityScriptedClass implements IInsanityType implements ICustomReflectio
 			}
 		}
 	}
+	
+	function matchFieldAccess(?access:String, ?with:String):Bool {
+		if ((with == 'get' || with == 'set' || with == 'dynamic') && !(access == 'get' || access == 'set' || access == 'dynamic')) return false;
+		
+		if ((with == 'default' || with == null) && !(access == 'default' || access == null)) return false;
+		
+		if ((with == 'null' || with == 'never') && with != access) return false;
+		
+		return true;
+	}
+	function assertInterface(i:Dynamic):Void {
+		if (i is InsanityScriptedInterface) {
+			var i:InsanityScriptedInterface = cast i;
+			
+			for (field in i.interfaceVariables) {
+				final name:String = field.name;
+				var myField:Null<FieldDecl> = Lambda.find(decl.fields, (f) -> (f.name == name));
+				if (myField == null) throw 'Field $name needed by ${i.path} is missing';
+				
+				if (field.access.contains(APublic) && !myField.access.contains(APublic)) throw 'Field $name should be public as requested by ${i.path}';
+				
+				var mismatch:Bool = false;
+				switch (field.kind) {
+					case KVar(v):
+						switch (myField.kind) {
+							case KVar(myV):
+								mismatch = (
+									!matchFieldAccess(myV.get, v.get) || !matchFieldAccess(myV.set, v.set) ||
+									(v.isFinal == true && myV.isFinal != true) ||
+									(v.isFinal == false && myV.isFinal == true)
+								);
+							
+							case KFunction(_):
+								mismatch = true;
+						}
+						
+					case KFunction(f):
+						switch (myField.kind) {
+							case KVar(_):
+								mismatch = true;
+							
+							case KFunction(myF):
+								if (myF.args.length != f.args.length) throw 'Field $name has different type than in ${i.path}: Different number of function arguments';
+								
+								if (field.access.contains(ADynamic) && !myField.access.contains(ADynamic)) mismatch = true;
+						}
+				}
+				
+				if (mismatch) throw 'Field $name has different property access than in ${i.path}: ${Tools.fieldDeclToErrorString(myField)} should be ${Tools.fieldDeclToErrorString(field)}';
+			}
+			
+			return;
+		}
+		
+		var type:Null<TypeInfo> = null, typeName:Null<String> = null;
+		
+		try {
+			typeName = InsanityType.getClassName(i);
+			
+			type = (TypeCollection.main.fromCompilePath(typeName) ?? interp.environment?.types.fromCompilePath(typeName))[0];
+			
+			if (!type.isInterface) throw 0;
+		} catch(e) {
+			throw 'You can only implement an interface';
+		}
+		
+		for (field in type.interfaceFields) {
+			final name:String = field.name;
+			var myField:Null<FieldDecl> = Lambda.find(decl.fields, (f) -> (f.name == name));
+			if (myField == null) throw 'Field $name needed by $typeName is missing';
+			
+			if (field.isPublic && !myField.access.contains(APublic)) throw 'Field $name should be public as requested by $typeName';
+			
+			var mismatch:Bool = false;
+			switch (myField.kind) {
+				case KVar(myV):
+					mismatch = (
+						!matchFieldAccess(myV.get, field.get) || !matchFieldAccess(myV.set, field.set) ||
+						(field.isFinal == true && myV.isFinal != true) ||
+						(field.isFinal == false && myV.isFinal == true)
+					);
+					
+				case KFunction(_):
+					mismatch = true;
+			}
+			
+			if (mismatch) throw 'Field $name has different property access than in $typeName: ${Tools.fieldDeclToErrorString(myField)} should be ${
+				field.isFinal ? 'final' : insanity.tools.Printer.varAccessToString(field.get, field.set)
+			}';
+		}
+		
+		for (field in type.interfaceMethods) {
+			final name:String = field.name;
+			var myField:Null<FieldDecl> = Lambda.find(decl.fields, (f) -> (f.name == name));
+			if (myField == null) throw 'Field $name needed by $typeName is missing';
+			
+			if (field.isPublic && !myField.access.contains(APublic)) throw 'Field $name should be public as requested by $typeName';
+			
+			var mismatch:Bool = false;
+			switch (myField.kind) {
+				case KVar(_):
+					mismatch = true;
+					
+				case KFunction(myF):
+					if (myF.args.length != field.argumentCount) throw 'Field $name has different type than in $typeName: Different number of function arguments';
+					
+					if (field.isDynamic && !myField.access.contains(ADynamic)) mismatch = true;
+			}
+			
+			if (mismatch) throw 'Field $name has different property access than in $typeName: ${Tools.fieldDeclToErrorString(myField)} should be ${
+				field.isDynamic ? 'dynamic method' : 'method'
+			}';
+		}
+	}
+	public function implement(?types:Array<CType>):Void {
+		if (types == null || types.length == 0) return;
+		
+		for (type in types) {
+			switch (type) {
+				case CTPath(path, _):
+					var p:String = path.join('.');
+					
+					var type = (module?.interp.imports.get(p) ?? interp.imports.get(p) ?? Tools.resolve(p, interp.environment));
+					if (type == null) throw 'Type not found: $p';
+					
+					var i:Dynamic = type;
+					if (i is InsanityScriptedInterface) {
+						while (i != null) {
+							if (!implementing.contains(i)) implementing.push(i);
+							
+							i = i.extending;
+						}
+					} else if (!implementing.contains(i)) {
+						implementing.push(i);
+					}
+					
+				default:
+					throw 'Invalid implement $type';
+			}
+		}
+		
+		for (i in implementing) {
+			assertInterface(i);
+		}
+	}
+	
 	public function snapshot():Void {
 		for (field in decl.fields) {
 			if (field.name == 'new' || !field.access.contains(AStatic)) continue;
@@ -582,11 +733,10 @@ class InsanityScriptedInterface implements IInsanityType implements ICustomRefle
 	public var safe:Bool = false;
 	
 	public var interp:Interp;
-	public var extending(get, never):Dynamic;
+	public var extending(default, null):Dynamic;
 	
 	var decl:InterfaceDecl;
-	public var interfaceFields:Map<String, VarDecl> = [];
-	public var interfaceMethods:Map<String, FunctionDecl> = [];
+	public var interfaceVariables:Array<FieldDecl> = [];
 	
 	public var failed:Bool = false;
 	public var initialized:Bool = false;
@@ -617,6 +767,33 @@ class InsanityScriptedInterface implements IInsanityType implements ICustomRefle
 		safe = false;
 		for (meta in decl.meta) safe = (safe || meta.name == ':safe');
 		
+		extending = switch (decl.extend) {
+			case CTPath(path, _):
+				var p:String = path.join('.');
+				
+				var type = (module?.interp.imports.get(p) ?? interp.imports.get(p) ?? Tools.resolve(p, interp.environment));
+				
+				if (type == null) throw 'Type not found: $p';
+				
+				try {
+					var name:String = InsanityType.getClassName(type);
+					if (name != null) {
+						var type = (TypeCollection.main.fromCompilePath(name) ?? interp.environment?.types.fromCompilePath(name));
+						
+						if (!type[0].isInterface) throw 0;
+					}
+				} catch(e) {
+					throw 'Should extend by using a class, found ${Type.typeof(type)}';
+				}
+				
+				type;
+			case null:
+				null;
+			default:
+				throw 'Invalid extend ${decl.extend}';
+				null;
+		}
+		
 		var knownFields:Array<String> = [];
 		
 		for (field in decl.fields) {
@@ -624,10 +801,12 @@ class InsanityScriptedInterface implements IInsanityType implements ICustomRefle
 			
 			if (f == 'new') {
 				throw 'An interface cannot have a constructor';
+			} else if (field.access.contains(AInline)) {
+				throw ('Invalid modifier: inline on ' + (field.kind.match(KVar(_)) ? 'non-static-variable' : 'method of interface'));
 			} else if (field.access.contains(AStatic)) {
-				throw 'An interface cannot declare static fields';
+				throw 'You can only declare static fields in extern interfaces';
 			} else if (field.access.contains(AOverride)) {
-				throw 'An interface cannot declare override fields';
+				throw 'Invalid modifier: override on field of class that has no parent';
 			} else if (insanity.backend.macro.ScriptedMacro.ignoreFields.contains(f)) {
 				throw 'Field $f reserved for internal use!!! - HScriptInsanity';
 			} else if (knownFields.contains(f)) {
@@ -636,32 +815,8 @@ class InsanityScriptedInterface implements IInsanityType implements ICustomRefle
 				knownFields.push(f);
 			}
 			
-			switch (field.kind) {
-				case KFunction(fun):
-					interfaceMethods.set(f, fun);
-					
-				case KVar(v):
-					interfaceFields.set(f, v);
-			}
-			
+			interfaceVariables.push(field);
 			knownFields.push(f);
-		}
-	}
-	
-	function get_extending():Dynamic {
-		return switch (decl.extend) {
-			case CTPath(path, _):
-				var p:String = path.join('.');
-				
-				var type = (module?.interp.imports.get(p) ?? interp.imports.get(p) ?? Tools.resolve(p, interp.environment));
-				if (type == null) throw 'Type not found: $p';
-				
-				ScriptedTools.resolve(type);
-			case null:
-				null;
-			default:
-				throw 'Invalid extend ${decl.extend}';
-				null;
 		}
 	}
 	
@@ -690,30 +845,14 @@ class InsanityScriptedInterface implements IInsanityType implements ICustomRefle
 			if (c is InsanityScriptedInterface) {
 				var i:InsanityScriptedInterface = cast c;
 				
-				for (field => _ in i.interfaceFields) {
-					if (!fields.contains(field)) fields.push(field);
+				for (field in i.interfaceVariables) {
+					if (!field.kind.match(KVar(_))) continue; // methods not listed apparently
+					
+					if (!fields.contains(field.name)) fields.push(field.name);
 				}
-				/*not listed apparently
-				for (field => _ in i.interfaceMethods) {
-					if (!fields.contains(field)) fields.push(field);
-				}*/
 				
 				if (i.extending != null) {
 					getFields(i.extending);
-				}
-			} else if (c is InsanityScriptedClass) {
-				for (field in cast(c, InsanityScriptedClass).decl.fields) {
-					var f:String = field.name;
-					if (f == 'new' || field.access.contains(AStatic)) continue;
-					if (!fields.contains(f)) fields.push(f);
-				}
-				
-				var instance = c.instanceClass;
-				if (instance != InsanityScriptedClass)
-					getFields(instance);
-				
-				if (c.extending != null) {
-					getFields(c.extending);
 				}
 			} else if (c is Class) {
 				for (f in Type.getInstanceFields(c)) {

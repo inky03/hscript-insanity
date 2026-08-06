@@ -420,4 +420,12 @@ class Printer {
 		if (p != null) return (p.origin + ":" + p.line + ": " + message);
 		return message;
 	}
+	
+	public inline static function varAccessToString(?get:String, ?set:String):String {
+		if ((get == null || get == 'default') && (set == null || set == 'default')) {
+			return 'var';
+		} else {
+			return '(${get ?? 'default'},${set ?? 'default'})';
+		}
+	}
 }

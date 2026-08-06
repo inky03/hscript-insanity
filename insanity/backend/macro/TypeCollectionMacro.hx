@@ -23,6 +23,16 @@ class TypeCollectionMacro {
 			var _c:Map<String, Dynamic> = [];
 			var map:Array<Dynamic> = [];
 			
+			inline function varAccessToString(access:VarAccess, dyn:String) {
+				return switch (access) {
+					default: null;
+					
+					case AccNormal: 'default';
+					case AccNever: 'never';
+					case AccNo: 'null';
+					case AccCall: dyn;
+				}
+			}
 			function findTypeInfo(m:String, s:String) {
 				return _c['$m.$s'];
 			}
@@ -37,6 +47,35 @@ class TypeCollectionMacro {
 					}
 					if (d.isInterface) {
 						info.isInterface = true;
+						info.interfaceFields = [];
+						info.interfaceMethods = [];
+						
+						var fields:Array<ClassField> = d.fields.get();
+						for (field in fields) {
+							switch (field.kind) {
+								case FVar(get, set):
+									info.interfaceFields.push({
+										name: field.name,
+										isFinal: field.isFinal,
+										isPublic: false, //field.isPublic doesnt seem to be accurate ...
+										
+										get: varAccessToString(get, 'get'),
+										set: varAccessToString(set, 'set')
+									});
+									
+								case FMethod(kind):
+									info.interfaceMethods.push({
+										name: field.name,
+										isPublic: false,
+										
+										isDynamic: (kind == MethDynamic),
+										argumentCount: switch (field.type) {
+											default: throw '???';
+											case TFun(args, _): args.length;
+										}
+									});
+							}
+						}
 					}
 					_c['${d.module}.${d.name}'] = info;
 					return info;
