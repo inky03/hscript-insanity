@@ -18,7 +18,7 @@ Experimental fork of [Hscript](https://github.com/HaxeFoundation/hscript) (Parse
 
 ### Hscript (original)
 - [HaxeFoundation](https://github.com/HaxeFoundation)
-- [Nicholas Cannasse](https://github.com/ncannasse)
+- [Nicolas Cannasse](https://github.com/ncannasse)
 
 Thank you!!!
 
