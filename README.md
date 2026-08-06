@@ -11,7 +11,19 @@
 Experimental fork of [Hscript](https://github.com/HaxeFoundation/hscript) (Parse and evaluate Haxe expressions dynamically).
 
 
-## Features & Amendments
+## Contributors
+
+### HscriptInsanity
+- [Ashley Contreras "emi3"](https://github.com/inky03) (that me)
+
+### Hscript (original)
+- [HaxeFoundation](https://github.com/HaxeFoundation)
+- [Nicholas Cannasse](https://github.com/ncannasse)
+
+Thank you!!!
+
+
+## New features & Amendments
 
 ### Simple [`Script`](insanity/Script.hx) class
 
