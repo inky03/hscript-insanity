@@ -574,6 +574,8 @@ class ScriptedMacro {
 			setSuperFields(base.extending);
 			setFields(base);
 			
+			constructor ??= __constructSuper;
+			
 			if (__safe) {
 				try { Reflect.callMethod(this, constructor, arguments); }
 				catch (e:Dynamic) { base.onInstanceError(e, 'new', this); }

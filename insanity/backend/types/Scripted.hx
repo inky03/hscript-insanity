@@ -96,8 +96,14 @@ class InsanityScriptedClass implements IInsanityType implements ICustomReflectio
 			} else if (knownFields.contains(f)) {
 				throw 'Duplicate class field declaration: $name.$f';
 			} else {
+				if (field.access.contains(AOverride)) {
+					switch (field.kind) {
+						default: overridingFields.push(f);
+						case KVar(_): throw 'Invalid accessor \'override\' for variable $f';
+					}
+				}
+				
 				knownFields.push(f);
-				if (field.access.contains(AOverride)) overridingFields.push(f);
 			}
 			
 			if (!field.access.contains(AStatic)) continue;
