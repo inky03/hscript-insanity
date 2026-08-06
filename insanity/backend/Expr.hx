@@ -120,7 +120,7 @@ typedef ClassDecl = {> ModuleType,
 }
 
 typedef InterfaceDecl = {> ModuleType,
-	var extend : Null<CType>;
+	var extend : Array<CType>;
 	var fields : Array<FieldDecl>;
 	var isExtern : Bool;
 }

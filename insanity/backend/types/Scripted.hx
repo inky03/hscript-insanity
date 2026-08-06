@@ -343,16 +343,25 @@ class InsanityScriptedClass implements IInsanityType implements ICustomReflectio
 					var type = (module?.interp.imports.get(p) ?? interp.imports.get(p) ?? Tools.resolve(p, interp.environment));
 					if (type == null) throw 'Type not found: $p';
 					
-					var i:Dynamic = type;
-					if (i is InsanityScriptedInterface) {
-						while (i != null) {
+					function pushImplement(i:Dynamic) {
+						if (i is InsanityScriptedInterface) {
+							var i:InsanityScriptedInterface = cast i;
+							
+							if (i.module != null && !i.initializing && !i.initialized && !i.failed) {
+								if (!i.module.starting && !i.module.started) i.module.start(interp.environment);
+								
+								i.module.startType(interp.environment, i);
+							}
+							
 							if (!implementing.contains(i)) implementing.push(i);
 							
-							i = i.extending;
+							for (i in i.extending) pushImplement(i);
+						} else {
+							if (!implementing.contains(i)) implementing.push(i);
 						}
-					} else if (!implementing.contains(i)) {
-						implementing.push(i);
 					}
+					
+					pushImplement(type);
 					
 				default:
 					throw 'Invalid implement $type';
@@ -733,7 +742,7 @@ class InsanityScriptedInterface implements IInsanityType implements ICustomRefle
 	public var safe:Bool = false;
 	
 	public var interp:Interp;
-	public var extending(default, null):Dynamic;
+	public var extending(default, null):Array<Dynamic>;
 	
 	var decl:InterfaceDecl;
 	public var interfaceVariables:Array<FieldDecl> = [];
@@ -767,7 +776,7 @@ class InsanityScriptedInterface implements IInsanityType implements ICustomRefle
 		safe = false;
 		for (meta in decl.meta) safe = (safe || meta.name == ':safe');
 		
-		extending = switch (decl.extend) {
+		extending = [for (extend in decl.extend) switch (extend) {
 			case CTPath(path, _):
 				var p:String = path.join('.');
 				
@@ -792,7 +801,7 @@ class InsanityScriptedInterface implements IInsanityType implements ICustomRefle
 			default:
 				throw 'Invalid extend ${decl.extend}';
 				null;
-		}
+		}];
 		
 		var knownFields:Array<String> = [];
 		

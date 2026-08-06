@@ -1435,13 +1435,15 @@ class Parser {
 				error(ECustom('Type name should start with an uppercase letter'), tokenMin, tokenMax);
 			
 			var params = parseParams();
-			var extend = null;
+			var extend = [];
 
 			while (true) {
 				var t = token();
 				switch (t) {
 					case TId('extends'):
-						extend = parseType();
+						extend.push(parseType());
+					case TId('implements'):
+						error(ECustom('Interfaces cannot implement another interface (use extends instead)'), tokenMin, tokenMax);
 					default:
 						push(t);
 						break;
