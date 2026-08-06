@@ -95,11 +95,17 @@ Import modules (i.e. `import.hx`) are also supported and may be added via the [`
 
 Currently , the following types can be scripted:
 - [Classes](https://haxe.org/manual/types-class-instance.html)
-- [Typedefs](https://haxe.org/manual/type-system-typedef.html) (only type alias typedefs are enforced)
-- [Enums](https://haxe.org/manual/types-enum-instance.html) (with & without parameters)
-- [Module level fields](https://haxe.org/blog/module-level-fields/) (including their respective `Module_Fields_` class)
+- [Typedefs](https://haxe.org/manual/type-system-typedef.html)
+	- **Note** only type alias typedefs can be enforced (struct / json typedefs can be parsed but will be ignored)
+- [Enums](https://haxe.org/manual/types-enum-instance.html)
+	- With & without parameters
+- [Interfaces](https://haxe.org/manual/types-interfaces.html)
+	- **Note** that scripted classes that implement real[^1] interfaces can't have those matched in compiled code (Scripted interface type checking is only supported within scripts)
+	- Missing properties / mismatched property accessors are also checked when implementing an interface in a scripted class (field / argument type checking cannot be supported due to technical limitations)
+- [Module level fields](https://haxe.org/blog/module-level-fields/)
+	- Including the respective `Module_Fields_` class
 
-Scripted abstracts are currently unsupported, but support may be introduced in the future.
+Scripted abstracts are currently unsupported but support will be introduced in the future.
 
 (NOTE: currently only most behavior is properly implemented from extending classes. while i dont see why implement the interface in the base class, some things might have to be promptly fixed to correctly support them ...)
 
@@ -376,7 +382,10 @@ It represents my dwindling mental state as I figure how to modify this library!!
 	- [X] classes
  		- extends
 			- [X] Nothing (or scripted class)
-			- [X] Real[^1] types
+			- [X] Real[^1] classes
+		- [implements*](#scripted-modules-and-types-with-module-and-environment)
+			- [X] Nothing (or scripted interface)
+			- [X] Real[^1] interfaces
   		- fields
 			- [X] property getters & setters
 				- [X] accessor error checking in modules
@@ -385,6 +394,14 @@ It represents my dwindling mental state as I figure how to modify this library!!
 	- [X] enums
 	- [X] typedefs (type alias only)
 	- [X] module level fields
+	- [X] [interfaces*](#scripted-modules-and-types-with-module-and-environment)
+		- extends
+			- [X] Nothing (or scripted interface)
+			- [X] Real[^1] interfaces
+  		- fields
+			- [X] property getters & setters
+			- [X] dynamic functions
+			- [X] finals
 	- [ ] abstracts
 		- [ ] abstract class
 		- [ ] abstract enum
