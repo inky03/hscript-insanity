@@ -80,11 +80,11 @@ such as (maybe expectedly) not being importable in other scripts !
 To make a Haxe class extendable for scripting, extend it and implement the `insanity.IScripted` interface, like the following example:
 
 ```hx
-class BaseThing {
+class BaseClass {
 	// ...
 }
 
-class ScriptedThing extends BaseThing implements insanity.IScripted {}
+class ScriptedClass extends BaseClass implements insanity.IScripted {}
 ```
 
 You can also edit the `variables` map in a `Module` or `Environment` to define custom globals on subtypes and submodules, respectively.<br>
