@@ -8,10 +8,11 @@ class InsanityStd {
 		return isOfType(v, t);
 	}
 	
+	@:access(insanity.backend.types.InsanityScriptedClass)
 	public static inline function isOfType(v:Dynamic, t:Dynamic):Bool {
 		if (t is InsanityScriptedClass) {
 			if (v is IScripted) {
-				var base:InsanityScriptedClass = @:privateAccess v.__base;
+				var base:InsanityScriptedClass = v.__base;
 				function match(base:Dynamic, c:InsanityScriptedClass) {
 					if (base == c) {
 						return true;
@@ -21,10 +22,27 @@ class InsanityStd {
 						return false;
 					}
 				}
+				
 				return match(base, t);
 			}
+			
 			return false;
 		} else {
+			if (v is IScripted) {
+				var base:InsanityScriptedClass = v.__base;
+				function match(base:Dynamic, t:Dynamic) {
+					if (base.implementing?.contains(t)) {
+						return true;
+					} else if (base.extending != null && base.extending is InsanityScriptedClass) {
+						return match(base.extending, t);
+					} else {
+						return false;
+					}
+				}
+				
+				return match(base, t);
+			}
+			
 			return Std.isOfType(v, t);
 		}
 	}
