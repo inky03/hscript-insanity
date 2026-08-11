@@ -201,7 +201,7 @@ class AbstractMacro {
 			}
 		}
 		
-		c.meta.add(':insanityAbstractInfo', [macro $v {haxe.Serializer.run(info)}], pos);
+		c.meta.add(':insanityAbstractInfo', [macro $v {path.join('.')}, macro $v {haxe.Serializer.run(info)}], pos);
 		
 		return fields;
 	}
@@ -213,20 +213,14 @@ class AbstractMacro {
 			var self = TypeTools.getClass(Context.getType(_name));
 			if (self.meta.has('insanityAbstractInfo')) return;
 			
-			var map:Array<String> = [];
+			var map:Map<String, Dynamic> = [];
 			
 			for (type in types) {
 				switch (type) {
 					case TClassDecl(r):
 						var meta = r.get().meta.extract(':insanityAbstractInfo');
-						if (meta.length > 0) {
-							switch (meta[0].params[0].expr) { // theres porbably some better way ill check later
-								case EConst(CString(s, _)):
-									map.push(haxe.Unserializer.run(s));
-									
-								default:
-							}
-						}
+						
+						if (meta.length > 0) map.set(meta[0].params[0].getValue(), haxe.Unserializer.run(meta[0].params[1].getValue()));
 						
 					default:
 				}
