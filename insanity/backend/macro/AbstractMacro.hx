@@ -53,8 +53,6 @@ enum AbstractTypeCast {
 }
 
 class AbstractMacro {
-	public static var abstractInfos:Map<String, AbstractInfo> = [];
-	
 	static inline function typeName(t:Dynamic):String {
 		var path = t.pack.copy();
 		path.push(t.name);
@@ -62,7 +60,7 @@ class AbstractMacro {
 		return path.join('.');
 	}
 	
-	static inline function typeToAbstractTypeCast(type:Type):AbstractTypeCast {
+	static inline function typeToAbstractTypeCast(type:haxe.macro.Type):AbstractTypeCast {
 		return switch (type) {
 			case TMono(r): typeToAbstractTypeCast(r.get());
 			case TEnum(r, _): ATType(typeName(r.get()));
@@ -81,11 +79,12 @@ class AbstractMacro {
 		var type = Context.getLocalType();
 		var fields = Context.getBuildFields();
 		
+		var c:ClassType;
 		var ab:AbstractType;
 		
 		switch (type) {
 			case TInst(r, params):
-				var c = r.get();
+				c = r.get();
 				
 				if (c.module == 'UInt') return fields; // akward
 				
@@ -112,11 +111,14 @@ class AbstractMacro {
 		}
 		
 		var path:Array<String> = ab.module.split('.');
-		if (path.length > 0) path[path.length - 1] = '_${path[path.length - 1]}';
-		path.push('${ab.name}_Impl_');
+		path.push(ab.name);
+		
+		var implPath:Array<String> = ab.module.split('.');
+		if (implPath.length > 0) implPath[implPath.length - 1] = '_${implPath[implPath.length - 1]}';
+		implPath.push('${ab.name}_Impl_');
 		
 		var info:AbstractInfo = {
-			implName: path.join('.'),
+			implName: implPath.join('.'),
 			underlying: typeToAbstractTypeCast(ab.type),
 			
 			methods: [],
@@ -198,9 +200,41 @@ class AbstractMacro {
 					info.methods.set(field.name, method);
 			}
 		}
-	
-		if (ab.name == 'FlxPoint') { trace(info.overloads); trace(info); }
+		
+		c.meta.add(':insanityAbstractInfo', [macro $v {haxe.Serializer.run(info)}], pos);
 		
 		return fields;
+	}
+	
+	static var _name:String = 'insanity.backend.macro.AbstractMacro';
+	
+	public static macro function listAbstractInfos() {
+		Context.onAfterTyping(function(types) {
+			var self = TypeTools.getClass(Context.getType(_name));
+			if (self.meta.has('insanityAbstractInfo')) return;
+			
+			var map:Array<String> = [];
+			
+			for (type in types) {
+				switch (type) {
+					case TClassDecl(r):
+						var meta = r.get().meta.extract(':insanityAbstractInfo');
+						if (meta.length > 0) {
+							switch (meta[0].params[0].expr) { // theres porbably some better way ill check later
+								case EConst(CString(s, _)):
+									map.push(haxe.Unserializer.run(s));
+									
+								default:
+							}
+						}
+						
+					default:
+				}
+			}
+			
+			self.meta.add('insanityAbstractInfo', [macro $v {haxe.Serializer.run(map)}], self.pos);
+		});
+		
+		return macro haxe.Unserializer.run(haxe.rtti.Meta.getType($p {_name.split('.')}).insanityAbstractInfo[0]);
 	}
 }

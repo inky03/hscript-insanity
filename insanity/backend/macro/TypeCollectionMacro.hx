@@ -36,19 +36,6 @@ class TypeCollectionMacro {
 			function findTypeInfo(m:String, s:String) {
 				return _c['$m.$s'];
 			}
-			/*function typeToAbstractTypeCast(type:Type):AbstractTypeCast {
-				return switch (type) {
-					case TMono(r): typeToAbstractTypeCast(r.get());
-					case TEnum(r, _): ATType(r.get().name);
-					case TInst(r, _): ATType(r.get().name);
-					case TType(r, _): typeToAbstractTypeCast(r.get().type);
-					case TFun(_, _): ATMethod;
-					case TLazy(f): typeToAbstractTypeCast(f());
-					case TAbstract(r, _): ATType(r.get().name);
-					case TDynamic(t): (t != null ? typeToAbstractTypeCast(t) : ATDynamic);
-					case TAnonymous(_): ATStruct;
-				}
-			}*/
 			function getTypeInfo(type:ModuleType) {
 				function makeTypeInfo(k:String, d:Dynamic) {
 					var info:TypeInfo = (findTypeInfo(d.module, d.name) ?? {kind: k, module: d.module, name: d.name, pack: d.pack});
@@ -58,49 +45,6 @@ class TypeCollectionMacro {
 							case TInst(r, _): makeTypeInfo('class', r.get());
 							default: null;
 						}
-					} else if (k == 'abstract') {
-						/*var path = d.module.split('.');
-						if (path.length > 0) path[path.length - 1] = '_${path[path.length - 1]}';
-						path.push('${d.name}_Impl_');
-						
-						var ab = (info.abstractImpl = {
-							internalName: path.join('.'),
-							staticMethods: [],
-							properties: [],
-							
-							fromMethods: [],
-							toMethods: [],
-							
-							overloadMethods: [],
-							commutativeOverloads: []
-						});
-						
-						final d:AbstractType = cast d;
-						
-						if (d.name == 'FlxColor') {
-							for (field in d.impl.get().statics.get())
-								trace(field.name);
-							//trace(d.impl.get().fields.get());
-							//trace(d.impl.get().statics.get());
-							for (field in d.array) {
-								trace(field);
-							}
-							for (field in d.binops) {
-								trace(field);
-							}
-							for (field in d.unops) {
-								trace(field);
-							}
-							for (to in d.to) {
-								ab.toMethods.set(typeToAbstractTypeCast(to.t), to.field?.name);
-							}
-							for (from in d.from) {
-								ab.fromMethods.set(typeToAbstractTypeCast(from.t), from.field?.name);
-							}
-							
-							trace(ab);
-						}
-						*/
 					}
 					
 					if (d.isInterface) {
