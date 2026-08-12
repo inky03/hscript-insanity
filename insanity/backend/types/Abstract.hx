@@ -92,6 +92,8 @@ class InsanityAbstract implements ICustomReflection {
 	public var info:AbstractInfo;
 	public var impl:Class<Dynamic>;
 	
+	var methodCache:Map<String, Dynamic> = [];
+	
 	public function new(info:AbstractInfo) {
 		this.info = info;
 		this.impl = Type.resolveClass(info.implName);
@@ -114,12 +116,16 @@ class InsanityAbstract implements ICustomReflection {
 	public function reflectGetField(field:String):Dynamic {
 		var f:Null<AbstractPropertyInfo> = info.properties.get(field);
 		
-		return (f != null && f.isStatic ? Reflect.field(impl, field) : null);
+		return (f != null && f.isStatic ? Reflect.field(impl, field) : cacheMethod(field));
 	}
 	public function reflectSetField(field:String, value:Dynamic):Dynamic {
 		var f:Null<AbstractPropertyInfo> = info.properties.get(field);
 		
-		if (f != null && f.isStatic) Reflect.setField(impl, field, value);
+		if (f != null && f.isStatic) {
+			Reflect.setField(impl, field, value);
+		} else if (info.methods.exists(field)) {
+			throw 'Cannot rebind this method';
+		}
 		
 		return value;
 	}
@@ -127,7 +133,7 @@ class InsanityAbstract implements ICustomReflection {
 	public function reflectGetProperty(property:String):Dynamic {
 		var f:Null<AbstractPropertyInfo> = info.properties.get(property);
 		
-		return (f != null && f.isStatic ? Reflect.getProperty(impl, property) : null);
+		return (f != null && f.isStatic ? Reflect.getProperty(impl, property) : cacheMethod(property));
 	}
 	public function reflectSetProperty(property:String, value:Dynamic):Dynamic {
 		var f:Null<AbstractPropertyInfo> = info.properties.get(property);
@@ -143,6 +149,26 @@ class InsanityAbstract implements ICustomReflection {
 		for (name => m in info.methods) if (m.isStatic) fields.push(name);
 		
 		return fields;
+	}
+	
+	inline function cacheMethod(field:String):Dynamic {
+		var m:Null<AbstractMethodInfo> = info.methods.get(field);
+		
+		if (m == null || !m.isStatic) {
+			return null;
+		} else {
+			if (!methodCache.exists(field)) {
+				final f = Reflect.field(impl, field);
+				
+				if (m.returnsAbstract) {
+					methodCache.set(field, Reflect.makeVarArgs((args) -> create(Reflect.callMethod(impl, f, args))));
+				} else {
+					methodCache.set(field, f);
+				}
+			}
+			
+			return methodCache.get(field);
+		}
 	}
 }
 
@@ -217,9 +243,11 @@ class InsanityAbstractValue implements ICustomReflection {
 				case ADynamic: __a = Reflect.callMethod(__impl, Reflect.field(__impl, 'insanityset_$property'), [__a, value]); value;
 				case ANever: 'This expression cannot be accessed for writing';
 			}
-		} else {
-			return throw 'Cannot rebind this method';
+		} else if (__info.methods.exists(property)) {
+			throw 'Cannot rebind this method';
 		}
+		
+		return null;
 	}
 	
 	public function reflectListFields():Array<String> {
