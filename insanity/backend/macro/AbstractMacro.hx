@@ -4,6 +4,7 @@ package insanity.backend.macro;
 import haxe.macro.Context;
 import haxe.macro.Expr;
 import haxe.macro.Type;
+
 using haxe.macro.ExprTools;
 using haxe.macro.TypeTools;
 using haxe.macro.ComplexTypeTools;
@@ -33,9 +34,11 @@ typedef AbstractPropertyInfo = {
 
 typedef AbstractMethodInfo = {
 	var isStatic:Bool;
+	var returnsAbstract:Bool;
 	
 	var ?commutative:Bool;
 	var ?type:AbstractTypeCast; // OVERLOAD
+	var ?isOverload:Bool;
 	var ?op:String;
 }
 
@@ -110,7 +113,7 @@ class AbstractMacro {
 				return fields;
 		}
 		
-		var path:Array<String> = ab.module.split('.');
+		var path:Array<String> = ab.pack.copy();
 		path.push(ab.name);
 		
 		var implPath:Array<String> = ab.module.split('.');
@@ -141,6 +144,15 @@ class AbstractMacro {
 			info.from.set(typeToAbstractTypeCast(from.t), from.field?.name);
 		}
 		
+		function matchAbstract(t:ComplexType) {
+			if (t == null) return false;
+			
+			return switch (t) {
+				case TPath(r): (r.name == ab.name);
+				default: false;
+			}
+		}
+		
 		for (field in fields) {
 			final isStatic:Bool = (field.access != null && field.access.contains(AStatic));
 			
@@ -169,7 +181,7 @@ class AbstractMacro {
 					info.properties.set(field.name, prop);
 					
 				case FFun(fun):
-					var method:AbstractMethodInfo = {isStatic: isStatic};
+					var method:AbstractMethodInfo = {isStatic: isStatic, returnsAbstract: matchAbstract(fun.ret)};
 					
 					var metas = field.meta;
 					if (metas != null) {
@@ -188,6 +200,8 @@ class AbstractMacro {
 								}
 								
 								if (method.op != null) {
+									method.isOverload = true;
+									
 									if (!info.overloads.exists(method.op))
 										info.overloads.set(method.op, []);
 									
