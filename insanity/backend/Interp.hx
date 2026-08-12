@@ -55,7 +55,7 @@ enum Resolve {
 
 typedef Variable = {
 	var r:Dynamic;
-	var ?a:InsanityAbstract;
+	var ?a:InsanityAbstractValue;
 	
 	var ?isFinal:Bool;
 	var ?access:Array<FieldAccess>;
@@ -557,14 +557,14 @@ class Interp {
 		}
 	}
 	
-	function createAbstractEnum(t:Class<InsanityAbstract>, i:Int):InsanityAbstract {
+	/*function createAbstractEnum(t:Class<InsanityAbstract>, i:Int):InsanityAbstract {
 		try {
 			return AbstractTools.createEnumIndex(t, i);
 		} catch (e:haxe.Exception) {
 			var t:Dynamic = t;
 			throw 'Failed to construct enum of type ${t.impl}';
 		}
-	}
+	}*/
 	
 	inline function resolveMirror(v:Dynamic):Dynamic {
 		if (v is Mirror) {
@@ -578,8 +578,8 @@ class Interp {
 					if (!Type.allEnums(t).contains(Type.getEnumConstructs(t)[i]))
 						return Reflect.makeVarArgs(function(params:Array<Dynamic>) return createEnum(t, i, params));
 					return createEnum(t, i);
-				case MAbstractEnumValue(t, i):
-					return createAbstractEnum(t, i);
+				/*case MAbstractEnumValue(t, i):
+					return createAbstractEnum(t, i);*/
 			}
 		} else {
 			return v;
@@ -625,19 +625,14 @@ class Interp {
 		} else if (t is IInsanityType) {
 			imports.set(name, t);
 		} else if (t is Class) {
-			if (Type.getSuperClass(t) == InsanityAbstract && t.isEnum) {
-				for (i => construct in AbstractTools.getEnumConstructs(t))
-					imports.set(construct, MAbstractEnumValue(t, i));
-				imports.set(name, t);
-				return;
-			}
-			
 			imports.set(name, t);
 		} else if (t is Enum) {
 			imports.set(name, t);
 			
 			if (enumValueImport)
 				importEnumValues(t);
+		} else if (t is InsanityAbstract) {
+			imports.set(name, t);
 		} else {
 			throw 'Invalid import type $t';
 		}
@@ -658,7 +653,7 @@ class Interp {
 			imports.set(fullPath.substr(fullPath.lastIndexOf('.') + 1), null);
 			for (type in types) {
 				if (type.module != type.name && type.name != 'Main') continue; // lol
-				if (type.name.indexOf('_Impl_') > -1 || type.name.startsWith('InsanityAbstract_')) continue;
+				if (type.name.indexOf('_Impl_') > -1) continue;
 				
 				importType(type.name, type.kind == 'abstract' ? AbstractTools.resolve(type.compilePath()) : type.resolve(environment), false);
 			}
@@ -1501,15 +1496,17 @@ class Interp {
 						t = info[0].compilePath().resolve();
 				}
 				
-				if (e == null || t == null || !(t is Class)) return e; // throw 'Type not found: $path';
+				if (e == null || t == null) return e;
 				
-				if (Type.getSuperClass(t) == InsanityAbstract) {
-					return Type.createInstance(t, [e]);
-				} else if (e is InsanityAbstract) {
-					var r = e.resolveTo(Type.getClassName(t));
-					if (r == null) throw 'Can\'t cast ${e.impl} to $path';
-					else return r;
+				if (t is InsanityAbstract) {
+					return cast(t : InsanityAbstract).create(e);
+				} else if (e is InsanityAbstractValue) {
+					// var r = e.resolveTo(Type.getClassName(t));
+					// if (r == null) throw 'Can\'t cast ${e.impl} to $path';
+					// else return r;
 				}
+				
+				return e; // throw 'Type not found: $path';
 				
 			default:
 		}
@@ -1781,7 +1778,7 @@ class Interp {
 	inline function getFieldsClass(path:String):Dynamic {
 		if (path.endsWith('_Fields_')) return null;
 		
-		if (path.startsWith('InsanityAbstract_')) path = Type.resolveClass(path).impl;
+		// if (path.startsWith('InsanityAbstract_')) path = Type.resolveClass(path).impl;
 		
 		var pack = path.substr(0, path.lastIndexOf('.') + 1);
 		var name = path.substr(path.lastIndexOf('.') + 1);
