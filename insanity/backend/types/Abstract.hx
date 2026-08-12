@@ -192,7 +192,7 @@ class InsanityAbstractValue implements ICustomReflection {
 	var __info:AbstractInfo;
 	var __impl:Class<Dynamic>;
 	
-	@:noCompletion public __a:Dynamic;
+	@:noCompletion public var __a:Dynamic;
 	
 	var __methodCache:Map<String, Dynamic> = [];
 	
