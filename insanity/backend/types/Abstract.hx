@@ -70,33 +70,6 @@ class AbstractTools {
 		}
 	}
 	
-	/*public static function getEnumConstructs(a:Class<InsanityAbstract>):Array<String> {
-		var a:Dynamic = a;
-		
-		if (a.isEnum) return a._enumConstructors.copy();
-		
-		throw '${a?.impl ?? a} is not an enum abstract';
-		return null;
-	}
-	
-	public static function createEnum(a:Class<InsanityAbstract>, n:String):InsanityAbstract {
-		var a:Dynamic = a;
-		
-		if (a.isEnum) return Type.createInstance(a, [a._enumValues[a._enumMap.get(n) ?? -1]]);
-		
-		throw '${a?.impl ?? a} is not an enum abstract';
-		return null;
-	}
-	
-	public static function createEnumIndex(a:Class<InsanityAbstract>, i:Int):InsanityAbstract {
-		var a:Dynamic = a;
-		
-		if (a.isEnum) return Type.createInstance(a, [a._enumValues[i]]);
-		
-		throw '${a?.impl ?? a} is not an enum abstract';
-		return null;
-	}*/
-	
 	public static inline function isAbstract(o:Dynamic):Bool {
 		return (o is InsanityAbstractValue);
 	}
@@ -106,11 +79,15 @@ class InsanityAbstract implements ICustomReflection {
 	public var info:AbstractInfo;
 	public var impl:Class<Dynamic>;
 	
+	public var isEnum:Bool = false;
+	
 	var methodCache:Map<String, Dynamic> = [];
 	
 	public function new(info:AbstractInfo) {
 		this.info = info;
 		this.impl = Type.resolveClass(info.implName);
+		
+		isEnum = info.isEnum;
 	}
 	
 	public function create(v:Dynamic):InsanityAbstractValue {
@@ -130,6 +107,8 @@ class InsanityAbstract implements ICustomReflection {
 	public function reflectGetField(field:String):Dynamic {
 		var f:Null<AbstractPropertyInfo> = info.properties.get(field);
 		
+		if (isEnum && f != null && f.get == ADefault && f.set == ADefault) return create(Reflect.field(impl, field));
+		
 		return (f != null && f.isStatic ? Reflect.field(impl, field) : cacheMethod(field));
 	}
 	public function reflectSetField(field:String, value:Dynamic):Dynamic {
@@ -146,6 +125,8 @@ class InsanityAbstract implements ICustomReflection {
 	
 	public function reflectGetProperty(property:String):Dynamic {
 		var f:Null<AbstractPropertyInfo> = info.properties.get(property);
+		
+		if (isEnum && f != null && f.get == ADefault && f.set == ADefault) return create(Reflect.field(impl, property));
 		
 		return (f != null && f.isStatic ? Reflect.getProperty(impl, property) : cacheMethod(property));
 	}

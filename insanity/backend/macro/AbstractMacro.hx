@@ -11,6 +11,8 @@ using haxe.macro.ComplexTypeTools;
 #end
 
 typedef AbstractInfo = {
+	var isEnum:Bool;
+	
 	var name:String;
 	var implName:String;
 	var underlying:AbstractTypeCast;
@@ -128,6 +130,8 @@ class AbstractMacro {
 		implPath.push('${ab.name}_Impl_');
 		
 		var info:AbstractInfo = {
+			isEnum: ab.meta.has(':enum'),
+			
 			name: path.join('.'),
 			implName: implPath.join('.'),
 			underlying: typeToAbstractTypeCast(ab.type),
