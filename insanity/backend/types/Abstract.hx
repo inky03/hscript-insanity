@@ -151,7 +151,7 @@ class InsanityAbstractValue implements ICustomReflection {
 	var __info:AbstractInfo;
 	var __impl:Class<Dynamic>;
 	
-	var __v:Dynamic;
+	var __a:Dynamic;
 	
 	var __methodCache:Map<String, Dynamic> = [];
 	
@@ -159,7 +159,7 @@ class InsanityAbstractValue implements ICustomReflection {
 		__base = base;
 		__info = base.info;
 		__impl = base.impl;
-		__v = value;
+		__a = value;
 	}
 	
 	inline function __cacheMethod(field:String):Dynamic {
@@ -172,9 +172,9 @@ class InsanityAbstractValue implements ICustomReflection {
 				final f = Reflect.field(__impl, field);
 				
 				if (m.returnsAbstract) {
-					__methodCache.set(field, Reflect.makeVarArgs((args) -> { args.unshift(__v); __base.create(Reflect.callMethod(__impl, f, args)); }));
+					__methodCache.set(field, Reflect.makeVarArgs((args) -> { args.unshift(__a); __base.create(Reflect.callMethod(__impl, f, args)); }));
 				} else {
-					__methodCache.set(field, Reflect.makeVarArgs((args) -> { args.unshift(__v); Reflect.callMethod(__impl, f, args); }));
+					__methodCache.set(field, Reflect.makeVarArgs((args) -> { args.unshift(__a); Reflect.callMethod(__impl, f, args); }));
 				}
 			}
 			
@@ -201,7 +201,7 @@ class InsanityAbstractValue implements ICustomReflection {
 		if (f != null && !f.isStatic) {
 			return switch (f.get) {
 				case ADefault: null;
-				case ADynamic: Reflect.callMethod(__impl, Reflect.field(__impl, 'get_$property'), [__v]);
+				case ADynamic: Reflect.callMethod(__impl, Reflect.field(__impl, 'get_$property'), [__a]);
 				case ANever: 'This expression cannot be accessed for reading';
 			}
 		} else {
@@ -214,7 +214,7 @@ class InsanityAbstractValue implements ICustomReflection {
 		if (f != null && !f.isStatic) {
 			return switch (f.get) {
 				case ADefault: null;
-				case ADynamic: __v = Reflect.callMethod(__impl, Reflect.field(__impl, 'insanityset_$property'), [__v, value]); value;
+				case ADynamic: __a = Reflect.callMethod(__impl, Reflect.field(__impl, 'insanityset_$property'), [__a, value]); value;
 				case ANever: 'This expression cannot be accessed for writing';
 			}
 		} else {
@@ -233,8 +233,8 @@ class InsanityAbstractValue implements ICustomReflection {
 	public function toString():String {
 		var f:Null<AbstractPropertyInfo> = __info.properties.get('toString');
 		
-		if (f != null && !f.isStatic) return Reflect.callMethod(__impl, Reflect.field(__impl, 'toString'), [__v]);
+		if (f != null && !f.isStatic) return Reflect.callMethod(__impl, Reflect.field(__impl, 'toString'), [__a]);
 		
-		return __v;
+		return __a;
 	}
 }
