@@ -183,6 +183,35 @@ class AbstractMacro {
 				case FFun(fun):
 					var method:AbstractMethodInfo = {isStatic: isStatic, returnsAbstract: matchAbstract(fun.ret)};
 					
+					if (!isStatic && field.name.indexOf('set_') == 0) {
+						function mapSet(e:Expr):Expr {
+							if (e == null) return null;
+							
+							return ExprTools.map(e, function(e:Expr) {
+								return switch (e.expr) {
+									case EReturn(_):
+										{pos: e.pos, expr: EReturn({pos: e.pos, expr: EConst(CIdent('this'))})};
+									
+									default:
+										mapSet(e);
+								}
+							});
+						};
+						
+						fields.push({
+							pos: pos,
+							meta: field.meta,
+							name: 'insanity${field.name}',
+							access: field.access,
+							
+							kind: FFun({
+								args: fun.args,
+								params: fun.params,
+								expr: mapSet(fun.expr)
+							})
+						});
+					}
+					
 					var metas = field.meta;
 					if (metas != null) {
 						for (meta in metas) {

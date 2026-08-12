@@ -214,7 +214,7 @@ class InsanityAbstractValue implements ICustomReflection {
 		if (f != null && !f.isStatic) {
 			return switch (f.get) {
 				case ADefault: null;
-				case ADynamic: final args = [__v, value]; Reflect.callMethod(__impl, Reflect.field(__impl, 'set_$property'), args);
+				case ADynamic: __v = Reflect.callMethod(__impl, Reflect.field(__impl, 'insanityset_$property'), [__v, value]); value;
 				case ANever: 'This expression cannot be accessed for writing';
 			}
 		} else {
