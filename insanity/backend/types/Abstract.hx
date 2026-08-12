@@ -1,6 +1,8 @@
 package insanity.backend.types;
 
 import insanity.backend.macro.AbstractMacro;
+import insanity.backend.types.Scripted;
+
 import insanity.custom.InsanityReflect;
 import insanity.custom.InsanityType;
 
@@ -26,34 +28,46 @@ class AbstractTools {
 		return null;
 	}
 	
-	public static function resolveName(v:Dynamic):String {
-		var vv:Dynamic = v;
-		switch (Type.typeof(v)) {
-			case TInt:
-				return 'Int';
-			case TFloat:
-				return 'Float';
-			case TBool:
-				return 'Bool';
-			case TObject:
-				if (v is Enum) return Type.getEnumName(v);
-			case TClass(c):
-				vv = c;
-			case TEnum(e):
-				return Type.getEnumName(e);
-			default:
-				return 'unknown';
-		}
+	@:access(insanity.backend.types.InsanityAbstractValue)
+	public static function getAbstractTypeCast(v:Dynamic):AbstractTypeCast {
+		if (v is InsanityAbstractValue) return ATType(v.__info.name);
 		
-		if (vv is Class) {
-			if (Type.getSuperClass(vv) == InsanityAbstract) {
-				return (vv.impl ?? 'unknown');
-			} else {
-				return Type.getClassName(vv);
-			}
-		}
+		if (v is Int) {
+			return ATType('Int');
+		} else if (v is Float) {
+			return ATType('Float');
+		} else if (v is String) {
+			return ATType('String');
+		} else if (v is Bool) {
+			return ATType('Bool');
+		} else if (v is Class) {
+			return ATType('Class');
+		} else if (v is Enum) {
+			return ATType('Enum');
+		} else if (v is Array) {
+			return ATType('Array');
+		} // wow
 		
-		return 'unknown';
+		var cl = InsanityType.getClass(v);
+		if (cl != null) return ATType(InsanityType.getClassName(cl));
+		
+		var en = InsanityType.getEnum(v);
+		if (en != null) return ATType(InsanityType.getEnumName(cl));
+		
+		if (Reflect.isFunction(v)) return ATMethod;
+		
+		if (Reflect.isObject(v)) return ATStruct;
+		
+		return ATDynamic;
+	}
+	
+	public static inline function abstractTypeCastToString(t:AbstractTypeCast):String {
+		return switch (t) {
+			case ATType(t): t;
+			case ATMethod: 'Function'; // glup
+			case ATDynamic: 'Dynamic';
+			case ATStruct: 'Object'; // glup 2
+		}
 	}
 	
 	/*public static function getEnumConstructs(a:Class<InsanityAbstract>):Array<String> {
@@ -173,16 +187,18 @@ class InsanityAbstract implements ICustomReflection {
 }
 
 class InsanityAbstractValue implements ICustomReflection {
-	var __base:InsanityAbstract;
+	@:noCompletion public var base:InsanityAbstract;
+	
 	var __info:AbstractInfo;
 	var __impl:Class<Dynamic>;
 	
-	var __a:Dynamic;
+	@:noCompletion public __a:Dynamic;
 	
 	var __methodCache:Map<String, Dynamic> = [];
 	
 	public function new(base:InsanityAbstract, value:Dynamic) {
-		__base = base;
+		this.base = base;
+		
 		__info = base.info;
 		__impl = base.impl;
 		__a = value;
@@ -198,7 +214,7 @@ class InsanityAbstractValue implements ICustomReflection {
 				final f = Reflect.field(__impl, field);
 				
 				if (m.returnsAbstract) {
-					__methodCache.set(field, Reflect.makeVarArgs((args) -> { args.unshift(__a); __base.create(Reflect.callMethod(__impl, f, args)); }));
+					__methodCache.set(field, Reflect.makeVarArgs((args) -> { args.unshift(__a); base.create(Reflect.callMethod(__impl, f, args)); }));
 				} else {
 					__methodCache.set(field, Reflect.makeVarArgs((args) -> { args.unshift(__a); Reflect.callMethod(__impl, f, args); }));
 				}
@@ -264,5 +280,24 @@ class InsanityAbstractValue implements ICustomReflection {
 		if (f != null && !f.isStatic) return Reflect.callMethod(__impl, Reflect.field(__impl, 'toString'), [__a]);
 		
 		return __a;
+	}
+	
+	public function op(op:AbstractOp, ?v:Dynamic):Dynamic {
+		var field:Null<String> = __info.overloads.get(op);
+		var m:AbstractMethodInfo = __info.methods.get(field);
+		
+		var r:Dynamic = null;
+		
+		switch (op) {
+			case ABinop(op, type):
+				if (field == null) throw 'Cannot perform $op on ${__info.name} and ${AbstractTools.abstractTypeCastToString(type)}';
+				
+				r = Reflect.callMethod(__impl, Reflect.field(__impl, field), [__a, v is InsanityAbstractValue ? v.__a : v]);
+				
+			case AUnop(_, postFix):
+				r = Reflect.callMethod(__impl, Reflect.field(__impl, field), [__a]);
+		}
+		
+		return (m.returnsAbstract ? base.create(r) : r);
 	}
 }

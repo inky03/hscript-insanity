@@ -25,6 +25,7 @@ import insanity.backend.Expr;
 import insanity.backend.Exception;
 import insanity.backend.CallStack;
 import insanity.backend.types.Scripted;
+import insanity.backend.macro.AbstractMacro.AbstractOp;
 import haxe.PosInfos;
 import haxe.Constraints.IMap;
 
@@ -147,45 +148,49 @@ class Interp {
 	
 	function get_locals():Map<String, Variable> { return stack.first()?.locals; }
 	function get_origin():String { return position.origin; }
-
+	
+	inline function exprOp(op:String, e1:Expr, e2:Expr):Dynamic return basicOp(op, expr(e1), expr(e2));
+	
+	inline function basicOp(op:String, v1:Dynamic, v2:Dynamic):Dynamic {
+		if (v1 is InsanityAbstractValue) return v1.op(ABinop(op, AbstractTools.getAbstractTypeCast(v2)), v2);
+		
+		return switch (op) {
+			case '+': (v1 + v2);
+			case '-': (v1 - v2);
+			case '*': (v1 * v2);
+			case '/': (v1 / v2);
+			case '%': (v1 % v2);
+			case '&': (v1 & v2);
+			case '|': (v1 | v2);
+			case '^': (v1 ^ v2);
+			case '<<': (v1 << v2);
+			case '>>': (v1 >> v2);
+			case '>>>': (v1 >>> v2);
+			case '==': (v1 == v2);
+			case '!=': (v1 != v2);
+			case '>=': (v1 >= v2);
+			case '<=': (v1 <= v2);
+			case '>': (v1 > v2);
+			case '<': (v1 < v2);
+			case '||': (v1 == true || v2 == true);
+			case '&&': (v1 == true && v2 == true);
+			case '...': new IntIterator(v1, v2);
+			case '??': (v1 ?? v2);
+			default: throw '??? ($op)';
+		}
+	}
+	
 	function initOps() {
 		binops = [
-			"=" => assign,
-			"+" => function(e1,e2) return expr(e1) + expr(e2),
-			"-" => function(e1,e2) return expr(e1) - expr(e2),
-			"*" => function(e1,e2) return expr(e1) * expr(e2),
-			"/" => function(e1,e2) return expr(e1) / expr(e2),
-			"%" => function(e1,e2) return expr(e1) % expr(e2),
-			"&" => function(e1,e2) return expr(e1) & expr(e2),
-			"|" => function(e1,e2) return expr(e1) | expr(e2),
-			"^" => function(e1,e2) return expr(e1) ^ expr(e2),
-			"<<" => function(e1,e2) return expr(e1) << expr(e2),
-			">>" => function(e1,e2) return expr(e1) >> expr(e2),
-			">>>" => function(e1,e2) return expr(e1) >>> expr(e2),
-			"==" => function(e1,e2) return expr(e1) == expr(e2),
-			"!=" => function(e1,e2) return expr(e1) != expr(e2),
-			">=" => function(e1,e2) return expr(e1) >= expr(e2),
-			"<=" => function(e1,e2) return expr(e1) <= expr(e2),
-			">" => function(e1,e2) return expr(e1) > expr(e2),
-			"<" => function(e1,e2) return expr(e1) < expr(e2),
-			"||" => function(e1,e2) return expr(e1) == true || expr(e2) == true,
-			"&&" => function(e1,e2) return expr(e1) == true && expr(e2) == true,
-			"..." => function(e1,e2) return new IntIterator(expr(e1),expr(e2)),
-			"is" => function(e1,e2) return #if (haxe_ver >= 4.2) Std.isOfType #else Std.is #end (expr(e1), expr(e2)),
-			"??" => function(e1,e2) return expr(e1) ?? expr(e2)
+			'=' => assign,
+			'is' => function(e1:Expr, e2:Expr) return Std.isOfType(expr(e1), expr(e2))
 		];
-		assignOp("+=",function(v1:Dynamic,v2:Dynamic) return v1 + v2);
-		assignOp("-=",function(v1:Float,v2:Float) return v1 - v2);
-		assignOp("*=",function(v1:Float,v2:Float) return v1 * v2);
-		assignOp("/=",function(v1:Float,v2:Float) return v1 / v2);
-		assignOp("%=",function(v1:Float,v2:Float) return v1 % v2);
-		assignOp("&=",function(v1,v2) return v1 & v2);
-		assignOp("|=",function(v1,v2) return v1 | v2);
-		assignOp("^=",function(v1,v2) return v1 ^ v2);
-		assignOp("<<=",function(v1,v2) return v1 << v2);
-		assignOp(">>=",function(v1,v2) return v1 >> v2);
-		assignOp(">>>=",function(v1,v2) return v1 >>> v2);
-		assignOp("??=",function(v1,v2) return v1 ?? v2);
+		
+		for (op in ['+', '-', '*', '/', '%', '&', '|', '^', '<<', '>>', '>>>', '==', '!=', '>=', '<=', '<', '||', '&&', '...', '??'])
+			binops.set(op, exprOp.bind(op));
+		
+		for (op in ['+', '-', '*', '/', '%', '&', '|', '^', '<<', '>>', '>>>', '??'])
+			assignOp('$op=', basicOp.bind(op));
 	}
 
 	function setVar( name : String, v : Dynamic ) : Dynamic {
@@ -374,27 +379,41 @@ class Interp {
 		case EIdent(id):
 			var l = locals.get(id);
 			var v : Dynamic = (locals.exists(id) ? getLocal(id) : resolve(id));
+			
+			// todo inc/dec
+			// if (v is InsanityAbstractValue && v.hasOp(AUnop(delta > 0 ? '++' : '--', !prefix))) return v.op(AUnop(delta > 0 ? '++' : '--', !prefix));
+			
 			if( prefix ) {
 				v += delta;
 				if (locals.exists(id)) setLocal(id, v) else setVar(id, v);
 			} else {
 				if (locals.exists(id)) setLocal(id, v + delta) else setVar(id, v + delta);
 			}
+			
 			return v;
 		case EField(e,f,_):
 			var obj = expr(e);
 			var v : Dynamic = get(obj,f);
+			
+			// if (v is InsanityAbstractValue && v.hasOp(AUnop(delta > 0 ? '++' : '--', !prefix))) return v.op(AUnop(delta > 0 ? '++' : '--', !prefix));
+			
 			if( prefix ) {
 				v += delta;
 				set(obj,f,v);
-			} else
+			} else {
 				set(obj,f,v + delta);
+			}
+			
 			return v;
 		case EArray(e, index):
 			var arr:Dynamic = expr(e);
 			var index:Dynamic = expr(index);
+			
 			if (isMap(arr)) {
 				var v = getMapValue(arr, index);
+				
+				// if (v is InsanityAbstractValue && v.hasOp(AUnop(delta > 0 ? '++' : '--', !prefix))) return v.op(AUnop(delta > 0 ? '++' : '--', !prefix));
+				
 				if (prefix) {
 					v += delta;
 					setMapValue(arr, index, v);
@@ -402,19 +421,25 @@ class Interp {
 				else {
 					setMapValue(arr, index, v + delta);
 				}
+				
 				return v;
-			}
-			else {
+			} else {
 				var v = arr[index];
+				
+				// if (v is InsanityAbstractValue && v.hasOp(AUnop(delta > 0 ? '++' : '--', !prefix))) return v.op(AUnop(delta > 0 ? '++' : '--', !prefix));
+				
 				if( prefix ) {
 					v += delta;
 					arr[index] = v;
-				} else
+				} else {
 					arr[index] = v + delta;
+				}
+				
 				return v;
 			}
+			
 		default:
-			return error(EInvalidOp((delta > 0)?"++":"--"));
+			return error(EInvalidOp(delta > 0 ? '++' : '--'));
 		}
 	}
 	
@@ -983,20 +1008,30 @@ class Interp {
 			return e;
 		case EBinop(op,e1,e2):
 			var fop = binops.get(op);
-			if( fop == null ) error(EInvalidOp(op));
-			return fop(e1,e2);
+			if (fop == null) error(EInvalidOp(op));
+			
+			return fop(e1, e2);
 		case EUnop(op,prefix,e):
 			switch(op) {
 			case "!":
-				return expr(e) != true;
+				final v:Dynamic = expr(e);
+				if (v is InsanityAbstractValue && v.hasOp(AUnop('!', false))) return v.op(AUnop('!', false));
+				
+				return (v != true);
 			case "-":
-				return -expr(e);
+				final v:Dynamic = expr(e);
+				if (v is InsanityAbstractValue && v.hasOp(AUnop('-', false))) return v.op(AUnop('-', false));
+				
+				return -v;
 			case "++":
-				return increment(e,prefix,1);
+				return increment(e, prefix, 1);
 			case "--":
-				return increment(e,prefix,-1);
+				return increment(e, prefix, -1);
 			case "~":
-				return ~expr(e);
+				final v:Dynamic = expr(e);
+				if (v is InsanityAbstractValue && v.hasOp(AUnop('~', false))) return v.op(AUnop('~', false));
+				
+				return ~v;
 			default:
 				error(EInvalidOp(op));
 			}
@@ -1747,9 +1782,6 @@ class Interp {
 		
 		if (canDefer && o is IInsanityType && !o.initialized)
 			throw DDefer;
-		
-		if (AbstractTools.isAbstract(v))
-			v = v.__a;
 		
 		var bypassAccessor:Bool = (getMeta(':bypassAccessor') != null);
 		

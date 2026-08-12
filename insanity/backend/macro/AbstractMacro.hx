@@ -11,12 +11,13 @@ using haxe.macro.ComplexTypeTools;
 #end
 
 typedef AbstractInfo = {
+	var name:String;
 	var implName:String;
 	var underlying:AbstractTypeCast;
 	
 	var methods:Map<String, AbstractMethodInfo>;
 	var properties:Map<String, AbstractPropertyInfo>;
-	var overloads:Map<String, Array<AbstractMethodInfo>>;
+	var overloads:Map<AbstractOp, String>;
 	
 	var from:Map<AbstractTypeCast, Null<String>>;
 	var to:Map<AbstractTypeCast, Null<String>>;
@@ -36,10 +37,16 @@ typedef AbstractMethodInfo = {
 	var isStatic:Bool;
 	var returnsAbstract:Bool;
 	
-	var ?commutative:Bool;
-	var ?type:AbstractTypeCast; // OVERLOAD
+	// OVERLOAD
 	var ?isOverload:Bool;
-	var ?op:String;
+	var ?isCommutative:Bool;
+	
+	var ?op:AbstractOp;
+}
+
+enum AbstractOp {
+	ABinop(op:String, type:AbstractTypeCast);
+	AUnop(op:String, postFix:Bool);
 }
 
 enum AbstractProperty {
@@ -121,6 +128,7 @@ class AbstractMacro {
 		implPath.push('${ab.name}_Impl_');
 		
 		var info:AbstractInfo = {
+			name: path.join('.'),
 			implName: implPath.join('.'),
 			underlying: typeToAbstractTypeCast(ab.type),
 			
@@ -215,27 +223,25 @@ class AbstractMacro {
 					var metas = field.meta;
 					if (metas != null) {
 						for (meta in metas) {
-							if (meta.name == ':commutative') method.commutative = true;
+							if (meta.name == ':commutative') method.isCommutative = true;
 							
 							if (meta.name == ':op') {
 								switch (meta.params[0].expr) {
 									case EBinop(binop, _, _):
-										method.op = printer.printBinop(binop);
-										
-										method.type = typeToAbstractTypeCast(fun.args[1].type.toType());
+										method.op = ABinop(printer.printBinop(binop), typeToAbstractTypeCast(fun.args[1].type.toType()));
+									
+									case EUnop(unop, postFix, _):
+										method.op = AUnop(printer.printUnop(unop), postFix);
+									
+									case EField(_, _, _): continue;
 										
 									default:
-										// throw '???';
+										throw '??? (${meta.params[0].toString()})';
 								}
 								
-								if (method.op != null) {
-									method.isOverload = true;
-									
-									if (!info.overloads.exists(method.op))
-										info.overloads.set(method.op, []);
-									
-									info.overloads.get(method.op).push(method);
-								}
+								method.isOverload = true;
+								
+								info.overloads.set(method.op, field.name);
 							}
 						}
 					}
