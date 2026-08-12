@@ -192,7 +192,7 @@ class InsanityAbstractValue implements ICustomReflection {
 	var __info:AbstractInfo;
 	var __impl:Class<Dynamic>;
 	
-	@:noCompletion public var __a:Dynamic;
+	@:noCompletion public var __a(default, set):Dynamic;
 	
 	var __methodCache:Map<String, Dynamic> = [];
 	
@@ -279,7 +279,7 @@ class InsanityAbstractValue implements ICustomReflection {
 		
 		if (f != null && !f.isStatic) return Reflect.callMethod(__impl, Reflect.field(__impl, 'toString'), [__a]);
 		
-		return __a;
+		return __info.name;
 	}
 	
 	public function op(op:AbstractOp, ?v:Dynamic):Dynamic {
@@ -299,5 +299,9 @@ class InsanityAbstractValue implements ICustomReflection {
 		}
 		
 		return (m.returnsAbstract ? base.create(r) : r);
+	}
+	
+	function set___a(v:Dynamic):Dynamic {
+		return __a = v;
 	}
 }

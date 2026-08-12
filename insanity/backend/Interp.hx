@@ -337,6 +337,9 @@ class Interp {
 		var l:Variable = map.get(id);
 		if (l == null) return null;
 		
+		if (v is InsanityAbstractValue)
+			v = v.__a;
+		
 		if (l.isFinal)
 			throw 'Cannot assign to final';
 		
@@ -346,13 +349,22 @@ class Interp {
 		switch (l.set) {
 			case 'null':
 				if (accessingInterp != this) throw 'This expression cannot be accessed for writing';
+				
+				if (l.a != null) return l.a.__a = v;
+				
 				return l.r = v;
 			case 'never':
 				throw 'This expression cannot be accessed for writing'; return null;
 			case 'set' | 'dynamic' if (getMeta(':bypassAccessor') != null):
+				if (l.a != null) return l.a.__a = v;
+				
 				return l.r = v;
 			case 'set' | 'dynamic':
-				if (curAccess == id) return l.r = v;
+				if (curAccess == id) {
+					if (l.a != null) return l.a.__a = v;
+					
+					return l.r = v;
+				}
 				
 				var hasLocal:Bool = locals.exists('set_$id');
 				if (hasLocal || variables.exists('set_$id')) {
@@ -365,6 +377,8 @@ class Interp {
 				
 				error(ECustom('Method set_$id required by property $id is missing')); return null;
 			case 'default' | null:
+				if (l.a != null) return l.a.__a = v;
+				
 				return l.r = v;
 			default:
 				error(ECustom('Invalid property accessor ${l.set}')); return null;
@@ -1783,9 +1797,15 @@ class Interp {
 		if (canDefer && o is IInsanityType && !o.initialized)
 			throw DDefer;
 		
+		if (AbstractTools.isAbstract(v))
+			v = v.__a;
+		
 		var bypassAccessor:Bool = (getMeta(':bypassAccessor') != null);
 		
-		if (Reflect.field(o, f) == null && hasField(o, f) == false) {
+		var field:Dynamic = Reflect.field(o, f);
+		if (field is InsanityAbstractValue) return field.__a = v;
+		
+		if (field == null && hasField(o, f) == false) {
 			var fields = getFieldsClass((o is Class || o is InsanityScriptedClass) ? Type.getClassName(o) : Type.getEnumName(o));
 			if (fields != null) (bypassAccessor ? Reflect.setField(fields, f, v) : Reflect.setProperty(fields, f, v));
 		} else if (bypassAccessor) {
