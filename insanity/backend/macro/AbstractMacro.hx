@@ -28,6 +28,7 @@ typedef AbstractInfo = {
 
 typedef AbstractPropertyInfo = {
 	var isStatic:Bool;
+	var isAbstract:Bool;
 	
 	var ?get:AbstractProperty;
 	var ?set:AbstractProperty;
@@ -204,14 +205,14 @@ class AbstractMacro {
 			
 			switch (field.kind) {
 				case FVar(t, e):
-					var prop:AbstractPropertyInfo = {isStatic: isStatic};
+					var prop:AbstractPropertyInfo = {isStatic: isStatic, isAbstract: true};
 					
 					prop.get = prop.set = ADefault;
 					
 					info.properties.set(field.name, prop);
 					
-				case FProp(get, set, t, e):
-					var prop:AbstractPropertyInfo = {isStatic: isStatic};
+				case FProp(get, set, type, _):
+					var prop:AbstractPropertyInfo = {isStatic: isStatic, isAbstract: matchAbstract(type)};
 					
 					prop.get = switch (get) {
 						default: ADefault;

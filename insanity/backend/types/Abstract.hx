@@ -99,6 +99,8 @@ class InsanityAbstract implements ICustomReflection implements ICustomClassType 
 	}
 	
 	public function castFrom(v:Dynamic):InsanityAbstractValue {
+		if (v is InsanityAbstractValue && v.info.name == info.name) return v;
+		
 		var type:AbstractTypeCast = AbstractTools.getAbstractTypeCast(v);
 		
 		var test:AbstractTypeCast = type;
@@ -128,9 +130,13 @@ class InsanityAbstract implements ICustomReflection implements ICustomClassType 
 	public function reflectGetField(field:String):Dynamic {
 		var f:Null<AbstractPropertyInfo> = info.properties.get(field);
 		
-		if (isEnum && f != null && f.get == ADefault && f.set == ADefault) return create(Reflect.field(impl, field));
-		
-		return (f != null && f.isStatic ? Reflect.field(impl, field) : cacheMethod(field));
+		if (f != null && (f.isStatic || (isEnum && f.isAbstract))) {
+			final r:Dynamic = #if cpp resolve(field) #else Reflect.field(impl, field) #end;
+			
+			return (f.isAbstract ? create(r) : r);
+		} else {
+			return cacheMethod(field);
+		}
 	}
 	public function reflectSetField(field:String, value:Dynamic):Dynamic {
 		var f:Null<AbstractPropertyInfo> = info.properties.get(field);
@@ -147,9 +153,13 @@ class InsanityAbstract implements ICustomReflection implements ICustomClassType 
 	public function reflectGetProperty(property:String):Dynamic {
 		var f:Null<AbstractPropertyInfo> = info.properties.get(property);
 		
-		if (isEnum && f != null && f.get == ADefault && f.set == ADefault) return create(Reflect.field(impl, property));
-		
-		return (f != null && f.isStatic ? #if cpp resolve(property) #else Reflect.getProperty(impl, property) #end : cacheMethod(property));
+		if (f != null && (f.isStatic || (isEnum && f.isAbstract))) {
+			final r:Dynamic = #if cpp resolve(property) #else Reflect.getProperty(impl, property) #end;
+			
+			return (f.isAbstract ? create(r) : r);
+		} else {
+			return cacheMethod(property);
+		}
 	}
 	public function reflectSetProperty(property:String, value:Dynamic):Dynamic {
 		var f:Null<AbstractPropertyInfo> = info.properties.get(property);
@@ -400,6 +410,8 @@ class InsanityAbstractValue implements ICustomReflection {
 	}
 	
 	public function castTo(v:Dynamic):Dynamic {
+		if (v is InsanityAbstract && v.info.name == info.name) return v;
+		
 		final cls:String = InsanityType.getClassName(v);
 		var type:AbstractTypeCast = ATType(cls);
 		
