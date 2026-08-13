@@ -17,7 +17,10 @@ README content has been moved to the [wiki](https://github.com/inky03/hscript-in
 	- [X] static fields
 	- [X] instance fields
 	- [X] cast from / to types
-	- [ ] overload operators (`@:op`)
+	- [X] overload operators (`@:op`)
+		- [X] commutative operators (`@:commutative`)
+		- only postincrement `A ++`, postdecrement `A --` operators arent supported yet ...
+	- [X] field forwarding (`@:forward`)
 	
 - enum abstracts
 	- [X] static fields
