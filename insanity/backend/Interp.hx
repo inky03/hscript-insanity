@@ -25,7 +25,7 @@ import insanity.backend.Expr;
 import insanity.backend.Exception;
 import insanity.backend.CallStack;
 import insanity.backend.types.Scripted;
-import insanity.backend.macro.AbstractMacro.AbstractOp;
+import insanity.backend.macro.AbstractMacro;
 import haxe.PosInfos;
 import haxe.Constraints.IMap;
 
@@ -609,15 +609,6 @@ class Interp {
 		}
 	}
 	
-	/*function createAbstractEnum(t:Class<InsanityAbstract>, i:Int):InsanityAbstract {
-		try {
-			return AbstractTools.createEnumIndex(t, i);
-		} catch (e:haxe.Exception) {
-			var t:Dynamic = t;
-			throw 'Failed to construct enum of type ${t.impl}';
-		}
-	}*/
-	
 	inline function resolveMirror(v:Dynamic):Dynamic {
 		if (v is Mirror) {
 			switch (v) {
@@ -630,8 +621,6 @@ class Interp {
 					if (!Type.allEnums(t).contains(Type.getEnumConstructs(t)[i]))
 						return Reflect.makeVarArgs(function(params:Array<Dynamic>) return createEnum(t, i, params));
 					return createEnum(t, i);
-				/*case MAbstractEnumValue(t, i):
-					return createAbstractEnum(t, i);*/
 			}
 		} else {
 			return v;
@@ -685,6 +674,15 @@ class Interp {
 				importEnumValues(t);
 		} else if (t is InsanityAbstract) {
 			imports.set(name, t);
+			
+			final ab:InsanityAbstract = cast t;
+			
+			if (ab.isEnum && enumValueImport) {
+				for (name => field in ab.info.properties) {
+					if (field.get == ADefault && field.set == ADefault)
+						imports.set(name, MProperty(ab, name));
+				}
+			}
 		} else {
 			throw 'Invalid import type $t';
 		}
@@ -744,7 +742,8 @@ class Interp {
 							}
 						}
 						
-						if (t is Class || t is InsanityScriptedClass) {
+						if (t is Class || t is InsanityScriptedClass || t is InsanityAbstract) {
+							trace('$t -> ${Type.getClassFields(t)}');
 							if (!Type.getClassFields(t).contains(field))
 								error(ECustom('Module ${path[i]} does not define field $field'));
 							

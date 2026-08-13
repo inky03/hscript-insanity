@@ -139,7 +139,7 @@ class InsanityAbstract implements ICustomReflection implements ICustomClassType 
 	}
 	
 	public function reflectListFields():Array<String> {
-		var fields = [for (name => f in info.properties) if (f.isStatic) name];
+		var fields = [for (name => f in info.properties) if (f.isStatic || (isEnum && f.get == ADefault && f.set == ADefault)) name];
 		
 		for (name => m in info.methods) if (m.isStatic) fields.push(name);
 		
