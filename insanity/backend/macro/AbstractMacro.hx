@@ -23,9 +23,6 @@ typedef AbstractInfo = {
 	
 	var from:Map<AbstractTypeCast, Null<String>>;
 	var to:Map<AbstractTypeCast, Null<String>>;
-	
-	var ?read:String;
-	var ?write:String;
 }
 
 typedef AbstractPropertyInfo = {
@@ -37,6 +34,7 @@ typedef AbstractPropertyInfo = {
 
 typedef AbstractMethodInfo = {
 	var isStatic:Bool;
+	var setsSelf:Bool;
 	var returnsAbstract:Bool;
 	
 	// OVERLOAD
@@ -47,8 +45,11 @@ typedef AbstractMethodInfo = {
 }
 
 enum AbstractOp {
-	ABinop(op:String, type:AbstractTypeCast);
 	AUnop(op:String, postFix:Bool);
+	ABinop(op:String, type:AbstractTypeCast);
+	
+	AArray(write:Bool, readType:AbstractTypeCast, writeType:Null<AbstractTypeCast>);
+	AResolve(write:Bool, writeType:Null<AbstractTypeCast>);
 }
 
 enum AbstractProperty {
@@ -141,10 +142,7 @@ class AbstractMacro {
 			overloads: [],
 			
 			from: [],
-			to: [],
-			
-			read: ab.resolve?.name,
-			write: ab.resolveWrite?.name
+			to: []
 		};
 		
 		var printer = new haxe.macro.Printer();
@@ -166,6 +164,8 @@ class AbstractMacro {
 		}
 		
 		for (field in fields) {
+			if (field.name.indexOf('insanity') == 0 || field.name == '_new') continue; // dont need to list these..
+			
 			final isStatic:Bool = (field.access != null && field.access.contains(AStatic));
 			
 			switch (field.kind) {
@@ -193,7 +193,27 @@ class AbstractMacro {
 					info.properties.set(field.name, prop);
 					
 				case FFun(fun):
-					var method:AbstractMethodInfo = {isStatic: isStatic, returnsAbstract: matchAbstract(fun.ret)};
+					var method:AbstractMethodInfo = {isStatic: isStatic, returnsAbstract: matchAbstract(fun.ret), setsSelf: false};
+					
+					if (field.name.indexOf('set_') < 0) {
+						function testSet(e:Expr):Void {
+							if (e == null) return;
+							
+							return ExprTools.iter(e, function(e:Expr) {
+								switch (e.expr) {
+									case EBinop(OpAssign, {pos: _, expr: EConst(CIdent('this'))}, _) |
+										EBinop(OpAssignOp(_), {pos: _, expr: EConst(CIdent('this'))}, _):
+										// trace('${ab.name}.${field.name} sets  self');
+										method.setsSelf = true;
+									
+									default:
+										testSet(e);
+								}
+							});
+						};
+						
+						testSet(fun.expr);
+					}
 					
 					if (!isStatic && field.name.indexOf('set_') == 0) {
 						function mapSet(e:Expr):Expr {
@@ -237,7 +257,13 @@ class AbstractMacro {
 									case EUnop(unop, postFix, _):
 										method.op = AUnop(printer.printUnop(unop), postFix);
 									
-									case EField(_, _, _): continue;
+									case EField(_, _, _):
+										final write:Bool = (fun.args.length == 2);
+										method.op = AResolve(write, write ? typeToAbstractTypeCast(fun.args[1].type.toType()) : null);
+									
+									case EArrayDecl(_):
+										final write:Bool = (fun.args.length == 2);
+										method.op = AArray(write, typeToAbstractTypeCast(fun.args[0].type.toType()), write ? typeToAbstractTypeCast(fun.args[1].type.toType()) : null);
 										
 									default:
 										throw '??? (${meta.params[0].toString()})';

@@ -251,10 +251,12 @@ class Interp {
 		case EArray(e, index):
 			var arr:Dynamic = expr(e);
 			var index:Dynamic = expr(index);
+			
 			if (isMap(arr)) {
 				setMapValue(arr, index, v);
-			}
-			else {
+			} else if (arr is InsanityAbstractValue) {
+				return arr.op(AArray(true, AbstractTools.getAbstractTypeCast(index), AbstractTools.getAbstractTypeCast(v)), v, index);
+			} else {
 				arr[index] = v;
 			}
 
@@ -1243,8 +1245,13 @@ class Interp {
 		case EArray(e, index):
 			var arr:Dynamic = expr(e);
 			var index:Dynamic = expr(index);
-			if( isMap(arr) )
+			
+			if (isMap(arr))
 				return getMapValue(arr, index);
+			
+			if (arr is InsanityAbstractValue)
+				return arr.op(AArray(false, AbstractTools.getAbstractTypeCast(index), null), null, index);
+			
 			return arr[index];
 		case ENew(cl,params):
 			var a = new Array();

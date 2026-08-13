@@ -214,7 +214,9 @@ class InsanityAbstractValue implements ICustomReflection {
 			if (!__methodCache.exists(field)) {
 				final f = Reflect.field(__impl, field);
 				
-				if (m.returnsAbstract) {
+				if (m.setsSelf) {
+					__methodCache.set(field, Reflect.makeVarArgs((args) -> { args.unshift(__a); __a = Reflect.callMethod(__impl, f, args); }));
+				} else if (m.returnsAbstract) {
 					__methodCache.set(field, Reflect.makeVarArgs((args) -> { args.unshift(__a); base.create(Reflect.callMethod(__impl, f, args)); }));
 				} else {
 					__methodCache.set(field, Reflect.makeVarArgs((args) -> { args.unshift(__a); Reflect.callMethod(__impl, f, args); }));
@@ -248,7 +250,10 @@ class InsanityAbstractValue implements ICustomReflection {
 				case ANever: 'This expression cannot be accessed for reading';
 			}
 		} else {
-			return __cacheMethod(property);
+			var m = __cacheMethod(property);
+			if (m != null) return m;
+			
+			return op(AResolve(false, null), null, property);
 		}
 	}
 	public function reflectSetProperty(property:String, value:Dynamic):Dynamic {
@@ -264,7 +269,7 @@ class InsanityAbstractValue implements ICustomReflection {
 			throw 'Cannot rebind this method';
 		}
 		
-		return null;
+		return op(AResolve(true, AbstractTools.getAbstractTypeCast(value)), value, property);
 	}
 	
 	public function reflectListFields():Array<String> {
@@ -283,33 +288,66 @@ class InsanityAbstractValue implements ICustomReflection {
 		return __info.name;
 	}
 	
-	public function binop(op:String, ?v:Dynamic):Dynamic {
-		var type:AbstractTypeCast = AbstractTools.getAbstractTypeCast(v);
-		
-		var test:AbstractOp;
-		
-		if (__info.overloads.exists(test = ABinop(op, type))) return this.op(test, v);
-		
-		if (v is Int && __info.overloads.exists(test = ABinop(op, ATType('Float')))) return this.op(test, v);
-		
-		if (__info.overloads.exists(test = ABinop(op, ATDynamic))) return this.op(test, v);
-		
-		return throw 'Cannot perform $op on ${__info.name} and ${AbstractTools.abstractTypeCastToString(type)}';
+	// should deprecate now maybe
+	public inline function binop(op:String, ?v:Dynamic):Dynamic {
+		return this.op(ABinop(op, AbstractTools.getAbstractTypeCast(v)), v);
 	}
 	
-	public function op(op:AbstractOp, ?v:Dynamic):Dynamic {
+	public function op(op:AbstractOp, ?v:Dynamic, ?f:Dynamic):Dynamic {
 		var field:Null<String> = __info.overloads.get(op);
+		
+		if (field == null) { // other posible types
+			switch (op) {
+				case ABinop(op, type):
+					if (v is Int) field ??= __info.overloads.get(ABinop(op, ATType('Float')));
+					field ??= __info.overloads.get(ABinop(op, ATDynamic));
+					
+					if (field == null) throw 'Cannot perform $op on ${__info.name} and ${AbstractTools.abstractTypeCastToString(type)}';
+				
+				case AArray(write, readType, _):
+					inline function find():Void {
+						if (v is Int) field ??= __info.overloads.get(AArray(write, readType, ATType('Float')));
+						field ??= __info.overloads.get(AArray(write, readType, ATDynamic));
+					}
+					
+					find();
+					
+					if (field == null) {
+						for (k in __info.overloads.keys()) {
+							if (f is Int && k.match(AArray(_, ATType('Float'), _))) {
+								readType = ATType('Float');
+								find();
+							}
+							
+							if (k.match(AArray(_, ATDynamic, _))) {
+								readType = ATDynamic;
+								find();
+							}
+							
+							if (field == null) break;
+						}
+					}
+				
+				case AResolve(true, _):
+					if (v is Int) field ??= __info.overloads.get(AResolve(true, ATType('Float')));
+					field ??= __info.overloads.get(AResolve(true, ATDynamic));
+				
+				default:
+			}
+		}
+		
 		var m:AbstractMethodInfo = __info.methods.get(field);
 		
-		var r:Dynamic = null;
+		if (m == null) return null;
 		
-		switch (op) {
-			case ABinop(op, type):
-				r = Reflect.callMethod(__impl, Reflect.field(__impl, field), [__a, v is InsanityAbstractValue ? v.__a : v]);
-				
-			case AUnop(_, postFix):
-				r = Reflect.callMethod(__impl, Reflect.field(__impl, field), [__a]);
-		}
+		final r:Dynamic = Reflect.callMethod(__impl, Reflect.field(__impl, field), switch (op) {
+			case ABinop(_, _): [__a, v is InsanityAbstractValue ? v.__a : v];
+			case AUnop(_, _): [__a];
+			case AResolve(false, _) | AArray(false, _, _): [__a, f];
+			case AResolve(true, _) | AArray(true, _, _): [__a, f, v is InsanityAbstractValue ? v.__a : v];
+		});
+		
+		if (m.setsSelf) return (__a = r);
 		
 		return (m.returnsAbstract ? base.create(r) : r);
 	}
