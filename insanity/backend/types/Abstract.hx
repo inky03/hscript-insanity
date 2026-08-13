@@ -294,6 +294,14 @@ class InsanityAbstractValue implements ICustomReflection {
 		return this.op(ABinop(op, AbstractTools.getAbstractTypeCast(v)), v);
 	}
 	
+	public function increment(prefix:Bool, delta:Int):Bool {
+		final unop:AbstractOp = AUnop(delta > 0 ? '++' : '--', !prefix);
+		
+		if (!prefix) throw '(A ${delta > 0 ? '++' : '--'}) is currently unsupported in abstracts'; // todo
+		
+		return (op(unop) != null);
+	}
+	
 	public function findOverload(op:AbstractOp, ?v:Dynamic, ?f:Dynamic):Dynamic {
 		if (info.overloads.exists(op)) return info.overloads.get(op);
 		

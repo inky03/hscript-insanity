@@ -406,10 +406,9 @@ class Interp {
 		switch(e) {
 		case EIdent(id):
 			var l = locals.get(id);
-			var v : Dynamic = (locals.exists(id) ? getLocal(id) : resolve(id));
+			var v:Dynamic = (locals.exists(id) ? getLocal(id) : resolve(id));
 			
-			// todo inc/dec
-			// if (v is InsanityAbstractValue && v.hasOp(AUnop(delta > 0 ? '++' : '--', !prefix))) return v.op(AUnop(delta > 0 ? '++' : '--', !prefix));
+			if (v is InsanityAbstractValue && v.increment(prefix, delta)) return v;
 			
 			if( prefix ) {
 				v += delta;
@@ -421,15 +420,15 @@ class Interp {
 			return v;
 		case EField(e,f,_):
 			var obj = expr(e);
-			var v : Dynamic = get(obj,f);
+			var v:Dynamic = get(obj,f);
 			
-			// if (v is InsanityAbstractValue && v.hasOp(AUnop(delta > 0 ? '++' : '--', !prefix))) return v.op(AUnop(delta > 0 ? '++' : '--', !prefix));
+			if (v is InsanityAbstractValue && v.increment(prefix, delta)) return v;
 			
 			if( prefix ) {
 				v += delta;
-				set(obj,f,v);
+				set(obj, f, v);
 			} else {
-				set(obj,f,v + delta);
+				set(obj, f, v + delta);
 			}
 			
 			return v;
@@ -438,9 +437,9 @@ class Interp {
 			var index:Dynamic = expr(index);
 			
 			if (isMap(arr)) {
-				var v = getMapValue(arr, index);
+				var v:Dynamic = getMapValue(arr, index);
 				
-				// if (v is InsanityAbstractValue && v.hasOp(AUnop(delta > 0 ? '++' : '--', !prefix))) return v.op(AUnop(delta > 0 ? '++' : '--', !prefix));
+				if (v is InsanityAbstractValue && v.increment(prefix, delta)) return v;
 				
 				if (prefix) {
 					v += delta;
@@ -452,9 +451,9 @@ class Interp {
 				
 				return v;
 			} else {
-				var v = arr[index];
+				var v:Dynamic = arr[index];
 				
-				// if (v is InsanityAbstractValue && v.hasOp(AUnop(delta > 0 ? '++' : '--', !prefix))) return v.op(AUnop(delta > 0 ? '++' : '--', !prefix));
+				if (v is InsanityAbstractValue && v.increment(prefix, delta)) return v;
 				
 				if( prefix ) {
 					v += delta;
