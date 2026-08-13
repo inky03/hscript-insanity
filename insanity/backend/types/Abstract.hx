@@ -83,11 +83,15 @@ class InsanityAbstract implements ICustomReflection implements ICustomClassType 
 	
 	var methodCache:Map<String, Dynamic> = [];
 	
+	#if cpp var resolve:String -> Dynamic; #end
+	
 	public function new(info:AbstractInfo) {
 		this.info = info;
 		this.impl = Type.resolveClass(info.implName);
 		
 		isEnum = info.isEnum;
+		
+		#if cpp resolve = Reflect.field(impl, 'insanityCppResolve'); #end
 	}
 	
 	public function create(v:Dynamic):InsanityAbstractValue {
@@ -145,7 +149,7 @@ class InsanityAbstract implements ICustomReflection implements ICustomClassType 
 		
 		if (isEnum && f != null && f.get == ADefault && f.set == ADefault) return create(Reflect.field(impl, property));
 		
-		return (f != null && f.isStatic ? Reflect.getProperty(impl, property) : cacheMethod(property));
+		return (f != null && f.isStatic ? #if cpp resolve(property) #else Reflect.getProperty(impl, property) #end : cacheMethod(property));
 	}
 	public function reflectSetProperty(property:String, value:Dynamic):Dynamic {
 		var f:Null<AbstractPropertyInfo> = info.properties.get(property);

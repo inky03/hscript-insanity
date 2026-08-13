@@ -319,6 +319,38 @@ class AbstractMacro {
 			}
 		}
 		
+		if (Context.defined('cpp')) {
+			// cpp is not letting me access the vars so this workaround will do for now
+			fields.push({
+				pos: pos,
+				name: 'insanityCppResolve',
+				access: [AStatic, APublic],
+				
+				kind: FFun({
+					args: [{
+						name: 'field',
+						type: macro:String
+					}],
+					params: [],
+					ret: macro:Dynamic,
+					expr: {
+						pos: pos,
+						expr: EReturn({
+							pos: pos,
+							expr: ESwitch(
+								{pos: pos, expr: EConst(CIdent('field'))},
+								[for (name => field in info.properties) if (field.isStatic) {
+									values: [{pos: pos, expr: EConst(CString(name))}],
+									expr: {pos: pos, expr: EConst(CIdent(name))}
+								}],
+								macro null
+							)
+						})
+					}
+				})
+			});
+		}
+		
 		c.meta.add(':insanityAbstractInfo', [macro $v {path.join('.')}, macro $v {haxe.Serializer.run(info)}], pos);
 		
 		return fields;

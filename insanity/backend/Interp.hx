@@ -1821,7 +1821,7 @@ class Interp {
 		var bypassAccessor:Bool = (getMeta(':bypassAccessor') != null);
 		
 		var field:Dynamic = Reflect.field(o, f);
-		if (field is InsanityAbstractValue) return field.__a = v;
+		if (field is InsanityAbstractValue) return #if cpp Reflect.setProperty(field, '__a', v) #else field.__a = v #end ;
 		
 		if (field == null && hasField(o, f) == false) {
 			var fields = getFieldsClass((o is Class || o is InsanityScriptedClass) ? Type.getClassName(o) : Type.getEnumName(o));
