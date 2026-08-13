@@ -94,6 +94,23 @@ class InsanityAbstract implements ICustomReflection implements ICustomClassType 
 		return new InsanityAbstractValue(this, v);
 	}
 	
+	public function castFrom(v:Dynamic):InsanityAbstractValue {
+		var type:AbstractTypeCast = AbstractTools.getAbstractTypeCast(v);
+		
+		var test:AbstractTypeCast = type;
+		if (!info.from.exists(test) && v is Int && info.from.exists(ATType('Float'))) test = ATType('Float');
+		if (!info.from.exists(test) && info.from.exists(ATDynamic)) test = ATDynamic;
+		
+		if (info.from.exists(test)) {
+			var from:Null<String> = info.from.get(test);
+			
+			return create(from == null ? v : Reflect.callMethod(impl, Reflect.field(impl, from), [v]));
+		} else {
+			throw 'Can\'t cast ${AbstractTools.abstractTypeCastToString(type)} to ${info.name}';
+			return null;
+		}
+	}
+	
 	public function reflectHasField(field:String):Bool {
 		var f:Null<AbstractPropertyInfo> = info.properties.get(field);
 		
@@ -376,5 +393,23 @@ class InsanityAbstractValue implements ICustomReflection {
 	
 	function set___a(v:Dynamic):Dynamic {
 		return __a = v;
+	}
+	
+	public function castTo(v:Dynamic):Dynamic {
+		final cls:String = InsanityType.getClassName(v);
+		var type:AbstractTypeCast = ATType(cls);
+		
+		var test:AbstractTypeCast = type;
+		if (!info.to.exists(test) && __a is Int && info.to.exists(ATType('Float'))) test = ATType('Float');
+		if (!info.to.exists(test) && info.to.exists(ATDynamic)) test = ATDynamic;
+		
+		if (info.to.exists(test)) {
+			var to:Null<String> = info.to.get(test);
+			
+			return (to == null ? __a : Reflect.callMethod(impl, Reflect.field(impl, to), [__a]));
+		} else {
+			throw 'Can\'t cast ${info.name} to ${cls}';
+			return null;
+		}
 	}
 }

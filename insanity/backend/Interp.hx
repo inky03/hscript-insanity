@@ -702,10 +702,12 @@ class Interp {
 			
 			imports.set(fullPath.substr(fullPath.lastIndexOf('.') + 1), null);
 			for (type in types) {
-				if (type.module != type.name && type.name != 'Main') continue; // lol
+				final std:Bool = (type.module == 'StdTypes'); // on some @:coreType shit
+				
+				if (type.module != type.name && !std && type.name != 'Main') continue; // lol
 				if (type.name.indexOf('_Impl_') > -1) continue;
 				
-				importType(type.name, type.kind == 'abstract' ? AbstractTools.resolve(type.compilePath()) : type.resolve(environment), false);
+				importType(type.name, type.kind == 'abstract' && !std ? AbstractTools.resolve(type.compilePath()) : type.resolve(environment), false);
 			}
 			
 			return;
@@ -743,7 +745,6 @@ class Interp {
 						}
 						
 						if (t is Class || t is InsanityScriptedClass || t is InsanityAbstract) {
-							trace('$t -> ${Type.getClassFields(t)}');
 							if (!Type.getClassFields(t).contains(field))
 								error(ECustom('Module ${path[i]} does not define field $field'));
 							
@@ -1565,11 +1566,9 @@ class Interp {
 				if (e == null || t == null) return e;
 				
 				if (t is InsanityAbstract) {
-					return cast(t : InsanityAbstract).create(e);
+					return t.castFrom(e);
 				} else if (e is InsanityAbstractValue) {
-					// var r = e.resolveTo(Type.getClassName(t));
-					// if (r == null) throw 'Can\'t cast ${e.impl} to $path';
-					// else return r;
+					return e.castTo(t);
 				}
 				
 				// if (t != null) throw 'Type not found: $path';

@@ -41,8 +41,6 @@ typedef AbstractMethodInfo = {
 	// OVERLOAD
 	var ?isOverload:Bool;
 	var ?isCommutative:Bool;
-	
-	var ?op:AbstractOp;
 }
 
 enum AbstractOp {
@@ -158,6 +156,9 @@ class AbstractMacro {
 		
 		var printer = new haxe.macro.Printer();
 		
+		info.to.set(info.underlying, null);
+		info.from.set(info.underlying, null);
+		
 		for (to in ab.to) {
 			info.to.set(typeToAbstractTypeCast(to.t), to.field?.name);
 		}
@@ -171,6 +172,28 @@ class AbstractMacro {
 			return switch (t) {
 				case TPath(r): (r.name == ab.name);
 				default: false;
+			}
+		}
+		
+		function mapGeneric(t:ComplexType) {// gay
+			switch (t) {
+				case TPath(p):
+					try {
+						Context.resolveType(t, pos);
+						return t;
+					} catch (e) {
+						return macro:Dynamic;
+					}
+				case TOptional(t):
+					return TOptional(mapGeneric(t));
+				case TNamed(n, t):
+					return TNamed(n, mapGeneric(t));
+				case TFunction(args, ret):
+					return TFunction([for (arg in args) mapGeneric(arg)], mapGeneric(ret));
+				case TParent(t):
+					return TParent(mapGeneric(t));
+				default:
+					return t;
 			}
 		}
 		
@@ -260,21 +283,26 @@ class AbstractMacro {
 						for (meta in metas) {
 							if (meta.name == ':commutative') method.isCommutative = true;
 							
+							if (meta.name == ':from') info.from.set(typeToAbstractTypeCast(mapGeneric(fun.args[0].type).toType()), field.name);
+							if (meta.name == ':to' && fun.ret != null) info.to.set(typeToAbstractTypeCast(mapGeneric(fun.ret).toType()), field.name);
+							
 							if (meta.name == ':op') {
+								var op:AbstractOp;
+								
 								switch (meta.params[0].expr) {
 									case EBinop(binop, _, _):
-										method.op = ABinop(printer.printBinop(binop), typeToAbstractTypeCast(fun.args[fun.args.length == 2 ? 1 : 0].type.toType()));
+										op = ABinop(printer.printBinop(binop), typeToAbstractTypeCast(fun.args[fun.args.length == 2 ? 1 : 0].type.toType()));
 									
 									case EUnop(unop, postFix, _):
-										method.op = AUnop(printer.printUnop(unop), postFix);
+										op = AUnop(printer.printUnop(unop), postFix);
 									
 									case EField(_, _, _):
 										final write:Bool = (fun.args.length == 2);
-										method.op = AResolve(write, write ? typeToAbstractTypeCast(fun.args[1].type.toType()) : null);
+										op = AResolve(write, write ? typeToAbstractTypeCast(fun.args[1].type.toType()) : null);
 									
 									case EArrayDecl(_):
 										final write:Bool = (fun.args.length == 2);
-										method.op = AArray(write, typeToAbstractTypeCast(fun.args[0].type.toType()), write ? typeToAbstractTypeCast(fun.args[1].type.toType()) : null);
+										op = AArray(write, typeToAbstractTypeCast(fun.args[0].type.toType()), write ? typeToAbstractTypeCast(fun.args[1].type.toType()) : null);
 										
 									default:
 										throw '??? (${meta.params[0].toString()})';
@@ -282,7 +310,7 @@ class AbstractMacro {
 								
 								method.isOverload = true;
 								
-								info.overloads.set(method.op, field.name);
+								info.overloads.set(op, field.name);
 							}
 						}
 					}
