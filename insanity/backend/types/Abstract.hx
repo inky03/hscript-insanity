@@ -30,7 +30,7 @@ class AbstractTools {
 	
 	@:access(insanity.backend.types.InsanityAbstractValue)
 	public static function getAbstractTypeCast(v:Dynamic):AbstractTypeCast {
-		if (v is InsanityAbstractValue) return ATType(v.__info.name);
+		if (v is InsanityAbstractValue) return ATType(v.info.name);
 		
 		if (v is Int) {
 			return ATType('Int');
@@ -190,49 +190,50 @@ class InsanityAbstract implements ICustomReflection implements ICustomClassType 
 class InsanityAbstractValue implements ICustomReflection {
 	@:noCompletion public var base:InsanityAbstract;
 	
-	var __info:AbstractInfo;
-	var __impl:Class<Dynamic>;
+	@:noCompletion public var info:AbstractInfo;
+	@:noCompletion public var impl:Class<Dynamic>;
 	
 	@:noCompletion public var __a(default, set):Dynamic;
 	
-	var __methodCache:Map<String, Dynamic> = [];
+	var methodCache:Map<String, Dynamic> = [];
 	
 	public function new(base:InsanityAbstract, value:Dynamic) {
 		this.base = base;
 		
-		__info = base.info;
-		__impl = base.impl;
+		info = base.info;
+		impl = base.impl;
+		
 		__a = value;
 	}
 	
-	inline function __cacheMethod(field:String):Dynamic {
-		var m:Null<AbstractMethodInfo> = __info.methods.get(field);
+	inline function cacheMethod(field:String):Dynamic {
+		var m:Null<AbstractMethodInfo> = info.methods.get(field);
 		
 		if (m == null || m.isStatic) {
 			return null;
 		} else {
-			if (!__methodCache.exists(field)) {
-				final f = Reflect.field(__impl, field);
+			if (!methodCache.exists(field)) {
+				final f = Reflect.field(impl, field);
 				
 				if (m.setsSelf) {
-					__methodCache.set(field, Reflect.makeVarArgs((args) -> { args.unshift(__a); __a = Reflect.callMethod(__impl, f, args); }));
+					methodCache.set(field, Reflect.makeVarArgs((args) -> { args.unshift(__a); __a = Reflect.callMethod(impl, f, args); }));
 				} else if (m.returnsAbstract) {
-					__methodCache.set(field, Reflect.makeVarArgs((args) -> { args.unshift(__a); base.create(Reflect.callMethod(__impl, f, args)); }));
+					methodCache.set(field, Reflect.makeVarArgs((args) -> { args.unshift(__a); base.create(Reflect.callMethod(impl, f, args)); }));
 				} else {
-					__methodCache.set(field, Reflect.makeVarArgs((args) -> { args.unshift(__a); Reflect.callMethod(__impl, f, args); }));
+					methodCache.set(field, Reflect.makeVarArgs((args) -> { args.unshift(__a); Reflect.callMethod(impl, f, args); }));
 				}
 			}
 			
-			return __methodCache.get(field);
+			return methodCache.get(field);
 		}
 	}
 	
 	public function reflectHasField(field:String):Bool {
-		var f:Null<AbstractPropertyInfo> = __info.properties.get(field);
+		var f:Null<AbstractPropertyInfo> = info.properties.get(field);
 		
 		if (f != null && !f.isStatic) return true;
 		
-		var m:Null<AbstractMethodInfo> = __info.methods.get(field);
+		var m:Null<AbstractMethodInfo> = info.methods.get(field);
 		
 		return (m != null && !m.isStatic);
 	}
@@ -241,31 +242,31 @@ class InsanityAbstractValue implements ICustomReflection {
 	public function reflectSetField(field:String, value:Dynamic):Dynamic { return null; }
 	
 	public function reflectGetProperty(property:String):Dynamic {
-		var f:Null<AbstractPropertyInfo> = __info.properties.get(property);
+		var f:Null<AbstractPropertyInfo> = info.properties.get(property);
 		
 		if (f != null && !f.isStatic) {
 			return switch (f.get) {
 				case ADefault: null;
-				case ADynamic: Reflect.callMethod(__impl, Reflect.field(__impl, 'get_$property'), [__a]);
+				case ADynamic: Reflect.callMethod(impl, Reflect.field(impl, 'get_$property'), [__a]);
 				case ANever: 'This expression cannot be accessed for reading';
 			}
 		} else {
-			var m = __cacheMethod(property);
+			var m = cacheMethod(property);
 			if (m != null) return m;
 			
 			return op(AResolve(false, null), null, property);
 		}
 	}
 	public function reflectSetProperty(property:String, value:Dynamic):Dynamic {
-		var f:Null<AbstractPropertyInfo> = __info.properties.get(property);
+		var f:Null<AbstractPropertyInfo> = info.properties.get(property);
 		
 		if (f != null && !f.isStatic) {
 			return switch (f.get) {
 				case ADefault: null;
-				case ADynamic: __a = Reflect.callMethod(__impl, Reflect.field(__impl, 'insanityset_$property'), [__a, value]); value;
+				case ADynamic: __a = Reflect.callMethod(impl, Reflect.field(impl, 'insanityset_$property'), [__a, value]); value;
 				case ANever: 'This expression cannot be accessed for writing';
 			}
-		} else if (__info.methods.exists(property)) {
+		} else if (info.methods.exists(property)) {
 			throw 'Cannot rebind this method';
 		}
 		
@@ -273,19 +274,19 @@ class InsanityAbstractValue implements ICustomReflection {
 	}
 	
 	public function reflectListFields():Array<String> {
-		var fields = [for (name => f in __info.properties) if (!f.isStatic) name];
+		var fields = [for (name => f in info.properties) if (!f.isStatic) name];
 		
-		for (name => m in __info.methods) if (!m.isStatic) fields.push(name);
+		for (name => m in info.methods) if (!m.isStatic) fields.push(name);
 		
 		return fields;
 	}
 	
 	public function toString():String {
-		var f:Null<AbstractPropertyInfo> = __info.properties.get('toString');
+		var f:Null<AbstractPropertyInfo> = info.properties.get('toString');
 		
-		if (f != null && !f.isStatic) return Reflect.callMethod(__impl, Reflect.field(__impl, 'toString'), [__a]);
+		if (f != null && !f.isStatic) return Reflect.callMethod(impl, Reflect.field(impl, 'toString'), [__a]);
 		
-		return __info.name;
+		return info.name;
 	}
 	
 	// should deprecate now maybe
@@ -293,54 +294,60 @@ class InsanityAbstractValue implements ICustomReflection {
 		return this.op(ABinop(op, AbstractTools.getAbstractTypeCast(v)), v);
 	}
 	
-	public function op(op:AbstractOp, ?v:Dynamic, ?f:Dynamic):Dynamic {
-		var field:Null<String> = __info.overloads.get(op);
+	public function findOverload(op:AbstractOp, ?v:Dynamic, ?f:Dynamic):Dynamic {
+		if (info.overloads.exists(op)) return info.overloads.get(op);
 		
-		if (field == null) { // other posible types
-			switch (op) {
-				case ABinop(op, type):
-					if (v is Int) field ??= __info.overloads.get(ABinop(op, ATType('Float')));
-					field ??= __info.overloads.get(ABinop(op, ATDynamic));
-					
-					if (field == null) throw 'Cannot perform $op on ${__info.name} and ${AbstractTools.abstractTypeCastToString(type)}';
+		var field:Null<String> = null;
+		
+		switch (op) { // other posible types
+			case ABinop(op, type):
+				if (v is Int) field ??= info.overloads.get(ABinop(op, ATType('Float')));
+				field ??= info.overloads.get(ABinop(op, ATDynamic));
 				
-				case AArray(write, readType, _):
-					inline function find():Void {
-						if (v is Int) field ??= __info.overloads.get(AArray(write, readType, ATType('Float')));
-						field ??= __info.overloads.get(AArray(write, readType, ATDynamic));
-					}
-					
-					find();
-					
-					if (field == null) {
-						for (k in __info.overloads.keys()) {
-							if (f is Int && k.match(AArray(_, ATType('Float'), _))) {
-								readType = ATType('Float');
-								find();
-							}
-							
-							if (k.match(AArray(_, ATDynamic, _))) {
-								readType = ATDynamic;
-								find();
-							}
-							
-							if (field == null) break;
+				if (field == null) throw 'Cannot perform $op on ${info.name} and ${AbstractTools.abstractTypeCastToString(type)}';
+			
+			case AArray(write, readType, _):
+				inline function find():Void {
+					if (v is Int) field ??= info.overloads.get(AArray(write, readType, ATType('Float')));
+					field ??= info.overloads.get(AArray(write, readType, ATDynamic));
+				}
+				
+				find();
+				
+				if (field == null) {
+					for (k in info.overloads.keys()) {
+						if (f is Int && k.match(AArray(_, ATType('Float'), _))) {
+							readType = ATType('Float');
+							find();
 						}
+						
+						if (k.match(AArray(_, ATDynamic, _))) {
+							readType = ATDynamic;
+							find();
+						}
+						
+						if (field == null) break;
 					}
-				
-				case AResolve(true, _):
-					if (v is Int) field ??= __info.overloads.get(AResolve(true, ATType('Float')));
-					field ??= __info.overloads.get(AResolve(true, ATDynamic));
-				
-				default:
-			}
+				}
+			
+			case AResolve(true, _):
+				if (v is Int) field ??= info.overloads.get(AResolve(true, ATType('Float')));
+				field ??= info.overloads.get(AResolve(true, ATDynamic));
+			
+			default:
 		}
 		
-		var m:AbstractMethodInfo = __info.methods.get(field);
+		return field;
+	}
+	
+	public function op(op:AbstractOp, ?v:Dynamic, ?f:Dynamic):Dynamic {
+		final field:Null<String> = findOverload(op, v, f);
 		
-		if (m == null) return null;
+		if (field == null) return null;
 		
-		final r:Dynamic = Reflect.callMethod(__impl, Reflect.field(__impl, field), switch (op) {
+		var m:AbstractMethodInfo = info.methods.get(field);
+		
+		final r:Dynamic = Reflect.callMethod(impl, Reflect.field(impl, field), switch (op) {
 			case ABinop(_, _): [__a, v is InsanityAbstractValue ? v.__a : v];
 			case AUnop(_, _): [__a];
 			case AResolve(false, _) | AArray(false, _, _): [__a, f];
