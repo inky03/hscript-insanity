@@ -75,7 +75,7 @@ class AbstractTools {
 	}
 }
 
-class InsanityAbstract implements ICustomReflection {
+class InsanityAbstract implements ICustomReflection implements ICustomClassType {
 	public var info:AbstractInfo;
 	public var impl:Class<Dynamic>;
 	
@@ -142,6 +142,26 @@ class InsanityAbstract implements ICustomReflection {
 		var fields = [for (name => f in info.properties) if (f.isStatic) name];
 		
 		for (name => m in info.methods) if (m.isStatic) fields.push(name);
+		
+		return fields;
+	}
+	
+	public function typeCreateInstance(arguments:Array<Dynamic>):Dynamic {
+		return create(Reflect.callMethod(impl, Reflect.field(impl, '_new'), arguments));
+	}
+	public function typeCreateEmptyInstance():Dynamic {
+		return throw 'Not supported';
+	}
+	public function typeGetClass():Dynamic {
+		return null;
+	}
+	public function typeGetClassFields():Array<String> {
+		return reflectListFields();
+	}
+	public function typeGetInstanceFields():Array<String> {
+		var fields = [for (name => f in info.properties) if (!f.isStatic) name];
+		
+		for (name => m in info.methods) if (!m.isStatic) fields.push(name);
 		
 		return fields;
 	}
@@ -263,6 +283,20 @@ class InsanityAbstractValue implements ICustomReflection {
 		return __info.name;
 	}
 	
+	public function binop(op:String, ?v:Dynamic):Dynamic {
+		var type:AbstractTypeCast = AbstractTools.getAbstractTypeCast(v);
+		
+		var test:AbstractOp;
+		
+		if (__info.overloads.exists(test = ABinop(op, type))) return this.op(test, v);
+		
+		if (v is Int && __info.overloads.exists(test = ABinop(op, ATType('Float')))) return this.op(test, v);
+		
+		if (__info.overloads.exists(test = ABinop(op, ATDynamic))) return this.op(test, v);
+		
+		return throw 'Cannot perform $op on ${__info.name} and ${AbstractTools.abstractTypeCastToString(type)}';
+	}
+	
 	public function op(op:AbstractOp, ?v:Dynamic):Dynamic {
 		var field:Null<String> = __info.overloads.get(op);
 		var m:AbstractMethodInfo = __info.methods.get(field);
@@ -271,8 +305,6 @@ class InsanityAbstractValue implements ICustomReflection {
 		
 		switch (op) {
 			case ABinop(op, type):
-				if (field == null) throw 'Cannot perform $op on ${__info.name} and ${AbstractTools.abstractTypeCastToString(type)}';
-				
 				r = Reflect.callMethod(__impl, Reflect.field(__impl, field), [__a, v is InsanityAbstractValue ? v.__a : v]);
 				
 			case AUnop(_, postFix):

@@ -152,7 +152,7 @@ class Interp {
 	inline function exprOp(op:String, e1:Expr, e2:Expr):Dynamic return basicOp(op, expr(e1), expr(e2));
 	
 	inline function basicOp(op:String, v1:Dynamic, v2:Dynamic):Dynamic {
-		if (v1 is InsanityAbstractValue) return v1.op(ABinop(op, AbstractTools.getAbstractTypeCast(v2)), v2);
+		if (v1 is InsanityAbstractValue) return v1.binop(op, v2);
 		
 		return switch (op) {
 			case '+': (v1 + v2);

@@ -15,7 +15,7 @@ class InsanityType {
 			var t:Class<Dynamic> = Type.getClass(o);
 			if (t == null) return null;
 			
-			return (ConfigUtil.assertBlacklisted(Config.typeProxy.get(Type.getClassName(t))));
+			return (ConfigUtil.assertBlacklisted(Config.typeProxy.get(Type.getClassName(t)) ?? t));
 		}
 	}
 	
@@ -27,7 +27,7 @@ class InsanityType {
 			var t:Enum<Dynamic> = Type.getEnum(o);
 			if (t == null) return null;
 			
-			return (ConfigUtil.assertBlacklisted(Config.typeProxy.get(Type.getEnumName(t))));
+			return (ConfigUtil.assertBlacklisted(Config.typeProxy.get(Type.getEnumName(t)) ?? t));
 		}
 	}
 	
