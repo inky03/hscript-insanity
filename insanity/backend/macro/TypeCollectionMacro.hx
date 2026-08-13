@@ -36,15 +36,17 @@ class TypeCollectionMacro {
 			function findTypeInfo(m:String, s:String) {
 				return _c['$m.$s'];
 			}
-			function getTypeInfo(type:haxe.macro.ModuleType) {
+			function getTypeInfo(type:ModuleType) {
 				function makeTypeInfo(k:String, d:Dynamic) {
 					var info:TypeInfo = (findTypeInfo(d.module, d.name) ?? {kind: k, module: d.module, name: d.name, pack: d.pack});
+					
 					if (k == 'typedef') {
 						info.typedefType = switch (d.type) {
 							case TInst(r, _): makeTypeInfo('class', r.get());
 							default: null;
 						}
 					}
+					
 					if (d.isInterface) {
 						info.isInterface = true;
 						info.interfaceFields = [];
@@ -77,7 +79,9 @@ class TypeCollectionMacro {
 							}
 						}
 					}
+					
 					_c['${d.module}.${d.name}'] = info;
+					
 					return info;
 				}
 				

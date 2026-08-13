@@ -11,7 +11,6 @@ typedef TypeInfo = {
 	var module:String;
 	var pack:Array<String>;
 	
-	var ?abstractImpl:TypeInfo;
 	var ?typedefType:TypeInfo;
 	var ?isInterface:Bool;
 	

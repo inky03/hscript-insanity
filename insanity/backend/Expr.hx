@@ -190,5 +190,4 @@ enum Mirror {
 	MSuper(?locals:Map<String, Interp.Variable>, ?constructor:Dynamic);
 	MProperty(t:Dynamic, f:String);
 	MEnumValue(t:Dynamic, i:Int);
-	MAbstractEnumValue(t:Dynamic, i:Int);
 }

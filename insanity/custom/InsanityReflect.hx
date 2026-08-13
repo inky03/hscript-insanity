@@ -19,11 +19,12 @@ class InsanityReflect {
 		}
 	}
 	
-	public inline static function setField(o:Dynamic, field:String, value:Dynamic):Void {
+	public inline static function setField(o:Dynamic, field:String, value:Dynamic):Dynamic {
 		if (o is ICustomReflection) {
-			cast(o, ICustomReflection).reflectSetField(field, value);
+			return cast(o, ICustomReflection).reflectSetField(field, value);
 		} else {
 			Reflect.setField(o, field, value);
+			return value;
 		}
 	}
 	
@@ -35,11 +36,12 @@ class InsanityReflect {
 		}
 	}
 	
-	public inline static function setProperty(o:Dynamic, field:String, value:Dynamic):Void {
+	public inline static function setProperty(o:Dynamic, field:String, value:Dynamic):Dynamic {
 		if (o is ICustomReflection) {
-			cast(o, ICustomReflection).reflectSetProperty(field, value);
+			return cast(o, ICustomReflection).reflectSetProperty(field, value);
 		} else {
 			Reflect.setProperty(o, field, value);
+			return value;
 		}
 	}
 	
