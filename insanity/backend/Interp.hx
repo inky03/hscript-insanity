@@ -159,7 +159,7 @@ class Interp {
 			
 			final field:Null<String> = ab.findOverload(ABinop(op, type), v1);
 			
-			if (field != null && ab.info.methods.get(field).isCommutative) {
+			if (field != null && (ab.info.methods.get(field).isCommutative || ab.info.methods.get(field).isStatic)) {
 				return v2.binop(op, v1);
 			} else {
 				return throw 'Cannot perform $op on ${AbstractTools.abstractTypeCastToString(type)} and ${ab.info.name}';

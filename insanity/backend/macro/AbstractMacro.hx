@@ -16,6 +16,7 @@ typedef AbstractInfo = {
 	var name:String;
 	var implName:String;
 	var underlying:AbstractTypeCast;
+	var forwards:Map<String, Bool>;
 	
 	var methods:Map<String, AbstractMethodInfo>;
 	var properties:Map<String, AbstractPropertyInfo>;
@@ -136,6 +137,7 @@ class AbstractMacro {
 			name: path.join('.'),
 			implName: implPath.join('.'),
 			underlying: typeToAbstractTypeCast(ab.type),
+			forwards: [],
 			
 			methods: [],
 			properties: [],
@@ -144,6 +146,15 @@ class AbstractMacro {
 			from: [],
 			to: []
 		};
+		
+		for (forward in ab.meta.extract(':forward')) {
+			for (field in forward.params) {
+				switch (field.expr) {
+					case EConst(CIdent(f)): info.forwards.set(f, true);
+					default:
+				}
+			}
+		}
 		
 		var printer = new haxe.macro.Printer();
 		

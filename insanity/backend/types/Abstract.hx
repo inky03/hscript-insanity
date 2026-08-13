@@ -254,6 +254,8 @@ class InsanityAbstractValue implements ICustomReflection {
 			var m = cacheMethod(property);
 			if (m != null) return m;
 			
+			if (info.forwards.exists(property)) return Reflect.getProperty(__a, property);
+			
 			return op(AResolve(false, null), null, property);
 		}
 	}
@@ -268,6 +270,11 @@ class InsanityAbstractValue implements ICustomReflection {
 			}
 		} else if (info.methods.exists(property)) {
 			throw 'Cannot rebind this method';
+		}
+		
+		if (info.forwards.exists(property)) {
+			Reflect.setProperty(__a, property, value);
+			return value;
 		}
 		
 		return op(AResolve(true, AbstractTools.getAbstractTypeCast(value)), value, property);
