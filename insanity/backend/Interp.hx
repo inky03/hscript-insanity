@@ -202,8 +202,8 @@ class Interp {
 			if (iv is Mirror) {
 				switch (iv) {
 					case MProperty(t, f):
-						if (curAccess == f) { Reflect.setField(t, f, v); }
-						else { Reflect.setProperty(t, f, v); }
+						if (curAccess == f) { return Reflect.setField(t, f, v); }
+						else { return Reflect.setProperty(t, f, v); }
 						return Reflect.field(t, f);
 					default:
 				}
@@ -217,8 +217,8 @@ class Interp {
 			if (vv is Mirror) {
 				switch (vv) {
 					case MProperty(t, f):
-						if (curAccess == f) { Reflect.setField(t, f, v); }
-						else { Reflect.setProperty(t, f, v); }
+						if (curAccess == f) { return Reflect.setField(t, f, v); }
+						else { return Reflect.setProperty(t, f, v); }
 						return Reflect.field(t, f);
 					default:
 				}
@@ -1555,7 +1555,9 @@ class Interp {
 					// else return r;
 				}
 				
-				return e; // throw 'Type not found: $path';
+				// if (t != null) throw 'Type not found: $path';
+				
+				return e;
 				
 			default:
 		}
@@ -1807,14 +1809,14 @@ class Interp {
 		
 		if (field == null && hasField(o, f) == false) {
 			var fields = getFieldsClass((o is Class || o is InsanityScriptedClass) ? Type.getClassName(o) : Type.getEnumName(o));
-			if (fields != null) (bypassAccessor ? Reflect.setField(fields, f, v) : Reflect.setProperty(fields, f, v));
+			if (fields != null) return (bypassAccessor ? Reflect.setField(fields, f, v) : Reflect.setProperty(fields, f, v));
 		} else if (bypassAccessor) {
-			Reflect.setField(o, f, v);
+			return Reflect.setField(o, f, v);
 		} else {
-			Reflect.setProperty(o, f, v);
+			return Reflect.setProperty(o, f, v);
 		}
 		
-		return v;
+		return null;
 	}
 	
 	inline function hasField(o:Dynamic, f:String):Null<Bool> {
