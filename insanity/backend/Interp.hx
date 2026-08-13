@@ -152,31 +152,43 @@ class Interp {
 	inline function exprOp(op:String, e1:Expr, e2:Expr):Dynamic return basicOp(op, expr(e1), expr(e2));
 	
 	inline function basicOp(op:String, v1:Dynamic, v2:Dynamic):Dynamic {
-		if (v1 is InsanityAbstractValue) return v1.binop(op, v2);
-		
-		return switch (op) {
-			case '+': (v1 + v2);
-			case '-': (v1 - v2);
-			case '*': (v1 * v2);
-			case '/': (v1 / v2);
-			case '%': (v1 % v2);
-			case '&': (v1 & v2);
-			case '|': (v1 | v2);
-			case '^': (v1 ^ v2);
-			case '<<': (v1 << v2);
-			case '>>': (v1 >> v2);
-			case '>>>': (v1 >>> v2);
-			case '==': (v1 == v2);
-			case '!=': (v1 != v2);
-			case '>=': (v1 >= v2);
-			case '<=': (v1 <= v2);
-			case '>': (v1 > v2);
-			case '<': (v1 < v2);
-			case '||': (v1 == true || v2 == true);
-			case '&&': (v1 == true && v2 == true);
-			case '...': new IntIterator(v1, v2);
-			case '??': (v1 ?? v2);
-			default: throw '??? ($op)';
+		if (v1 is InsanityAbstractValue) {
+			return v1.binop(op, v2);
+		} else if (v2 is InsanityAbstractValue) {
+			final ab:InsanityAbstractValue = cast v2, type = AbstractTools.getAbstractTypeCast(v1);
+			
+			final field:Null<String> = ab.findOverload(ABinop(op, type), v1);
+			
+			if (field != null && ab.info.methods.get(field).isCommutative) {
+				return v2.binop(op, v1);
+			} else {
+				return throw 'Cannot perform $op on ${AbstractTools.abstractTypeCastToString(type)} and ${ab.info.name}';
+			}
+		} else {
+			return switch (op) {
+				case '+': (v1 + v2);
+				case '-': (v1 - v2);
+				case '*': (v1 * v2);
+				case '/': (v1 / v2);
+				case '%': (v1 % v2);
+				case '&': (v1 & v2);
+				case '|': (v1 | v2);
+				case '^': (v1 ^ v2);
+				case '<<': (v1 << v2);
+				case '>>': (v1 >> v2);
+				case '>>>': (v1 >>> v2);
+				case '==': (v1 == v2);
+				case '!=': (v1 != v2);
+				case '>=': (v1 >= v2);
+				case '<=': (v1 <= v2);
+				case '>': (v1 > v2);
+				case '<': (v1 < v2);
+				case '||': (v1 == true || v2 == true);
+				case '&&': (v1 == true && v2 == true);
+				case '...': new IntIterator(v1, v2);
+				case '??': (v1 ?? v2);
+				default: throw '??? ($op)';
+			}
 		}
 	}
 	
