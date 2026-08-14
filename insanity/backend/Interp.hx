@@ -842,38 +842,50 @@ class Interp {
 		error(EUnknownType(path.join('.')));
 	}
 	
-	public function startDecl(decl:ModuleDecl) {
+	public function startDecl(decl:ModuleDecl):Void {
 		position = decl.pos;
 		
-		switch (decl.d) {
+		final metas:Array<MetadataEntry> = [for (meta in metas) meta];
+		
+		final cls:Null<IInsanityType> = switch (decl.d) {
 			case DClass(m):
 				if (variables.exists(m.name)) return;
 				
-				var cls = new InsanityScriptedClass(m);
-				cls.init(environment, this);
-				cls.initialized = true;
-				
-				imports.set(m.name, cls);
+				m.meta = metas;
+				new InsanityScriptedClass(m);
 			
 			case DEnum(m):
 				if (variables.exists(m.name)) return;
 				
-				var cls = new InsanityScriptedEnum(m);
-				cls.init(environment, this);
-				cls.initialized = true;
-				
-				imports.set(m.name, cls);
+				m.meta = metas;
+				new InsanityScriptedEnum(m);
 			
 			case DTypedef(m):
 				if (variables.exists(m.name)) return;
 				
-				var cls = new InsanityScriptedTypedef(m);
-				cls.init(environment, this);
-				cls.initialized = true;
+				m.meta = metas;
+				final cls = new InsanityScriptedTypedef(m);
 				
-				if (cls.alias != null) imports.set(m.name, cls.alias);
+				if (cls.alias != null) return imports.set(m.name, cls.alias);
+				cls;
 			
-			default:
+			case DInterface(m):
+				if (variables.exists(m.name)) return;
+				
+				m.meta = metas;
+				new InsanityScriptedInterface(m);
+			
+			case DPackage(_) | DImport(_) | DField(_) | DUsing(_):
+				throw 'Invalid $decl';
+				
+				null;
+		}
+		
+		if (cls != null) {
+			cls.init(environment, this);
+			cls.initialized = true;
+			
+			imports.set(cls.name, cls);
 		}
 	}
 	
