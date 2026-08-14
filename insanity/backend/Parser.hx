@@ -698,7 +698,7 @@ class Parser {
 			}
 			
 			mk(EImport(path, mode));
-		case "class", "enum", "typedef":
+		case "class", "enum", "typedef", "interface", "abstract":
 			push(TId(id));
 			var decl = parseModuleDecl();
 			if (!maybe(TSemicolon)) push(TSemicolon);
@@ -1065,15 +1065,15 @@ class Parser {
 		
 		var body:Null<Expr> = null;
 		if (isInterface) {
-			var tk = token();
-			
-			if (tk != TSemicolon) {
-				unexpected(tk);
+			if (!maybe(TSemicolon)) {
+				unexpected(TSemicolon);
 				
 				// error(ECustom('An interface method cannot have a body'), tokenMin, tokenMax);
 			}
 		} else {
 			body = parseExpr();
+			
+			maybe(TSemicolon);
 		}
 		
 		return { args : args, ret : ret, body : body };
@@ -1426,8 +1426,46 @@ class Parser {
 			return null;
 			
 		case "abstract":
-			error(ECustom('Scripted abstracts are not supported yet! - HScriptInsanity'), tokenMin, tokenMax);
-			return null;
+			var from:Array<CType> = [], to:Array<CType> = [];
+			
+			var name = getIdent();
+			if (!name.isTypeIdentifier())
+				error(ECustom('Type name should start with an uppercase letter'), tokenMin, tokenMax);
+			
+			var params = parseParams();
+			
+			ensure(TPOpen);
+			var underlying = parseType();
+			ensure(TPClose);
+			
+			while (true) {
+				var t = token();
+				switch (t) {
+					case TId('from'):
+						from.push(parseType());
+					case TId('to'):
+						to.push(parseType());
+					default:
+						push(t);
+						break;
+				}
+			}
+			
+			var fields = [];
+			ensure(TBrOpen);
+			while (!maybe(TBrClose))
+				fields.push(parseField());
+			
+			return mkd(DAbstract({
+				name : name,
+				to : to,
+				from : from,
+				meta : meta,
+				params : params,
+				fields : fields,
+				underlying : underlying,
+				isPrivate : isPrivate
+			}), tokenMin, tokenMax);
 			
 		case "interface":
 			var name = getIdent();

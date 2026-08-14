@@ -102,6 +102,7 @@ enum ModuleDeclDef {
 	DClass( c : ClassDecl );
 	DEnum( c : EnumDecl );
 	DTypedef( c : TypeDecl );
+	DAbstract( c : AbstractDecl);
 	DInterface( c : InterfaceDecl );
 }
 
@@ -110,6 +111,14 @@ typedef ModuleType = {
 	var params : {}; // TODO : not yet parsed
 	var meta : Metadata;
 	var isPrivate : Bool;
+}
+
+typedef AbstractDecl = {> ModuleType,
+	var underlying : Null<CType>;
+	var from : Array<CType>;
+	var to : Array<CType>;
+	
+	var fields : Array<FieldDecl>;
 }
 
 typedef ClassDecl = {> ModuleType,
@@ -190,4 +199,5 @@ enum Mirror {
 	MSuper(?locals:Map<String, Interp.Variable>, ?constructor:Dynamic);
 	MProperty(t:Dynamic, f:String);
 	MEnumValue(t:Dynamic, i:Int);
+	MScriptAbstract(a:insanity.backend.types.Scripted.InsanityScriptedAbstractValue);
 }

@@ -3,6 +3,8 @@ package insanity.backend.types;
 import insanity.custom.InsanityReflect;
 import insanity.custom.InsanityType;
 
+import insanity.backend.macro.AbstractMacro;
+import insanity.backend.types.Abstract;
 import insanity.backend.Interp;
 import insanity.backend.Expr;
 import insanity.Environment;
@@ -909,6 +911,338 @@ class InsanityScriptedInterface implements IInsanityType implements ICustomRefle
 	}
 	
 	public function snapshot():Void {}
+}
+
+@:access(insanity.backend.Interp)
+class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityType implements ICustomReflection implements ICustomClassType {
+	public var path:String;
+	public var name:String;
+	public var module:Module;
+	public var pack:Array<String>;
+	
+	public var safe:Bool = false;
+	public var snapshotAll:Bool = false;
+	
+	public var interp:Interp;
+	
+	var decl:AbstractDecl;
+	
+	public var failed:Bool = false;
+	public var initialized:Bool = false;
+	public var initializing:Bool = false;
+	
+	var __vars:Map<String, Variable> = [];
+	
+	public function new(decl:AbstractDecl, ?module:Module) {
+		this.name = decl.name;
+		this.pack = (module?.pack ?? []);
+		this.module = module;
+		this.decl = decl;
+		
+		path = Tools.pathToString(name, pack);
+		
+		interp = Type.createInstance(Config.interpClass, []);
+		interp.canDefer = true;
+		
+		info = {
+			isEnum: false,
+			
+			name: path,
+			implName: path,
+			underlying: null,
+			forwards: [],
+			
+			methods: [],
+			properties: [],
+			overloads: [],
+			
+			from: [],
+			to: []
+		};
+		
+		super(info);
+	}
+	
+	function ctypeToAbstractTypeCast(type:Null<CType>):AbstractTypeCast {
+		if (type == null) return null;
+		
+		return switch (type) {
+			case CTPath(path, _):
+				var p:String = path.join('.');
+				
+				var type = (module?.interp.imports.get(p) ?? interp.imports.get(p) ?? Tools.resolve(p, interp.environment));
+				
+				if (type == null) throw 'Type not found: $p';
+				
+				var name = Type.getClassName(type);
+				(name == 'Dynamic' ? ATDynamic : ATType(name));
+				
+			case CTFun(_, _):
+				ATMethod;
+			
+			default:
+				throw '???'; null;
+		};
+	}
+	
+	public function init(?env:Environment, ?baseInterp:Interp, restore:Bool = true):Void {
+		interp.environment = env;
+		interp.setDefaults(true, baseInterp == null);
+		
+		if (baseInterp != null) {
+			for (u in baseInterp.usings) interp.usings.push(u);
+			for (k => i in baseInterp.imports) interp.imports.set(k, i);
+			for (k => v in baseInterp.variables) if (!interp.variables.exists(k)) interp.variables.set(k, v);
+		}
+		
+		interp.pushStack(insanity.backend.CallStack.StackItem.SModule(module?.path ?? name));
+		
+		safe = false;
+		snapshotAll = false;
+		
+		for (meta in decl.meta) {
+			safe = (safe || meta.name == ':safe');
+			snapshotAll = (snapshotAll || meta.name == ':snapshot');
+			
+			if (meta.name != ':forward') continue;
+			
+			for (param in meta.params) {
+				switch (param.e) {
+					case EIdent(name): info.forwards.set(name, true);
+					default:
+				}
+			}
+		}
+		
+		info.underlying = ctypeToAbstractTypeCast(decl.underlying);
+		
+		info.from.set(info.underlying, null);
+		info.to.set(info.underlying, null);
+		
+		for (from in decl.from) info.from.set(ctypeToAbstractTypeCast(from), null);
+		for (to in decl.to) info.to.set(ctypeToAbstractTypeCast(to), null);
+		
+		var knownFields:Array<String> = [];
+		
+		for (field in decl.fields) {
+			var f:String = field.name;
+			if (f == 'new') f = '_new';
+			
+			if (insanity.backend.macro.ScriptedMacro.ignoreFields.contains(f)) {
+				throw 'Field $f reserved for internal use!!! - HScriptInsanity';
+			} else if (knownFields.contains(f)) {
+				throw 'Duplicate abstract field declaration: $name.$f';
+			} else {
+				if (field.access.contains(AOverride)) throw 'Invalid modifier: \'override\' override on field of class that has no parent';
+				
+				knownFields.push(f);
+			}
+			
+			var l:Variable = {r: null, access: field.access};
+			
+			switch (field.kind) {
+				default:
+				case KVar(v):
+					if (v.get != null) l.get = v.get;
+					if (v.set != null) l.set = v.set;
+					if (v.isFinal != null) l.isFinal = v.isFinal;
+					
+					if (field.access.contains(AInline)) l.isFinal = true;
+					if (!field.access.contains(AStatic)) {
+						if ((v.get == null || v.get == 'default') && (v.set == null || v.set == 'default'))
+							throw 'Cannot declare member variable in abstract';
+						if ((v.get != 'get' && v.get != 'never') || (v.set != 'set' && v.set != 'never'))
+							throw 'Member property accessors must be get/set or never';
+					}
+			}
+			
+			interp.locals.set(f, l);
+		}
+		
+		for (field in decl.fields) {
+			var f:String = field.name;
+			if (f == 'new') f = '_new';
+			
+			switch (field.kind) {
+				case KFunction(fun):
+					interp.locals.get(f).r = interp.buildFunction(f, fun.args, fun.expr, fun.ret, interp.locals);
+					
+					info.methods.set(f, {
+						isStatic: field.access.contains(AStatic),
+						setsSelf: false,
+						returnsAbstract: false
+					});
+					
+				case KVar(v):
+					if (restore) {
+						var snapshot:Bool = snapshotAll;
+						if (!snapshot) for (meta in field.meta) snapshot = (snapshot || meta.name == ':snapshot');
+						
+						if (snapshot && Module.snapshots.exists(path)) {
+							var fields:Map<String, Dynamic> = Module.snapshots.get(path);
+							if (fields.exists(f)) {
+								interp.locals.get(f).r = fields.get(f);
+								continue;
+							}
+						}
+					}
+					
+					try {
+						interp.locals.get(f).r = (v.expr == null ? null : interp.exprReturn(v.expr/*, v.type*/));
+					} catch (d:Defer) {
+						var signal = (env?.onInitialized ?? module.onInitialized);
+						
+						signal.push(function(_) {
+							try {
+								interp.locals.get(f).r = interp.exprReturn(v.expr/*, v.type*/);
+							} catch (e:haxe.Exception) {
+								onExpressionError(e, f, v.expr);
+							}
+							
+							return false;
+						});
+					} catch (e:haxe.Exception) {
+						onExpressionError(e, f, v.expr);
+					}
+					
+					info.properties.set(f, {
+						isStatic: field.access.contains(AStatic),
+						isAbstract: switch (ctypeToAbstractTypeCast(v.type)) {
+							case ATType(t): (t == path);
+							default: false;
+						},
+						
+						get: switch (v.get) {
+							default: ADefault;
+							case 'get' | 'dynamic': ADynamic;
+							case 'never' | 'null': ANever;
+						},
+						set: switch (v.set) {
+							default: ADefault;
+							case 'get' | 'dynamic': ADynamic;
+							case 'never' | 'null': ANever;
+						}
+					});
+			}
+			
+			__vars.set(f, interp.locals.get(f));
+		}
+	}
+	
+	public override function create(v:Dynamic):InsanityScriptedAbstractValue {
+		return new InsanityScriptedAbstractValue(this, v);
+	}
+	
+	public function toString():String {
+		return 'InsanityScriptedAbstract<$path>';
+	}
+	
+	public function snapshot():Void {
+		for (field in decl.fields) {
+			var snapshot:Bool = snapshotAll;
+			if (!snapshot) for (meta in field.meta) snapshot = (snapshot || meta.name == ':snapshot');
+			if (!snapshot) continue;
+			
+			switch (field.kind) {
+				case KFunction(_):
+				case KVar(_):
+					var fields:Map<String, Dynamic> = (Module.snapshots.get(path) ?? []);
+					fields.set(field.name, interp.getLocal(field.name));
+					Module.snapshots.set(path, fields);
+			}
+		}
+	}
+	
+	public override function reflectHasField(field:String):Bool {
+		return (__vars.exists(field));
+	}
+	public override function reflectGetField(field:String):Dynamic {
+		var r = (__vars.exists(field) ? __vars.get(field).r : null);
+		return (info.properties.get(field)?.isAbstract ? create(r) : r);
+	}
+	public override function reflectSetField(field:String, value:Dynamic):Dynamic {
+		return (__vars.exists(field) ? __vars.get(field).r = value : null);
+	}
+	public override function reflectGetProperty(property:String):Dynamic {
+		var r = (__vars.exists(property) ? interp.getLocal(property, __vars) : null);
+		return (info.properties.get(property)?.isAbstract ? create(r) : r);
+	}
+	public override function reflectSetProperty(property:String, value:Dynamic):Dynamic {
+		return (__vars.exists(property) ? interp.setLocal(property, value, __vars) : null);
+	}
+	
+	//public function typeCreateInstance(arguments:Array<Dynamic>):Dynamic {
+	//	return new InsanityScriptedAbstractValue(base, null).__construct();
+	//}
+	
+	public dynamic function onExpressionError(error:Dynamic, field:String, ?expr:Expr):Void {
+		trace('Error on field $field of $path: $error');
+	}
+	public dynamic function onInstanceError(error:Dynamic, fun:String, ?instance:IInsanityScripted):Void {
+		trace('Error on function $fun of $path: $error');
+	}
+}
+
+@:access(insanity.backend.Interp)
+class InsanityScriptedAbstractValue extends InsanityAbstractValue {
+	var __prop:Mirror;
+	var __base:InsanityScriptedAbstract;
+	
+	public function new(base:InsanityScriptedAbstract, value:Dynamic) {
+		super(base, value);
+		
+		__base = cast base;
+		__prop = MScriptAbstract(this);
+		
+		implFields = [for (field in base.typeGetInstanceFields()) field => __base.interp.locals.get(field)];
+	}
+	
+	override function cacheMethod(field:String):Dynamic {
+		var m:Null<AbstractMethodInfo> = info.methods.get(field);
+		
+		if (m == null || m.isStatic) {
+			return null;
+		} else {
+			if (!methodCache.exists(field)) methodCache.set(field, callImpl.bind(field));
+			
+			return methodCache.get(field);
+		}
+	}
+	
+	override function callImpl(field:String, arguments:Array<Dynamic>):Dynamic {
+		__base.interp.variables.set('this', __prop);
+		final r:Dynamic = InsanityReflect.callMethod(__base, implFields.get(field).r, arguments);
+		__base.interp.variables.set('this', null);
+		
+		return r;
+	}
+	
+	public override function reflectSetProperty(property:String, value:Dynamic):Dynamic {
+		var f:Null<AbstractPropertyInfo> = info.properties.get(property);
+		
+		if (f != null && !f.isStatic) {
+			return switch (f.get) {
+				case ADefault: null;
+				case ADynamic: callImpl('set_$property', [value]);
+				case ANever: 'This expression cannot be accessed for writing';
+			}
+		} else if (info.methods.exists(property)) {
+			throw 'Cannot rebind this method';
+		}
+		
+		if (info.forwards.exists(property)) {
+			Reflect.setProperty(__a, property, value);
+			return value;
+		}
+		
+		return op(AResolve(true, AbstractTools.getAbstractTypeCast(value)), value, property);
+	}
+	
+	public override function increment(prefix:Bool, delta:Int):Bool {
+		final unop:AbstractOp = AUnop(delta > 0 ? '++' : '--', !prefix);
+		
+		return (op(unop) != null);
+	}
 }
 
 class InsanityDummyClass implements IInsanityScripted {

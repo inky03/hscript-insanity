@@ -6,6 +6,9 @@ import insanity.backend.types.Scripted;
 import insanity.custom.InsanityReflect;
 import insanity.custom.InsanityType;
 
+import insanity.custom.InsanityReflect as Reflect;
+import insanity.custom.InsanityType as Type;
+
 using insanity.backend.TypeCollection;
 
 class AbstractTools {
@@ -48,11 +51,11 @@ class AbstractTools {
 			return ATType('Array');
 		} // wow
 		
-		var cl = InsanityType.getClass(v);
-		if (cl != null) return ATType(InsanityType.getClassName(cl));
+		var cl = Type.getClass(v);
+		if (cl != null) return ATType(Type.getClassName(cl));
 		
-		var en = InsanityType.getEnum(v);
-		if (en != null) return ATType(InsanityType.getEnumName(cl));
+		var en = Type.getEnum(v);
+		if (en != null) return ATType(Type.getEnumName(cl));
 		
 		if (Reflect.isFunction(v)) return ATMethod;
 		
@@ -227,9 +230,12 @@ class InsanityAbstractValue implements ICustomReflection {
 	@:noCompletion public var __a(default, set):Dynamic;
 	
 	var methodCache:Map<String, Dynamic> = [];
+	var implFields:Map<String, Dynamic>;
 	
 	public function new(base:InsanityAbstract, value:Dynamic) {
 		this.base = base;
+		
+		implFields = [for (field in base.typeGetInstanceFields()) field => Reflect.field(impl, field)];
 		
 		info = base.info;
 		impl = base.impl;
@@ -237,21 +243,19 @@ class InsanityAbstractValue implements ICustomReflection {
 		__a = value;
 	}
 	
-	inline function cacheMethod(field:String):Dynamic {
+	function cacheMethod(field:String):Dynamic {
 		var m:Null<AbstractMethodInfo> = info.methods.get(field);
 		
 		if (m == null || m.isStatic) {
 			return null;
 		} else {
 			if (!methodCache.exists(field)) {
-				final f = Reflect.field(impl, field);
-				
 				if (m.setsSelf) {
-					methodCache.set(field, Reflect.makeVarArgs((args) -> { args.unshift(__a); __a = Reflect.callMethod(impl, f, args); }));
+					methodCache.set(field, Reflect.makeVarArgs((args) -> { args.unshift(__a); __a = callImpl(field, args); }));
 				} else if (m.returnsAbstract) {
-					methodCache.set(field, Reflect.makeVarArgs((args) -> { args.unshift(__a); base.create(Reflect.callMethod(impl, f, args)); }));
+					methodCache.set(field, Reflect.makeVarArgs((args) -> { args.unshift(__a); base.create(callImpl(field, args)); }));
 				} else {
-					methodCache.set(field, Reflect.makeVarArgs((args) -> { args.unshift(__a); Reflect.callMethod(impl, f, args); }));
+					methodCache.set(field, Reflect.makeVarArgs((args) -> { args.unshift(__a); callImpl(field, args); }));
 				}
 			}
 			
@@ -278,7 +282,7 @@ class InsanityAbstractValue implements ICustomReflection {
 		if (f != null && !f.isStatic) {
 			return switch (f.get) {
 				case ADefault: null;
-				case ADynamic: Reflect.callMethod(impl, Reflect.field(impl, 'get_$property'), [__a]);
+				case ADynamic: callImpl('get_$property', []);
 				case ANever: 'This expression cannot be accessed for reading';
 			}
 		} else {
@@ -296,7 +300,7 @@ class InsanityAbstractValue implements ICustomReflection {
 		if (f != null && !f.isStatic) {
 			return switch (f.get) {
 				case ADefault: null;
-				case ADynamic: __a = Reflect.callMethod(impl, Reflect.field(impl, 'insanityset_$property'), [__a, value]); value;
+				case ADynamic: __a = callImpl('insanityset_$property', [value]); value;
 				case ANever: 'This expression cannot be accessed for writing';
 			}
 		} else if (info.methods.exists(property)) {
@@ -322,9 +326,15 @@ class InsanityAbstractValue implements ICustomReflection {
 	public function toString():String {
 		var f:Null<AbstractPropertyInfo> = info.properties.get('toString');
 		
-		if (f != null && !f.isStatic) return Reflect.callMethod(impl, Reflect.field(impl, 'toString'), [__a]);
+		if (f != null && !f.isStatic) return callImpl('toString', []);
 		
 		return info.name;
+	}
+	
+	function callImpl(field:String, arguments:Array<Dynamic>):Dynamic {
+		arguments.unshift(__a);
+		
+		return Reflect.callMethod(impl, implFields.get(field), arguments);
 	}
 	
 	// should deprecate now maybe
@@ -393,11 +403,11 @@ class InsanityAbstractValue implements ICustomReflection {
 		
 		var m:AbstractMethodInfo = info.methods.get(field);
 		
-		final r:Dynamic = Reflect.callMethod(impl, Reflect.field(impl, field), switch (op) {
-			case ABinop(_, _): [__a, v is InsanityAbstractValue ? v.__a : v];
-			case AUnop(_, _): [__a];
-			case AResolve(false, _) | AArray(false, _, _): [__a, f];
-			case AResolve(true, _) | AArray(true, _, _): [__a, f, v is InsanityAbstractValue ? v.__a : v];
+		final r:Dynamic = callImpl(field, switch (op) {
+			case ABinop(_, _): [v is InsanityAbstractValue ? v.__a : v];
+			case AUnop(_, _): [];
+			case AResolve(false, _) | AArray(false, _, _): [f];
+			case AResolve(true, _) | AArray(true, _, _): [f, v is InsanityAbstractValue ? v.__a : v];
 		});
 		
 		if (m.setsSelf) return (__a = r);
@@ -412,7 +422,7 @@ class InsanityAbstractValue implements ICustomReflection {
 	public function castTo(v:Dynamic):Dynamic {
 		if (v is InsanityAbstract && v.info.name == info.name) return v;
 		
-		final cls:String = InsanityType.getClassName(v);
+		final cls:String = Type.getClassName(v);
 		var type:AbstractTypeCast = ATType(cls);
 		
 		var test:AbstractTypeCast = type;
@@ -422,7 +432,7 @@ class InsanityAbstractValue implements ICustomReflection {
 		if (info.to.exists(test)) {
 			var to:Null<String> = info.to.get(test);
 			
-			return (to == null ? __a : Reflect.callMethod(impl, Reflect.field(impl, to), [__a]));
+			return (to == null ? __a : callImpl(to, []));
 		} else {
 			throw 'Can\'t cast ${info.name} to ${cls}';
 			return null;

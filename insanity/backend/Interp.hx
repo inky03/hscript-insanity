@@ -213,6 +213,8 @@ class Interp {
 		if (iv != null) {
 			if (iv is Mirror) {
 				switch (iv) {
+					case MScriptAbstract(a):
+						return a.__a = v;
 					case MProperty(t, f):
 						if (curAccess == f) { return Reflect.setField(t, f, v); }
 						else { return Reflect.setProperty(t, f, v); }
@@ -228,6 +230,8 @@ class Interp {
 			var vv = variables.get(name);
 			if (vv is Mirror) {
 				switch (vv) {
+					case MScriptAbstract(a):
+						return a.__a = v;
 					case MProperty(t, f):
 						if (curAccess == f) { return Reflect.setField(t, f, v); }
 						else { return Reflect.setProperty(t, f, v); }
@@ -614,6 +618,8 @@ class Interp {
 			switch (v) {
 				default:
 					return v;
+				case MScriptAbstract(a):
+					return a.__a;
 				case MProperty(t, f):
 					if (curAccess == f) { return Reflect.field(t, f); }
 					else { return Reflect.getProperty(t, f); }
@@ -874,6 +880,12 @@ class Interp {
 				
 				m.meta = metas;
 				new InsanityScriptedInterface(m);
+			
+			case DAbstract(m):
+				if (variables.exists(m.name)) return;
+				
+				m.meta = metas;
+				new InsanityScriptedAbstract(m);
 			
 			case DPackage(_) | DImport(_) | DField(_) | DUsing(_):
 				throw 'Invalid $decl';
