@@ -914,6 +914,7 @@ class InsanityScriptedInterface implements IInsanityType implements ICustomRefle
 }
 
 @:access(insanity.backend.Interp)
+@:access(insanity.backend.types.InsanityScriptedAbstractValue)
 class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityType implements ICustomReflection implements ICustomClassType {
 	public var path:String;
 	public var name:String;
@@ -1025,10 +1026,9 @@ class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityType
 		var knownFields:Array<String> = [];
 		
 		for (field in decl.fields) {
-			var f:String = field.name;
-			if (f == 'new') f = '_new';
+			final f:String = field.name;
 			
-			if (insanity.backend.macro.ScriptedMacro.ignoreFields.contains(f)) {
+			if (f != 'new' && insanity.backend.macro.ScriptedMacro.ignoreFields.contains(f)) {
 				throw 'Field $f reserved for internal use!!! - HScriptInsanity';
 			} else if (knownFields.contains(f)) {
 				throw 'Duplicate abstract field declaration: $name.$f';
@@ -1060,12 +1060,13 @@ class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityType
 		}
 		
 		for (field in decl.fields) {
-			var f:String = field.name;
-			if (f == 'new') f = '_new';
+			final f:String = field.name;
 			
 			switch (field.kind) {
 				case KFunction(fun):
 					interp.locals.get(f).r = interp.buildFunction(f, fun.args, fun.expr, fun.ret, interp.locals);
+					
+					if (info.name == 'new') continue;
 					
 					info.methods.set(f, {
 						isStatic: field.access.contains(AStatic),
@@ -1171,9 +1172,17 @@ class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityType
 		return (__vars.exists(property) ? interp.setLocal(property, value, __vars) : null);
 	}
 	
-	//public function typeCreateInstance(arguments:Array<Dynamic>):Dynamic {
-	//	return new InsanityScriptedAbstractValue(base, null).__construct();
-	//}
+	public override function typeCreateInstance(arguments:Array<Dynamic>):Dynamic {
+		if (!interp.locals.exists('new')) throw '$path does not have a constructor';
+		
+		final ab:InsanityScriptedAbstractValue = new InsanityScriptedAbstractValue(this, null);
+		
+		interp.variables.set('this', ab.__prop);
+		final r:Dynamic = InsanityReflect.callMethod(this, interp.locals.get('new').r, arguments);
+		interp.variables.set('this', null);
+		
+		return ab;
+	}
 	
 	public dynamic function onExpressionError(error:Dynamic, field:String, ?expr:Expr):Void {
 		trace('Error on field $field of $path: $error');
