@@ -33,7 +33,7 @@ class InsanityType {
 	
 	public static inline function getSuperClass(c:Dynamic):Dynamic {
 		if (c is InsanityScriptedClass)
-			return cast(c, InsanityScriptedClass).extending;
+			return cast(c:InsanityScriptedClass).extending;
 		
 		if (c is InsanityScriptedInterface)
 			return null;
@@ -45,18 +45,15 @@ class InsanityType {
 	}
 	
 	public static inline function getClassName(c:Dynamic):String {
-		if (c is InsanityScriptedClass)
-			return cast(c, InsanityScriptedClass).path;
-		
-		if (c is InsanityScriptedInterface)
-			return cast(c, InsanityScriptedInterface).path;
+		if (c is ICustomClassType)
+			return cast(c:ICustomClassType).path;
 		
 		return Type.getClassName(c);
 	}
 	
 	public static inline function getEnumName(e:Dynamic):String {
 		if (e is InsanityScriptedEnum)
-			return cast(e, InsanityScriptedEnum).path;
+			return cast(e:InsanityScriptedEnum).path;
 		
 		return Type.getEnumName(e);
 	}
@@ -151,7 +148,7 @@ class InsanityType {
 	public static inline function enumEq(a:Dynamic, b:Dynamic):Bool {
 		if (a is ICustomEnumValueType) {
 			if (b is ICustomEnumValueType)
-				return cast(a, ICustomEnumValueType).eq(b);
+				return cast(a:ICustomEnumValueType).eq(b);
 			return false;
 		} else {
 			return Type.enumEq(a, b);
@@ -160,21 +157,21 @@ class InsanityType {
 	
 	public static inline function enumConstructor(e:Dynamic):String {
 		if (e is ICustomEnumValueType)
-			return cast(e, ICustomEnumValueType).constructor;
+			return cast(e:ICustomEnumValueType).constructor;
 		
 		return Type.enumConstructor(e);
 	}
 	
 	public static inline function enumParameters(e:Dynamic):Array<Dynamic> {
 		if (e is ICustomEnumValueType)
-			return (cast(e, ICustomEnumValueType).arguments ?? []);
+			return (cast(e:ICustomEnumValueType).arguments ?? []);
 		
 		return Type.enumParameters(e);
 	}
 	
-	public static inline function enumIndex(e:EnumValue):Int {
+	public static inline function enumIndex(e:Dynamic):Int {
 		if (e is ICustomEnumValueType)
-			return cast(e, ICustomEnumValueType).index;
+			return cast(e:ICustomEnumValueType).index;
 		
 		return Type.enumIndex(e);
 	}

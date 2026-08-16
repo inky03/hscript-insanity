@@ -235,10 +235,11 @@ class InsanityAbstractValue implements ICustomReflection {
 	public function new(base:InsanityAbstract, value:Dynamic) {
 		this.base = base;
 		
-		implFields = [for (field in base.typeGetInstanceFields()) field => Reflect.field(impl, field)];
-		
 		info = base.info;
 		impl = base.impl;
+		
+		implFields = [for (field in base.typeGetInstanceFields()) field => Reflect.field(impl, field)];
+		for (name => m in info.methods) if (m.isOverload) implFields.set(name, Reflect.field(impl, name));
 		
 		__a = value;
 	}
@@ -251,11 +252,11 @@ class InsanityAbstractValue implements ICustomReflection {
 		} else {
 			if (!methodCache.exists(field)) {
 				if (m.setsSelf) {
-					methodCache.set(field, Reflect.makeVarArgs((args) -> { args.unshift(__a); __a = callImpl(field, args); }));
+					methodCache.set(field, Reflect.makeVarArgs((args) -> { __a = callImpl(field, args); }));
 				} else if (m.returnsAbstract) {
-					methodCache.set(field, Reflect.makeVarArgs((args) -> { args.unshift(__a); base.create(callImpl(field, args)); }));
+					methodCache.set(field, Reflect.makeVarArgs((args) -> { base.create(callImpl(field, args)); }));
 				} else {
-					methodCache.set(field, Reflect.makeVarArgs((args) -> { args.unshift(__a); callImpl(field, args); }));
+					methodCache.set(field, Reflect.makeVarArgs((args) -> { callImpl(field, args); }));
 				}
 			}
 			
@@ -328,7 +329,7 @@ class InsanityAbstractValue implements ICustomReflection {
 		
 		if (f != null && !f.isStatic) return callImpl('toString', []);
 		
-		return info.name;
+		return __a; //info.name;
 	}
 	
 	function callImpl(field:String, arguments:Array<Dynamic>):Dynamic {
@@ -401,7 +402,7 @@ class InsanityAbstractValue implements ICustomReflection {
 		
 		if (field == null) return null;
 		
-		var m:AbstractMethodInfo = info.methods.get(field);
+		var method:AbstractMethodInfo = info.methods.get(field);
 		
 		final r:Dynamic = callImpl(field, switch (op) {
 			case ABinop(_, _): [v is InsanityAbstractValue ? v.__a : v];
@@ -410,9 +411,9 @@ class InsanityAbstractValue implements ICustomReflection {
 			case AResolve(true, _) | AArray(true, _, _): [f, v is InsanityAbstractValue ? v.__a : v];
 		});
 		
-		if (m.setsSelf) return (__a = r);
+		if (method.setsSelf) return (__a = r);
 		
-		return (m.returnsAbstract ? base.create(r) : r);
+		return (method.returnsAbstract ? base.create(r) : r);
 	}
 	
 	function set___a(v:Dynamic):Dynamic {

@@ -76,6 +76,8 @@ class InsanityScriptedClass implements IInsanityType implements ICustomReflectio
 			for (k => v in baseInterp.variables) if (!interp.variables.exists(k)) interp.variables.set(k, v);
 		}
 		
+		interp.imports.set(name, this);
+		
 		interp.pushStack(insanity.backend.CallStack.StackItem.SModule(module?.path ?? name));
 		
 		safe = false;
@@ -348,7 +350,10 @@ class InsanityScriptedClass implements IInsanityType implements ICustomReflectio
 				case CTPath(path, _):
 					var p:String = path.join('.');
 					
-					var type = (module?.interp.imports.get(p) ?? interp.imports.get(p) ?? Tools.resolve(p, interp.environment));
+					var type:Dynamic = module?.interp.imports.get(p);
+					type ??= interp.imports.get(p);
+					type ??= Tools.resolve(p, interp.environment);
+					
 					if (type == null) throw 'Type not found: $p';
 					
 					function pushImplement(i:Dynamic) {
@@ -404,7 +409,10 @@ class InsanityScriptedClass implements IInsanityType implements ICustomReflectio
 			case CTPath(path, _):
 				var p:String = path.join('.');
 				
-				var type = (module?.interp.imports.get(p) ?? interp.imports.get(p) ?? Tools.resolve(p, interp.environment));
+				var type:Dynamic = module?.interp.imports.get(p);
+				type ??= interp.imports.get(p);
+				type ??= Tools.resolve(p, interp.environment);
+				
 				if (type == null) throw 'Type not found: $p';
 				
 				ScriptedTools.resolve(type);
@@ -779,6 +787,8 @@ class InsanityScriptedInterface implements IInsanityType implements ICustomRefle
 			for (k => i in baseInterp.imports) interp.imports.set(k, i);
 		}
 		
+		interp.imports.set(name, this);
+		
 		interp.pushStack(insanity.backend.CallStack.StackItem.SModule(module?.path ?? name));
 		
 		safe = false;
@@ -788,7 +798,9 @@ class InsanityScriptedInterface implements IInsanityType implements ICustomRefle
 			case CTPath(path, _):
 				var p:String = path.join('.');
 				
-				var type = (module?.interp.imports.get(p) ?? interp.imports.get(p) ?? Tools.resolve(p, interp.environment));
+				var type:Dynamic = module?.interp.imports.get(p);
+				type ??= interp.imports.get(p);
+				type ??= Tools.resolve(p, interp.environment);
 				
 				if (type == null) throw 'Type not found: $p';
 				
@@ -915,7 +927,7 @@ class InsanityScriptedInterface implements IInsanityType implements ICustomRefle
 
 @:access(insanity.backend.Interp)
 @:access(insanity.backend.types.InsanityScriptedAbstractValue)
-class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityType implements ICustomReflection implements ICustomClassType {
+class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityType {
 	public var path:String;
 	public var name:String;
 	public var module:Module;
@@ -971,11 +983,13 @@ class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityType
 			case CTPath(path, _):
 				var p:String = path.join('.');
 				
-				var type = (module?.interp.imports.get(p) ?? interp.imports.get(p) ?? Tools.resolve(p, interp.environment));
+				var type:Dynamic = module?.interp.imports.get(p);
+				type ??= interp.imports.get(p);
+				type ??= Tools.resolve(p, interp.environment);
 				
 				if (type == null) throw 'Type not found: $p';
 				
-				var name = Type.getClassName(type);
+				var name = InsanityType.getClassName(type);
 				(name == 'Dynamic' ? ATDynamic : ATType(name));
 				
 			case CTFun(_, _):
@@ -995,6 +1009,8 @@ class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityType
 			for (k => i in baseInterp.imports) interp.imports.set(k, i);
 			for (k => v in baseInterp.variables) if (!interp.variables.exists(k)) interp.variables.set(k, v);
 		}
+		
+		interp.imports.set(name, this);
 		
 		interp.pushStack(insanity.backend.CallStack.StackItem.SModule(module?.path ?? name));
 		
@@ -1066,13 +1082,43 @@ class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityType
 				case KFunction(fun):
 					interp.locals.get(f).r = interp.buildFunction(f, fun.args, fun.expr, fun.ret, interp.locals);
 					
-					if (info.name == 'new') continue;
+					if (field.name == 'new') continue;
 					
-					info.methods.set(f, {
-						isStatic: field.access.contains(AStatic),
-						setsSelf: false,
-						returnsAbstract: false
-					});
+					final method:AbstractMethodInfo = {isStatic: field.access.contains(AStatic), setsSelf: false, returnsAbstract: false};
+					
+					for (meta in field.meta) {
+						if (meta.name == ':op') {
+							var op:AbstractOp;
+							
+							switch (meta.params[0].e) {
+								case EBinop(binop, _, _):
+									op = ABinop(binop, ctypeToAbstractTypeCast(fun.args[fun.args.length == 2 ? 1 : 0].t));
+								
+								case EUnop(unop, preFix, _):
+									op = AUnop(unop, !preFix);
+								
+								case EField(_, _, _):
+									final write:Bool = (fun.args.length == 2);
+									op = AResolve(write, write ? ctypeToAbstractTypeCast(fun.args[1].t) : null);
+								
+								case EArrayDecl(_):
+									final write:Bool = (fun.args.length == 2);
+									op = AArray(write, ctypeToAbstractTypeCast(fun.args[0].t), write ? ctypeToAbstractTypeCast(fun.args[1].t) : null);
+									
+								default:
+									throw '???';
+							}
+							
+							// if (!method.isStatic && fun.args.length != 1) throw 'Member @:op functions must accept exactly one argument';
+							// else if (method.isStatic && fun.args.length != 2) throw 'Static @:op functions must accept exactly two arguments';
+							
+							info.overloads.set(op, field.name);
+						} else if (meta.name == ':commutative') {
+							method.isCommutative = true;
+						}
+					}
+					
+					info.methods.set(f, method);
 					
 				case KVar(v):
 					if (restore) {
@@ -1203,7 +1249,8 @@ class InsanityScriptedAbstractValue extends InsanityAbstractValue {
 		__base = cast base;
 		__prop = MScriptAbstract(this);
 		
-		implFields = [for (field in base.typeGetInstanceFields()) field => __base.interp.locals.get(field)];
+		for (field in implFields.keys()) implFields.set(field, __base.interp.locals.get(field));
+		for (name => m in info.methods) if (m.isOverload) implFields.set(name, __base.interp.locals.get(name));
 	}
 	
 	override function cacheMethod(field:String):Dynamic {
@@ -1251,6 +1298,23 @@ class InsanityScriptedAbstractValue extends InsanityAbstractValue {
 		final unop:AbstractOp = AUnop(delta > 0 ? '++' : '--', !prefix);
 		
 		return (op(unop) != null);
+	}
+	
+	public override function op(op:AbstractOp, ?v:Dynamic, ?f:Dynamic):Dynamic {
+		final field:Null<String> = findOverload(op, v, f);
+		
+		if (field == null) return null;
+		
+		var args = switch (op) {
+			case ABinop(_, _): [v is InsanityAbstractValue ? v.__a : v];
+			case AUnop(_, _): [];
+			case AResolve(false, _) | AArray(false, _, _): [f];
+			case AResolve(true, _) | AArray(true, _, _): [f, v is InsanityAbstractValue ? v.__a : v];
+		};
+		
+		if (info.methods.get(field).isStatic) args.unshift(__a);
+		
+		return callImpl(field, args);
 	}
 }
 
