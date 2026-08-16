@@ -292,7 +292,7 @@ class AbstractMacro {
 								
 								switch (meta.params[0].expr) {
 									case EBinop(binop, _, _):
-										op = ABinop(printer.printBinop(binop), typeToAbstractTypeCast(fun.args[fun.args.length == 2 ? 1 : 0].type.toType()));
+										op = ABinop(printer.printBinop(binop), typeToAbstractTypeCast(fun.args[isStatic ? 1 : 0].type.toType()));
 									
 									case EUnop(unop, postFix, _):
 										op = AUnop(printer.printUnop(unop), postFix);

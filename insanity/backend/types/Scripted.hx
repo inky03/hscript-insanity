@@ -1092,7 +1092,7 @@ class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityType
 							
 							switch (meta.params[0].e) {
 								case EBinop(binop, _, _):
-									op = ABinop(binop, ctypeToAbstractTypeCast(fun.args[fun.args.length == 2 ? 1 : 0].t));
+									op = ABinop(binop, ctypeToAbstractTypeCast(fun.args[method.isStatic ? 1 : 0].t));
 								
 								case EUnop(unop, preFix, _):
 									op = AUnop(unop, !preFix);
@@ -1249,8 +1249,7 @@ class InsanityScriptedAbstractValue extends InsanityAbstractValue {
 		__base = cast base;
 		__prop = MScriptAbstract(this);
 		
-		for (field in implFields.keys()) implFields.set(field, __base.interp.locals.get(field));
-		for (name => m in info.methods) if (m.isOverload) implFields.set(name, __base.interp.locals.get(name));
+		for (name in implFields.keys()) implFields.set(name, __base.interp.locals.get(name));
 	}
 	
 	override function cacheMethod(field:String):Dynamic {

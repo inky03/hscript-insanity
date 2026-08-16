@@ -238,8 +238,8 @@ class InsanityAbstractValue implements ICustomReflection {
 		info = base.info;
 		impl = base.impl;
 		
-		implFields = [for (field in base.typeGetInstanceFields()) field => Reflect.field(impl, field)];
-		for (name => m in info.methods) if (m.isOverload) implFields.set(name, Reflect.field(impl, name));
+		implFields = [for (name in info.properties.keys()) name => Reflect.field(impl, name)];
+		for (name in info.methods.keys()) implFields.set(name, Reflect.field(impl, name));
 		
 		__a = value;
 	}
