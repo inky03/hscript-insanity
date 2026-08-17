@@ -42,6 +42,7 @@ class InsanityScriptedClass implements IInsanityType implements IInsanityInterp 
 	
 	public var interp:Interp;
 	
+	public var isAbstract:Bool = false;
 	public var extending(get, never):Dynamic;
 	public var instanceClass(get, never):Dynamic;
 	
@@ -56,6 +57,7 @@ class InsanityScriptedClass implements IInsanityType implements IInsanityInterp 
 	
 	public function new(decl:ClassDecl, ?module:Module) {
 		this.name = decl.name;
+		this.isAbstract = decl.isAbstract;
 		this.pack = (module?.pack ?? []);
 		this.module = module;
 		this.decl = decl;
@@ -105,6 +107,14 @@ class InsanityScriptedClass implements IInsanityType implements IInsanityInterp 
 					switch (field.kind) {
 						default: overridingFields.push(f);
 						case KVar(_): throw 'Invalid accessor \'override\' for variable $f';
+					}
+				}
+				
+				if (field.access.contains(AAbstract)) {
+					switch (field.kind) {
+						default:
+						case KVar(_): throw 'Invalid accessor \'abstract\' for variable $f';
+						case _ if (!isAbstract): throw 'This class should be declared abstract because it has at least one abstract field';
 					}
 				}
 				
@@ -443,6 +453,7 @@ class InsanityScriptedClass implements IInsanityType implements IInsanityInterp 
 	
 	public function typeCreateInstance(arguments:Array<Dynamic>):Dynamic {
 		if (!initialized) throw 'Type $path is not initialized';
+		if (isAbstract) throw '$path is abstract and cannot be constructed';
 		
 		var inst:IInsanityScripted = Type.createEmptyInstance(instanceClass);
 		inst.__construct(this, arguments);
@@ -450,6 +461,7 @@ class InsanityScriptedClass implements IInsanityType implements IInsanityInterp 
 	}
 	public function typeCreateEmptyInstance():Dynamic {
 		if (!initialized) throw 'Type $path is not initialized';
+		if (isAbstract) throw '$path is abstract and cannot be constructed';
 		
 		return Type.createEmptyInstance(instanceClass);
 	}

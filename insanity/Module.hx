@@ -95,6 +95,7 @@ class Module {
 						fields: [d],
 						isExtern: false,
 						isPrivate: false,
+						isAbstract: false,
 						implement: null,
 						extend: null,
 					};

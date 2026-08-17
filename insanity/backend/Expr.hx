@@ -140,6 +140,7 @@ typedef ClassDecl = {> ModuleType,
 	var implement : Array<CType>;
 	var fields : Array<FieldDecl>;
 	var isExtern : Bool;
+	var isAbstract : Bool;
 }
 
 typedef InterfaceDecl = {> ModuleType,
@@ -177,6 +178,7 @@ typedef ModuleFieldDecl = {> ModuleType,
 enum FieldAccess {
 	APublic;
 	APrivate;
+	AAbstract;
 	AInline;
 	ADynamic;
 	AOverride;

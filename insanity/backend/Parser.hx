@@ -1054,7 +1054,7 @@ class Parser {
 		return args;
 	}
 
-	function parseFunctionDecl(isInterface:Bool = false) {
+	function parseFunctionDecl(isInterface:Bool = false, isAbstract:Bool = false) {
 		ensure(TPOpen);
 		var args = parseFunctionArgs();
 		var ret = null;
@@ -1068,13 +1068,15 @@ class Parser {
 		}
 		
 		var body:Null<Expr> = null;
-		if (isInterface) {
+		if (isInterface || isAbstract) {
 			if (!maybe(TSemicolon)) {
-				unexpected(TSemicolon);
+				parseExpr(); // lol
 				
-				// error(ECustom('An interface method cannot have a body'), tokenMin, tokenMax);
+				error(ECustom(isAbstract ? 'Abstract methods may not have an expression' : 'An interface method cannot have a body'), tokenMin, tokenMax);
 			}
 		} else {
+			if (maybe(TSemicolon)) error(ECustom('Function body required'), tokenMin, tokenMax);
+			
 			body = parseExpr();
 			
 			maybe(TSemicolon);
@@ -1431,6 +1433,8 @@ class Parser {
 			return null;
 			
 		case "abstract":
+			if (maybe(TId('class'))) return parseClass(meta, isPrivate, isExtern, true);
+			
 			return parseAbstract(meta, isPrivate, isExtern, false);
 			
 		case "interface":
@@ -1470,45 +1474,7 @@ class Parser {
 			}), tokenMin, tokenMax);
 			
 		case "class":
-			var name = getIdent();
-			if (!name.isTypeIdentifier())
-				error(ECustom('Type name should start with an uppercase letter'), tokenMin, tokenMax);
-			
-			var params = parseParams();
-			var extend = null;
-			var implement = [];
-
-			while( true ) {
-				var t = token();
-				switch( t ) {
-				case TId("extends"):
-					extend = parseType();
-				case TId("implements"):
-					implement.push(parseType());
-				default:
-					push(t);
-					break;
-				}
-			}
-			
-			// origin = pack.join('.');
-			// origin = (origin.length > 0 ? '$origin.$name' : name);
-
-			var fields = [];
-			ensure(TBrOpen);
-			while( !maybe(TBrClose) )
-				fields.push(parseField());
-
-			return mkd(DClass({
-				name : name,
-				meta : meta,
-				params : params,
-				extend : extend,
-				implement : implement,
-				fields : fields,
-				isPrivate : isPrivate,
-				isExtern : isExtern,
-			}), tokenMin, tokenMax);
+			return parseClass(meta, isPrivate, isExtern, false);
 			
 		case "enum":
 			var name = getIdent();
@@ -1587,6 +1553,49 @@ class Parser {
 		return null;
 	}
 	
+	function parseClass(meta:Metadata, isPrivate:Bool, isExtern:Bool, isAbstract:Bool):ModuleDecl {
+		var name = getIdent();
+		if (!name.isTypeIdentifier())
+			error(ECustom('Type name should start with an uppercase letter'), tokenMin, tokenMax);
+		
+		var params = parseParams();
+		var extend = null;
+		var implement = [];
+
+		while( true ) {
+			var t = token();
+			switch( t ) {
+			case TId("extends"):
+				extend = parseType();
+			case TId("implements"):
+				implement.push(parseType());
+			default:
+				push(t);
+				break;
+			}
+		}
+		
+		// origin = pack.join('.');
+		// origin = (origin.length > 0 ? '$origin.$name' : name);
+
+		var fields = [];
+		ensure(TBrOpen);
+		while( !maybe(TBrClose) )
+			fields.push(parseField());
+
+		return mkd(DClass({
+			name : name,
+			meta : meta,
+			params : params,
+			extend : extend,
+			implement : implement,
+			fields : fields,
+			isPrivate : isPrivate,
+			isExtern : isExtern,
+			isAbstract : isAbstract
+		}), tokenMin, tokenMax);
+	}
+	
 	function parseAbstract(meta:Metadata, isPrivate:Bool, isExtern:Bool, isEnum:Bool):ModuleDecl {
 		for (meta in meta) isEnum = (isEnum || meta.name == ':enum');
 		
@@ -1656,6 +1665,8 @@ class Parser {
 		while( true ) {
 			var id = getIdent();
 			switch( id ) {
+			case "abstract":
+				access.push(AAbstract);
 			case "override":
 				access.push(AOverride);
 			case "dynamic":
@@ -1672,7 +1683,7 @@ class Parser {
 				access.push(AMacro);
 			case "function":
 				var name = getIdent();
-				var inf = parseFunctionDecl(isInterface);
+				var inf = parseFunctionDecl(isInterface, access.contains(AAbstract));
 				
 				return {
 					name : name,

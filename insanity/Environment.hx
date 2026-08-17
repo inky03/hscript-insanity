@@ -46,10 +46,15 @@ class Environment {
 		for (module in modules)
 			module.init(this);
 		
-		for (module in modules)
+		for (module in modules) {
+			if (module.decls.length == 0) continue;
+			
 			module.start(this);
+		}
 		
 		for (module in modules) {
+			if (module.decls.length == 0) continue;
+			
 			module.startTypes(this);
 			
 			for (n => t in module.types)
