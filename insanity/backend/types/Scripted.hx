@@ -31,7 +31,7 @@ class ScriptedTools {
 
 @:access(insanity.backend.Interp)
 @:access(insanity.backend.types.IInsanityScripted)
-class InsanityScriptedClass implements IInsanityType implements ICustomReflection implements ICustomClassType {
+class InsanityScriptedClass implements IInsanityType implements IInsanityInterp implements ICustomReflection implements ICustomClassType {
 	public var path:String;
 	public var name:String;
 	public var module:Module;
@@ -749,7 +749,7 @@ class InsanityScriptedEnumValue implements ICustomEnumValueType {
 }
 
 @:access(insanity.backend.Interp)
-class InsanityScriptedInterface implements IInsanityType implements ICustomReflection implements ICustomClassType {
+class InsanityScriptedInterface implements IInsanityType implements IInsanityInterp implements ICustomReflection implements ICustomClassType {
 	public var path:String;
 	public var name:String;
 	public var module:Module;
@@ -927,7 +927,7 @@ class InsanityScriptedInterface implements IInsanityType implements ICustomRefle
 
 @:access(insanity.backend.Interp)
 @:access(insanity.backend.types.InsanityScriptedAbstractValue)
-class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityType {
+class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityInterp implements IInsanityType {
 	public var path:String;
 	public var name:String;
 	public var module:Module;
@@ -1065,7 +1065,7 @@ class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityType
 					
 					if (field.access.contains(AInline)) l.isFinal = true;
 					if (!field.access.contains(AStatic)) {
-						if ((v.get == null || v.get == 'default') && (v.set == null || v.set == 'default'))
+						if (v.get == 'default' && v.set == 'default')
 							throw 'Cannot declare member variable in abstract';
 						if ((v.get != 'get' && v.get != 'never') || (v.set != 'set' && v.set != 'never'))
 							throw 'Member property accessors must be get/set or never';
@@ -1319,6 +1319,10 @@ class InsanityScriptedAbstractValue extends InsanityAbstractValue {
 
 class InsanityDummyClass implements IInsanityScripted {
 	public function new() {}
+}
+
+interface IInsanityInterp {
+	public var interp:Interp;
 }
 
 interface IInsanityType {

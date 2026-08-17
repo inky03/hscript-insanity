@@ -1182,7 +1182,8 @@ class Parser {
 			}
 		case TBrOpen:
 			var fields = [];
-			var meta = null;
+			var meta:Null<Metadata> = null;
+			
 			while( true ) {
 				t = token();
 				switch( t ) {
@@ -1296,7 +1297,7 @@ class Parser {
 	}
 
 	function parseMetadata() : Metadata {
-		var meta = [];
+		var meta:Array<MetadataEntry> = [];
 		while( true ) {
 			var tk = token();
 			switch( tk ) {

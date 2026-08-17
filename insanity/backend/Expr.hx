@@ -28,18 +28,18 @@ enum Const {
 	CReg( pattern : String, modifiers : String );
 }
 
-typedef Position = {
-	var origin : String;
-	var line : Int;
+@:structInit class Position {
+	public var origin:String;
+	public var line:Int;
 	
-	var ?pmin : Int;
-	var ?pmax : Int;
-	var ?column : Int;
+	public var pmin:Null<Int> = null;
+	public var pmax:Null<Int> = null;
+	public var column:Null<Int> = null;
 }
 
-typedef Expr = {
-	var e : ExprDef;
-	var pos : Position;
+@:structInit class Expr {
+	public var e:ExprDef;
+	public var pos:Position;
 }
 enum ExprDef {
 	EDecl( t : ModuleDecl );
@@ -76,9 +76,21 @@ enum ExprDef {
 	EUsing( path : Array<String> );
 }
 
-typedef Argument = { name : String, ?t : CType, ?opt : Bool, ?value : Expr, ?rest : Bool };
+@:structInit class Argument {
+	public var name:String;
+	public var rest:Bool = false;
+	public var t:Null<CType> = null;
+	
+	public var opt:Bool = false;
+	public var value:Null<Expr> = null;
+}
 
-typedef Metadata = Array<MetadataEntry>; typedef MetadataEntry = { name : String, params : Array<Expr> };
+typedef Metadata = Array<MetadataEntry>;
+
+@:structInit class MetadataEntry {
+	public var name:String;
+	public var params:Array<Expr>;
+}
 
 enum CType {
 	CTPath( path : Array<String>, ?params : Array<CType> );

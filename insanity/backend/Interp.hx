@@ -54,21 +54,27 @@ enum Resolve {
 	RExpr(e:Expr);
 }
 
-typedef Variable = {
-	var r:Dynamic;
-	var ?a:InsanityAbstractValue;
+@:structInit class Variable {
+	public var r:Dynamic;
+	public var a:Null<InsanityAbstractValue> = null;
 	
-	var ?isFinal:Bool;
-	var ?access:Array<FieldAccess>;
+	public var isFinal:Null<Bool> = null;
+	public var access:Null<Array<FieldAccess>> = null;
 	
-	var ?get:String;
-	var ?set:String;
+	public var get:String = 'default';
+	public var set:String = 'default';
+}
+
+@:structInit class RestoreVariable {
+	public var n:String;
+	public var old:Variable;
 }
 
 class Interp {
 	public var usings : Array<Dynamic>;
 	public var imports : Map<String, Dynamic>;
 	public var variables : Map<String, Dynamic>;
+	var binops : Map<String, Expr -> Expr -> Dynamic >;
 	
 	public var parent : Dynamic = null;
 	public var environment : Environment;
@@ -78,7 +84,6 @@ class Interp {
 	
 	static var localsPool : Array<Map<String, Variable>> = [];
 	var locals (get, never) : Map<String, Variable>;
-	var binops : Map<String, Expr -> Expr -> Dynamic >;
 	
 	public var callStackDepth : Int = 200;
 	var stack : CallStack;
@@ -87,13 +92,13 @@ class Interp {
 	var metas : Metadata = [];
 	var resolveFields : Array<Resolve> = [];
 	var captures : Map<String, Dynamic>;
-	var declared : Array<{ n : String, old : Variable }>;
+	var declared : Array<RestoreVariable>;
 	var returnValue : Dynamic;
 	
 	static var void(default, never):Dynamic = {};
 	static var accessingInterp:Interp = null;
 	var position : Position = { origin: 'hscript', line: 0 };
-	var origin (get, never) : String;
+	var origin (get, set) : String;
 	var curAccess : String = '';
 	
 	public var canDefer:Bool = false;
@@ -147,6 +152,7 @@ class Interp {
 	}
 	
 	function get_locals():Map<String, Variable> { return stack.first()?.locals; }
+	function set_origin(v:String):String { return position.origin = v; }
 	function get_origin():String { return position.origin; }
 	
 	inline function exprOp(op:String, e1:Expr, e2:Expr):Dynamic return basicOp(op, expr(e1), expr(e2));
@@ -344,7 +350,7 @@ class Interp {
 				}
 				
 				error(ECustom('Method get_$id required by property $id is missing')); return null;
-			case 'default' | null:
+			case 'default':
 				return (l.a ?? l.r);
 			default:
 				throw 'Invalid property accessor'; return null;
@@ -394,7 +400,7 @@ class Interp {
 				}
 				
 				error(ECustom('Method set_$id required by property $id is missing')); return null;
-			case 'default' | null:
+			case 'default':
 				if (l.a != null) return l.a.__a = v;
 				
 				return l.r = v;
@@ -513,7 +519,7 @@ class Interp {
 			} else {
 				pushStack();
 				
-				throw new InterpException(stack, e.message);
+				throw new InterpException(stack, e.message, e);
 			}
 		}
 		
@@ -894,6 +900,13 @@ class Interp {
 		}
 		
 		if (cls != null) {
+			if (cls is IInsanityInterp) {
+				final interp:Interp = cast(cls, IInsanityInterp).interp;
+				
+				interp.position.origin = position.origin;
+				interp.position.line = position.line;
+			}
+			
 			cls.init(environment, this);
 			cls.initialized = true;
 			
@@ -989,7 +1002,7 @@ class Interp {
 		if (name != null) {
 			if (stack.length > 1) { // function-in-function is a local function
 				declared.push( { n : name, old : locals.get(name) } );
-				var ref = { r : f };
+				final ref:Variable = { r : f };
 				locals.set(name, ref);
 				capturedLocals.set(name, ref); // allow self-recursion
 			} else { // global function
@@ -1045,13 +1058,11 @@ class Interp {
 		case EParent(e):
 			return expr(e, void, mapCompr);
 		case EBlock(exprs):
-			var loc = Lambda.count(locals);
 			var old = declared.length;
 			var v = null;
 			for( e in exprs )
 				v = expr(e, void, mapCompr);
-			if (loc > 0)
-				restore(old);
+			restore(old);
 			return v;
 		case EField(e,f,m):
 			return resolveField(e, f, m);

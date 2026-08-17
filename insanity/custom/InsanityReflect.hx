@@ -5,7 +5,7 @@ import insanity.custom.InsanityType;
 class InsanityReflect {
 	public inline static function hasField(o:Dynamic, field:String):Bool {
 		if (o is ICustomReflection) {
-			return cast(o, ICustomReflection).reflectHasField(field);
+			return cast(o:ICustomReflection).reflectHasField(field);
 		} else {
 			return Reflect.hasField(o, field);
 		}
@@ -13,7 +13,7 @@ class InsanityReflect {
 	
 	public inline static function field(o:Dynamic, field:String):Dynamic {
 		if (o is ICustomReflection) {
-			return cast(o, ICustomReflection).reflectGetField(field);
+			return cast(o:ICustomReflection).reflectGetField(field);
 		} else {
 			return Reflect.field(o, field);
 		}
@@ -21,7 +21,7 @@ class InsanityReflect {
 	
 	public inline static function setField(o:Dynamic, field:String, value:Dynamic):Dynamic {
 		if (o is ICustomReflection) {
-			return cast(o, ICustomReflection).reflectSetField(field, value);
+			return cast(o:ICustomReflection).reflectSetField(field, value);
 		} else {
 			Reflect.setField(o, field, value);
 			return value;
@@ -30,7 +30,7 @@ class InsanityReflect {
 	
 	public inline static function getProperty(o:Dynamic, field:String):Dynamic {
 		if (o is ICustomReflection) {
-			return cast(o, ICustomReflection).reflectGetProperty(field);
+			return cast(o:ICustomReflection).reflectGetProperty(field);
 		} else {
 			return Reflect.getProperty(o, field);
 		}
@@ -38,7 +38,7 @@ class InsanityReflect {
 	
 	public inline static function setProperty(o:Dynamic, field:String, value:Dynamic):Dynamic {
 		if (o is ICustomReflection) {
-			return cast(o, ICustomReflection).reflectSetProperty(field, value);
+			return cast(o:ICustomReflection).reflectSetProperty(field, value);
 		} else {
 			Reflect.setProperty(o, field, value);
 			return value;
@@ -47,7 +47,7 @@ class InsanityReflect {
 	
 	public inline static function fields(o:Dynamic):Array<String> {
 		if (o is ICustomReflection) {
-			return cast(o, ICustomReflection).reflectListFields();
+			return cast(o:ICustomReflection).reflectListFields();
 		} else {
 			return Reflect.fields(o);
 		}

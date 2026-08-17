@@ -507,7 +507,7 @@ class ScriptedMacro {
 							if (instanceFields.contains(f)) {
 								Reflect.setField(this, f, __interp.exprReturn(v.expr));
 							} else {
-								var l = {r: null, access: field.access, get: v.get, set: v.set};
+								final l:insanity.backend.Interp.Variable = {r: null, access: field.access, get: v.get, set: v.set};
 								if (v.get != null) l.get = v.get;
 								if (v.set != null) l.set = v.set;
 								
