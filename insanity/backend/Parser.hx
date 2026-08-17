@@ -931,10 +931,14 @@ class Parser {
 			var tk = token();
 			if( tk == TPOpen ) {
 				var e = parseExpr();
-				ensure(TComma);
-				var t = parseType();
-				ensure(TPClose);
-				mk(ECast(e,t), p1, tokenMax);
+				if (maybe(TComma)) {
+					var t = parseType();
+					ensure(TPClose);
+					mk(ECast(e,t), p1, tokenMax);
+				} else {
+					ensure(TPClose);
+					mk(ECast(e,type), p1, tokenMax);
+				}
 			} else {
 				push(tk);
 				var e = parseExpr();
