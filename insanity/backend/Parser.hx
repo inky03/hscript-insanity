@@ -1077,7 +1077,7 @@ class Parser {
 		} else {
 			body = parseExpr();
 			
-			maybe(TSemicolon);
+			// maybe(TSemicolon);
 		}
 		
 		return { args : args, ret : ret, body : body };
