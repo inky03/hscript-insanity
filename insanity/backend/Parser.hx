@@ -1427,46 +1427,7 @@ class Parser {
 			return null;
 			
 		case "abstract":
-			var from:Array<CType> = [], to:Array<CType> = [];
-			
-			var name = getIdent();
-			if (!name.isTypeIdentifier())
-				error(ECustom('Type name should start with an uppercase letter'), tokenMin, tokenMax);
-			
-			var params = parseParams();
-			
-			ensure(TPOpen);
-			var underlying = parseType();
-			ensure(TPClose);
-			
-			while (true) {
-				var t = token();
-				switch (t) {
-					case TId('from'):
-						from.push(parseType());
-					case TId('to'):
-						to.push(parseType());
-					default:
-						push(t);
-						break;
-				}
-			}
-			
-			var fields = [];
-			ensure(TBrOpen);
-			while (!maybe(TBrClose))
-				fields.push(parseField());
-			
-			return mkd(DAbstract({
-				name : name,
-				to : to,
-				from : from,
-				meta : meta,
-				params : params,
-				fields : fields,
-				underlying : underlying,
-				isPrivate : isPrivate
-			}), tokenMin, tokenMax);
+			return parseAbstract(meta, isPrivate, isExtern, false);
 			
 		case "interface":
 			var name = getIdent();
@@ -1547,6 +1508,8 @@ class Parser {
 			
 		case "enum":
 			var name = getIdent();
+			if (name == 'abstract') return parseAbstract(meta, isPrivate, isExtern, true);
+			
 			if (!name.isTypeIdentifier())
 				error(ECustom('Type name should start with an uppercase letter'), tokenMin, tokenMax);
 			
@@ -1618,6 +1581,54 @@ class Parser {
 		}
 		
 		return null;
+	}
+	
+	function parseAbstract(meta:Metadata, isPrivate:Bool, isExtern:Bool, isEnum:Bool):ModuleDecl {
+		for (meta in meta) isEnum = (isEnum || meta.name == ':enum');
+		
+		var from:Array<CType> = [], to:Array<CType> = [];
+		
+		var name = getIdent();
+		if (!name.isTypeIdentifier())
+			error(ECustom('Type name should start with an uppercase letter'), tokenMin, tokenMax);
+		
+		trace('$name - $isEnum');
+		
+		var params = parseParams();
+		
+		ensure(TPOpen);
+		var underlying = parseType();
+		ensure(TPClose);
+		
+		while (true) {
+			var t = token();
+			switch (t) {
+				case TId('from'):
+					from.push(parseType());
+				case TId('to'):
+					to.push(parseType());
+				default:
+					push(t);
+					break;
+			}
+		}
+		
+		var fields = [];
+		ensure(TBrOpen);
+		while (!maybe(TBrClose))
+			fields.push(parseField());
+		
+		return mkd(DAbstract({
+			isEnum : isEnum,
+			name : name,
+			to : to,
+			from : from,
+			meta : meta,
+			params : params,
+			fields : fields,
+			underlying : underlying,
+			isPrivate : isPrivate
+		}), tokenMin, tokenMax);
 	}
 	
 	function parseEnumField():EnumFieldDecl {

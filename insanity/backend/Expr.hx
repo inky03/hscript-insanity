@@ -126,6 +126,8 @@ typedef ModuleType = {
 }
 
 typedef AbstractDecl = {> ModuleType,
+	var isEnum : Bool;
+	
 	var underlying : Null<CType>;
 	var from : Array<CType>;
 	var to : Array<CType>;

@@ -961,7 +961,7 @@ class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityInte
 		interp.origin = path;
 		
 		info = {
-			isEnum: false,
+			isEnum: decl.isEnum,
 			
 			name: path,
 			implName: path,
@@ -992,7 +992,15 @@ class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityInte
 				
 				if (type == null) throw 'Type not found: $p';
 				
-				var name = InsanityType.getClassName(type);
+				var name:String;
+				if (type is Class || type is ICustomClassType) {
+					name = InsanityType.getClassName(type);
+				} else if (type is Enum || type is ICustomEnumType) {
+					name = InsanityType.getEnumName(type);
+				} else {
+					throw 'Type not found: $type';
+				}
+				
 				(name == 'Dynamic' ? ATDynamic : ATType(name));
 				
 			case CTFun(_, _):
@@ -1067,7 +1075,8 @@ class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityInte
 					if (v.isFinal != null) l.isFinal = v.isFinal;
 					
 					if (field.access.contains(AInline)) l.isFinal = true;
-					if (!field.access.contains(AStatic)) {
+					
+					if (!isEnum && !field.access.contains(AStatic)) {
 						if (v.get == 'default' && v.set == 'default')
 							throw 'Cannot declare member variable in abstract';
 						if ((v.get != 'get' && v.get != 'never') || (v.set != 'set' && v.set != 'never'))
@@ -1078,6 +1087,8 @@ class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityInte
 			interp.locals.set(f, l);
 		}
 		
+		var lastEnumValue:Dynamic = null;
+		
 		for (field in decl.fields) {
 			final f:String = field.name;
 			
@@ -1085,7 +1096,7 @@ class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityInte
 				case KFunction(fun):
 					interp.locals.get(f).r = interp.buildFunction(f, fun.args, fun.expr, fun.ret, interp.locals);
 					
-					if (field.name == 'new') continue;
+					if (f == 'new') continue;
 					
 					final method:AbstractMethodInfo = {isStatic: field.access.contains(AStatic), setsSelf: false, returnsAbstract: false};
 					
@@ -1115,7 +1126,7 @@ class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityInte
 							// if (!method.isStatic && fun.args.length != 1) throw 'Member @:op functions must accept exactly one argument';
 							// else if (method.isStatic && fun.args.length != 2) throw 'Static @:op functions must accept exactly two arguments';
 							
-							info.overloads.set(op, field.name);
+							info.overloads.set(op, f);
 						} else if (meta.name == ':commutative') {
 							method.isCommutative = true;
 						}
@@ -1124,7 +1135,35 @@ class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityInte
 					info.methods.set(f, method);
 					
 				case KVar(v):
-					if (restore) {
+					final isEnumValue:Bool = (isEnum &&
+						!field.access.contains(AStatic) && !field.access.contains(APublic) &&
+						(v.get == 'default' || v.get == null) && (v.set == 'default' || v.set == null));
+					var enumValue:Dynamic = null;
+					
+					if (isEnumValue) {
+						if (v.type != null) {
+							final t:AbstractTypeCast = ctypeToAbstractTypeCast(v.type);
+							final err:String = '${AbstractTools.abstractTypeCastToString(t)} should be ${AbstractTools.abstractTypeCastToString(info.underlying)}';
+							
+							switch (t) {
+								case ATDynamic if (info.underlying != ATDynamic): throw err;
+								case ATMethod if (info.underlying != ATMethod): throw err;
+								case ATType(t) if (t != path): throw err;
+								default:
+							}
+						}
+						
+						switch (info.underlying) {
+							default:
+								if (v.expr == null) throw 'Value required for field $f';
+							
+							case ATType('Int'):
+								enumValue = (lastEnumValue == null ? 0 : lastEnumValue + 1);
+								
+							case ATType('String'):
+								enumValue = f;
+						}
+					} else if (restore) {
 						var snapshot:Bool = snapshotAll;
 						if (!snapshot) for (meta in field.meta) snapshot = (snapshot || meta.name == ':snapshot');
 						
@@ -1138,7 +1177,17 @@ class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityInte
 					}
 					
 					try {
-						interp.locals.get(f).r = (v.expr == null ? null : interp.exprReturn(v.expr/*, v.type*/));
+						var value:Dynamic = (v.expr == null ? (isEnumValue ? enumValue : null) : interp.exprReturn(v.expr, v.type));
+						
+						if (isEnumValue) value = create(value);
+						if (value is InsanityAbstractValue) {
+							interp.locals.get(f).a = value;
+							value = value.__a;
+						}
+						
+						interp.locals.get(f).r = value;
+						
+						if (isEnum && value != null) lastEnumValue = value;
 					} catch (d:Defer) {
 						var signal = (env?.onInitialized ?? module.onInitialized);
 						
@@ -1156,22 +1205,22 @@ class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityInte
 					}
 					
 					info.properties.set(f, {
-						isStatic: field.access.contains(AStatic),
-						isAbstract: switch (ctypeToAbstractTypeCast(v.type)) {
+						isStatic: (isEnumValue || field.access.contains(AStatic)),
+						isAbstract: (v.type == null ? isEnumValue : switch (ctypeToAbstractTypeCast(v.type)) {
 							case ATType(t): (t == path);
 							default: false;
-						},
+						}),
 						
 						get: switch (v.get) {
 							default: ADefault;
 							case 'get' | 'dynamic': ADynamic;
 							case 'never' | 'null': ANever;
 						},
-						set: switch (v.set) {
+						set: (isEnumValue ? ANever : switch (v.set) {
 							default: ADefault;
 							case 'get' | 'dynamic': ADynamic;
 							case 'never' | 'null': ANever;
-						}
+						})
 					});
 			}
 			
