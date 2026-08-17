@@ -84,6 +84,8 @@ class InsanityAbstract implements ICustomReflection implements ICustomClassType 
 	
 	public var isEnum:Bool = false;
 	
+	public static var needOps:Map<String, Bool> = [for (op in ['+', '-', '*', '/', '%', '&', '|', '^', '<<', '>>', '>>>']) op => true];
+	
 	var methodCache:Map<String, Dynamic> = [];
 	
 	#if cpp var resolve:String -> Dynamic; #end
@@ -98,7 +100,7 @@ class InsanityAbstract implements ICustomReflection implements ICustomClassType 
 	}
 	
 	public function create(v:Dynamic):InsanityAbstractValue {
-		return new InsanityAbstractValue(this, v);
+		return new InsanityAbstractValue(this, v is InsanityAbstractValue ? v.__a : v);
 	}
 	
 	public function castFrom(v:Dynamic):InsanityAbstractValue {
@@ -329,7 +331,7 @@ class InsanityAbstractValue implements ICustomReflection {
 		
 		if (f != null && !f.isStatic) return callImpl('toString', []);
 		
-		return __a; //info.name;
+		return Std.string(__a); //info.name;
 	}
 	
 	function callImpl(field:String, arguments:Array<Dynamic>):Dynamic {
@@ -361,8 +363,6 @@ class InsanityAbstractValue implements ICustomReflection {
 				if (v is Int) field ??= info.overloads.get(ABinop(op, ATType('Float')));
 				field ??= info.overloads.get(ABinop(op, ATDynamic));
 				
-				if (field == null) throw 'Cannot perform $op on ${info.name} and ${AbstractTools.abstractTypeCastToString(type)}';
-			
 			case AArray(write, readType, _):
 				inline function find():Void {
 					if (v is Int) field ??= info.overloads.get(AArray(write, readType, ATType('Float')));

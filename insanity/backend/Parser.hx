@@ -1592,8 +1592,6 @@ class Parser {
 		if (!name.isTypeIdentifier())
 			error(ECustom('Type name should start with an uppercase letter'), tokenMin, tokenMax);
 		
-		trace('$name - $isEnum');
-		
 		var params = parseParams();
 		
 		ensure(TPOpen);

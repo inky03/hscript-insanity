@@ -1222,6 +1222,8 @@ class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityInte
 							case 'never' | 'null': ANever;
 						})
 					});
+					
+					if (info.properties.get(f).isAbstract) interp.variables.set(f, MProperty(this, f));
 			}
 			
 			__vars.set(f, interp.locals.get(f));
@@ -1229,7 +1231,7 @@ class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityInte
 	}
 	
 	public override function create(v:Dynamic):InsanityScriptedAbstractValue {
-		return new InsanityScriptedAbstractValue(this, v);
+		return new InsanityScriptedAbstractValue(this, v is InsanityAbstractValue ? v.__a : v);
 	}
 	
 	public function toString():String {
@@ -1310,7 +1312,7 @@ class InsanityScriptedAbstractValue extends InsanityAbstractValue {
 		if (m == null || m.isStatic) {
 			return null;
 		} else {
-			if (!methodCache.exists(field)) methodCache.set(field, callImpl.bind(field));
+			if (!methodCache.exists(field)) methodCache.set(field, Reflect.makeVarArgs((args) -> callImpl(field, args)));
 			
 			return methodCache.get(field);
 		}

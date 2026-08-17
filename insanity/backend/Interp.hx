@@ -75,6 +75,7 @@ class Interp {
 	public var imports : Map<String, Dynamic>;
 	public var variables : Map<String, Dynamic>;
 	var binops : Map<String, Expr -> Expr -> Dynamic >;
+	var mathOps : Map<String, Bool>;
 	
 	public var parent : Dynamic = null;
 	public var environment : Environment;
@@ -86,7 +87,7 @@ class Interp {
 	var locals (get, never) : Map<String, Variable>;
 	
 	public var callStackDepth : Int = 200;
-	var stack : CallStack;
+	public var stack : CallStack;
 	
 	var inTry : Bool;
 	var metas : Metadata = [];
@@ -159,7 +160,16 @@ class Interp {
 	
 	inline function basicOp(op:String, v1:Dynamic, v2:Dynamic):Dynamic {
 		if (v1 is InsanityAbstractValue) {
-			return v1.binop(op, v2);
+			final ab:InsanityAbstractValue = cast v1, type = AbstractTools.getAbstractTypeCast(v2);
+			final field:Null<String> = ab.findOverload(ABinop(op, type), v2);
+			
+			if (field != null) {
+				return v1.binop(op, v2);
+			} else if (!InsanityAbstract.needOps.exists(op)) {
+				return defaultOp(op, v1.__a, v2 is InsanityAbstractValue ? v2.__a : v2);
+			} else {
+				return throw 'Cannot perform $op on ${ab.info.name} and ${AbstractTools.abstractTypeCastToString(type)}';
+			}
 		} else if (v2 is InsanityAbstractValue) {
 			final ab:InsanityAbstractValue = cast v2, type = AbstractTools.getAbstractTypeCast(v1);
 			
@@ -167,34 +177,40 @@ class Interp {
 			
 			if (field != null && (ab.info.methods.get(field).isCommutative || ab.info.methods.get(field).isStatic)) {
 				return v2.binop(op, v1);
+			} else if (!InsanityAbstract.needOps.exists(op)) {
+				return defaultOp(op, v1, v2.__a);
 			} else {
 				return throw 'Cannot perform $op on ${AbstractTools.abstractTypeCastToString(type)} and ${ab.info.name}';
 			}
 		} else {
-			return switch (op) {
-				case '+': (v1 + v2);
-				case '-': (v1 - v2);
-				case '*': (v1 * v2);
-				case '/': (v1 / v2);
-				case '%': (v1 % v2);
-				case '&': (v1 & v2);
-				case '|': (v1 | v2);
-				case '^': (v1 ^ v2);
-				case '<<': (v1 << v2);
-				case '>>': (v1 >> v2);
-				case '>>>': (v1 >>> v2);
-				case '==': (v1 == v2);
-				case '!=': (v1 != v2);
-				case '>=': (v1 >= v2);
-				case '<=': (v1 <= v2);
-				case '>': (v1 > v2);
-				case '<': (v1 < v2);
-				case '||': (v1 == true || v2 == true);
-				case '&&': (v1 == true && v2 == true);
-				case '...': new IntIterator(v1, v2);
-				case '??': (v1 ?? v2);
-				default: throw '??? ($op)';
-			}
+			return defaultOp(op, v1, v2);
+		}
+	}
+	
+	inline function defaultOp(op:String, v1:Dynamic, v2:Dynamic):Dynamic {
+		return switch (op) {
+			case '+': (v1 + v2);
+			case '-': (v1 - v2);
+			case '*': (v1 * v2);
+			case '/': (v1 / v2);
+			case '%': (v1 % v2);
+			case '&': (v1 & v2);
+			case '|': (v1 | v2);
+			case '^': (v1 ^ v2);
+			case '<<': (v1 << v2);
+			case '>>': (v1 >> v2);
+			case '>>>': (v1 >>> v2);
+			case '==': (v1 == v2);
+			case '!=': (v1 != v2);
+			case '>=': (v1 >= v2);
+			case '<=': (v1 <= v2);
+			case '>': (v1 > v2);
+			case '<': (v1 < v2);
+			case '||': (v1 == true || v2 == true);
+			case '&&': (v1 == true && v2 == true);
+			case '...': new IntIterator(v1, v2);
+			case '??': (v1 ?? v2);
+			default: throw '??? ($op)';
 		}
 	}
 	
@@ -1579,6 +1595,8 @@ class Interp {
 	public static function matchValues(v:Dynamic, with:Dynamic):Bool {
 		if (v == with) {
 			return true;
+		} else if (v is InsanityAbstractValue) {
+			return (v.__a == (with is InsanityAbstractValue ? with.__a : with));
 		} else if (v is ICustomEnumValueType && with is ICustomEnumValueType) {
 			return cast(v, ICustomEnumValueType).eq(with);
 		} else if (Reflect.isEnumValue(v) && Type.getEnum(v) != null && Type.getEnum(with) != null) {
