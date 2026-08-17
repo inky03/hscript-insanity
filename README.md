@@ -20,7 +20,7 @@ README content has been moved to the [wiki](https://github.com/inky03/hscript-in
 	- [X] overload operators (`@:op`)
 		- [X] commutative operators (`@:commutative`)
 		- only postincrement `A ++`, postdecrement `A --` operators arent supported yet ...
-	- [X] field forwarding (`@:forward`)
+	- [X] forward field access (`@:forward`)
 	
 - enum abstracts
 	- [X] static fields
@@ -64,9 +64,12 @@ README content has been moved to the [wiki](https://github.com/inky03/hscript-in
 			- [X] property getters & setters
 			- [X] dynamic functions
 			- [X] finals
-	- [ ] abstracts
+	- [X] abstracts
 		- [ ] abstract enum
-		- [ ] underlying type
+		- [X] underlying type
+		- [X] field forwarding (`@:forward`)
+			- [ ] constructor (`@:forward.new`)
+			- [ ] statics (`@:forwardStatics`)
 
 - general
 	- [X] fix compile errors in HashLink (for now)
