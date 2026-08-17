@@ -64,6 +64,7 @@ class InsanityScriptedClass implements IInsanityType implements IInsanityInterp 
 		
 		interp = Type.createInstance(Config.interpClass, []);
 		interp.canDefer = true;
+		interp.origin = path;
 	}
 	
 	public function init(?env:Environment, ?baseInterp:Interp, restore:Bool = true):Void {
@@ -777,6 +778,7 @@ class InsanityScriptedInterface implements IInsanityType implements IInsanityInt
 		
 		interp = Type.createInstance(Config.interpClass, []);
 		interp.canDefer = true;
+		interp.origin = path;
 	}
 	
 	public function init(?env:Environment, ?baseInterp:Interp, restore:Bool = true):Void {
@@ -956,6 +958,7 @@ class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityInte
 		
 		interp = Type.createInstance(Config.interpClass, []);
 		interp.canDefer = true;
+		interp.origin = path;
 		
 		info = {
 			isEnum: false,

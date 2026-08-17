@@ -151,9 +151,9 @@ class Interp {
 		return cast { fileName : position.origin, lineNumber : position.line };
 	}
 	
-	function get_locals():Map<String, Variable> { return stack.first()?.locals; }
-	function set_origin(v:String):String { return position.origin = v; }
-	function get_origin():String { return position.origin; }
+	inline function get_locals():Map<String, Variable> { return stack.first()?.locals; }
+	inline function set_origin(v:String):String { return position.origin = v; }
+	inline function get_origin():String { return position.origin; }
 	
 	inline function exprOp(op:String, e1:Expr, e2:Expr):Dynamic return basicOp(op, expr(e1), expr(e2));
 	
@@ -929,6 +929,8 @@ class Interp {
 			}
 		}
 		
+		final origin = origin;
+		
 		var f = Reflect.makeVarArgs(function(args:Array<Dynamic>) {
 			superConstructorAllowed = su;
 			
@@ -961,7 +963,7 @@ class Interp {
 				args = args2;
 			}
 			var old = declared.length;
-			pushStack(name == null ? SLocalFunction(id) : SMethod(position.origin, name), functionLocals ?? duplicate(capturedLocals));
+			pushStack(name == null ? SLocalFunction(id) : SMethod(origin, name), functionLocals ?? duplicate(capturedLocals));
 			
 			for( i in 0...params.length ) {
 				var name:String = params[i].name;
