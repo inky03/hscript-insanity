@@ -212,13 +212,17 @@ class Module {
 	}
 	
 	public dynamic function onParsingError(e:haxe.Exception):Void {
-		trace('Failed to initialize module program!\n' + e.details());
+		if (e is ParserException) {
+			trace('Failed to initialize module program!\nException: $e');
+		} else {
+			trace('A fatal error occurred while initializing module program!\n' + e.details());
+		}
 	}
 	public dynamic function onProgramError(e:haxe.Exception):Void {
 		trace('Module program stopped unexpectedly!\n' + e.details());
 	}
 	public dynamic function onTypeError(e:haxe.Exception, type:IInsanityType):Void {
-		trace('Failed to load type ${type.name} for module $path!\n' + e.details());
+		trace('Failed to load type ${type.name} for module $path!\nException: $e' /*+ e.details()*/);
 	}
 	
 	function get_path():String {
