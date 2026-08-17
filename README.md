@@ -21,10 +21,7 @@ README content has been moved to the [wiki](https://github.com/inky03/hscript-in
 		- [X] commutative operators (`@:commutative`)
 		- only postincrement `A ++`, postdecrement `A --` operators arent supported yet ...
 	- [X] forward field access (`@:forward`)
-	
-- enum abstracts
-	- [X] static fields
-	- [X] constructors
+	- [X] enum abstracts
 	
 - enums
 	- [X] constructors
@@ -65,7 +62,7 @@ README content has been moved to the [wiki](https://github.com/inky03/hscript-in
 			- [X] dynamic functions
 			- [X] finals
 	- [X] abstracts
-		- [ ] abstract enum
+		- [X] enum abstracts
 		- [X] underlying type
 		- [X] field forwarding (`@:forward`)
 			- [ ] constructor (`@:forward.new`)
