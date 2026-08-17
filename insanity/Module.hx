@@ -75,8 +75,7 @@ class Module {
 			case DInterface(m):
 				new InsanityScriptedInterface(m, this);
 			case DAbstract(m):
-				trace(m);
-				null;
+				new InsanityScriptedAbstract(m, this);
 			case DField(m):
 				var fieldsPath:String = Tools.pathToString('_$name.${name}_Fields_', pack);
 				var t:InsanityScriptedClass = cast types.get(fieldsPath);
