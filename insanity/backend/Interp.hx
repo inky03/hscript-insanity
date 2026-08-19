@@ -1105,7 +1105,9 @@ class Interp {
 			if (!testAdvancedResolve(e, _advancedResolve)) {
 				final obj:Dynamic = expr(fe);
 				
-				return (maybe && obj == null ? null : get(obj, f));
+				if (obj == null && testNullCoalesce(e)) return null;
+				
+				return get(obj, f);
 			}
 			
 			var fail:Null<String> = null, path:String = '', obj:Dynamic = null;
@@ -1187,11 +1189,7 @@ class Interp {
 				case EField(fe, f, maybe):
 					var obj = expr(fe);
 					
-					if (obj == null) {
-						if (testNullCoalesce(e)) return null;
-						
-						error(EInvalidAccess(f));
-					}
+					if (obj == null && testNullCoalesce(e)) return null;
 					
 					return fcall(obj, f, args);
 					
