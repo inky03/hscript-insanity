@@ -48,12 +48,6 @@ enum Stop {
 	SReturn;
 }
 
-enum Resolve {
-	RNormal(f:String);
-	RMaybe(f:String);
-	RExpr(e:Expr);
-}
-
 @:structInit class Variable {
 	public var r:Dynamic;
 	public var a:Null<InsanityAbstractValue> = null;
@@ -91,7 +85,6 @@ class Interp {
 	
 	var inTry : Bool;
 	var metas : Metadata = [];
-	var resolveFields : Array<Resolve> = [];
 	var captures : Map<String, Dynamic>;
 	var declared : Array<RestoreVariable>;
 	var returnValue : Dynamic;
@@ -1034,17 +1027,33 @@ class Interp {
 		
 		return f;
 	}
-
+	
+	var _advancedResolve:Array<Expr> = [];
+	function testAdvancedResolve(expr:Expr, exprs:Array<Expr>):Bool {
+		return switch (expr.e) {
+			case EIdent(_):
+				exprs.push(expr);
+				true;
+				
+			case EField(fexpr, _, _):
+				var r:Bool = testAdvancedResolve(fexpr, exprs);
+				exprs.push(expr);
+				r;
+				
+			default:
+				false;
+		}
+	}
+	
 	public function expr( e : Expr, ?t : CType, void : Bool = false, mapCompr : Bool = false ) : Dynamic {
 		Type.environment = environment;
 		accessingInterp = this;
 		position = e.pos;
-		var e = e.e;
 		
 		if (stack.length == 0)
 			pushStack(SScript(position.origin));
 		
-		switch( e ) {
+		switch( e.e ) {
 		case EDecl(decl):
 			startDecl(decl);
 		case EUsing(path):
@@ -1082,8 +1091,47 @@ class Interp {
 				v = expr(e, void, mapCompr);
 			restore(old);
 			return v;
-		case EField(e,f,m):
-			return resolveField(e, f, m);
+		case EField(fe, f, m):
+			_advancedResolve.resize(0);
+			
+			if (!testAdvancedResolve(e, _advancedResolve)) return get(expr(fe), f, m);
+			
+			var fail:Null<String> = null, path:String = '', obj:Dynamic = null;
+			
+			for (expr in _advancedResolve) {
+				if (fail == null) position = expr.pos;
+				
+				switch (expr.e) {
+					default: throw '???';
+					
+					case EIdent(id):
+						if (captures.exists(id)) {
+							obj = captures.get(id);
+						} else if (locals.exists(id)) {
+							obj = getLocal(id);
+						} else if (isResolvable(id)) {
+							obj = resolve(id);
+						} else {
+							fail = path = id;
+						}
+					
+					case EField(_, f, m) if (path.length == 0): obj = get(obj, f, m);
+						
+					case EField(_, f, m):
+						final info = (TypeCollection.main.fromPath(path += '.$f') ?? environment?.types.fromPath(path));
+						
+						if (info != null) {
+							fail = null;
+							obj = info[0].resolve(environment);
+						} else if (fail == null) {
+							obj = get(obj, f, m);
+						}
+				}
+			}
+			
+			if (fail != null) error(EUnknownVariable(fail));
+			
+			return obj;
 		case EBinop('=>', e1, e2) if (mapCompr):
 			return e;
 		case EBinop(op,e1,e2):
@@ -1507,76 +1555,6 @@ class Interp {
 			return expr(e);
 		}
 		return (void ? Interp.void : null);
-	}
-	
-	inline function resolveField(e:Expr, f:String, m:Bool = false):Dynamic
-	{
-		final canResolve = (resolveFields.length == 0);
-		
-		resolveFields.unshift(m ? RMaybe(f) : RNormal(f));
-		switch (Tools.expr(e)) {
-			case EIdent(id): resolveFields.unshift(RNormal(id));
-			case EField(_, _, _): expr(e);
-			default: resolveFields.unshift(RExpr(e));
-		}
-		
-		if (!canResolve) return null;
-		
-		var __tempResolveFields:Array<Resolve> = resolveFields;
-		resolveFields = [];
-		
-		var got:Dynamic = null, gotType:TypeInfo = null, unknown:Null<String> = null;
-		
-		var fullProp:String = '';
-		for (i => prop in __tempResolveFields) {
-			var field:String, maybe:Bool;
-			
-			switch (prop) {
-				case RNormal(f): field = f; maybe = false;
-				case RMaybe(f): field = f; maybe = true;
-				case RExpr(e):
-					got = expr(e);
-					continue;
-			}
-			
-			if (got == null) {
-				fullProp = (fullProp.length == 0 ? field : '$fullProp.$field');
-				
-				if (i == 0) {
-					if (captures.exists(field)) {
-						got = captures.get(field);
-					} else if (locals.exists(field)) {
-						got = getLocal(field);
-					} else if (isResolvable(field)) {
-						got = resolve(field);
-					} else {
-						unknown = field;
-					}
-					
-					if (got != null)
-						continue;
-				}
-				
-				var info = (TypeCollection.main.fromPath(fullProp) ?? environment?.types.fromPath(fullProp));
-				
-				if (info != null) {
-					unknown = null;
-					gotType = info[0];
-					
-					if (i == __tempResolveFields.length - 1)
-						got = gotType.resolve(environment);
-				} else if (gotType != null) {
-					var t = gotType.resolve(environment);
-					got = get(t, field, maybe);
-				}
-			} else {
-				got = get(got, field, maybe);
-			}
-		}
-		
-		if (unknown != null) error(EUnknownVariable(unknown));
-		
-		return got;
 	}
 	
 	inline function getMeta(name:String):MetadataEntry {
