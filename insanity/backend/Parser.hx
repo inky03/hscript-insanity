@@ -1076,8 +1076,6 @@ class Parser {
 			}
 		} else {
 			body = parseExpr();
-			
-			// maybe(TSemicolon);
 		}
 		
 		return { args : args, ret : ret, body : body };
@@ -1673,6 +1671,7 @@ class Parser {
 			case "function":
 				var name = getIdent();
 				var inf = parseFunctionDecl(isInterface);
+				if (!isInterface) maybe(TSemicolon);
 				
 				return {
 					name : name,
