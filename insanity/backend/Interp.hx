@@ -1045,6 +1045,14 @@ class Interp {
 		}
 	}
 	
+	function testNullCoalesce(expr:Expr):Bool {
+		return switch (expr.e) {
+			default: false;
+			
+			case EField(fexpr, _, maybe): (maybe ? true : testNullCoalesce(fexpr));
+		}
+	}
+	
 	public function expr( e : Expr, ?t : CType, void : Bool = false, mapCompr : Bool = false ) : Dynamic {
 		Type.environment = environment;
 		accessingInterp = this;
@@ -1091,10 +1099,14 @@ class Interp {
 				v = expr(e, void, mapCompr);
 			restore(old);
 			return v;
-		case EField(fe, f, m):
+		case EField(fe, f, maybe):
 			_advancedResolve.resize(0);
 			
-			if (!testAdvancedResolve(e, _advancedResolve)) return get(expr(fe), f, m);
+			if (!testAdvancedResolve(e, _advancedResolve)) {
+				final obj:Dynamic = expr(fe);
+				
+				return (maybe && obj == null ? null : get(obj, f));
+			}
 			
 			var fail:Null<String> = null, path:String = '', obj:Dynamic = null;
 			
@@ -1115,16 +1127,21 @@ class Interp {
 							fail = path = id;
 						}
 					
-					case EField(_, f, m) if (path.length == 0): obj = get(obj, f, m);
+					case EField(_, f, maybe) if (path.length == 0):
+						if (maybe && obj == null) return null;
 						
-					case EField(_, f, m):
+						obj = get(obj, f);
+						
+					case EField(_, f, maybe):
 						final info = (TypeCollection.main.fromPath(path += '.$f') ?? environment?.types.fromPath(path));
 						
 						if (info != null) {
 							fail = null;
 							obj = info[0].resolve(environment);
 						} else if (fail == null) {
-							obj = get(obj, f, m);
+							if (maybe && obj == null) return null;
+							
+							obj = get(obj, f);
 						}
 				}
 			}
@@ -1164,20 +1181,22 @@ class Interp {
 				error(EInvalidOp(op));
 			}
 		case ECall(e,params):
-			var args = new Array();
-			for( p in params )
-				args.push(expr(p));
+			final args:Array<Dynamic> = [for (p in params) expr(p)];
 			
-			switch( Tools.expr(e) ) {
-				case EField(e,f,m):
-					var obj = expr(e);
-					if ( obj == null ) {
-						if (m) return null;
+			switch (Tools.expr(e)) {
+				case EField(fe, f, maybe):
+					var obj = expr(fe);
+					
+					if (obj == null) {
+						if (testNullCoalesce(e)) return null;
+						
 						error(EInvalidAccess(f));
 					}
-					return fcall(obj,f,args);
+					
+					return fcall(obj, f, args);
+					
 				default:
-					return call(null,expr(e),args);
+					return call(null, expr(e), args);
 			}
 		case EIf(econd,e1,e2):
 			return if (expr(econd)) expr(e1, void, mapCompr) else if (e2 == null) (void ? Interp.void : null) else expr(e2, void, mapCompr);
@@ -1438,9 +1457,11 @@ class Interp {
 						captures.set(id, match);
 						return true;
 						
-					case EField(ve, f, m):
+					case EField(ve, f, maybe):
 						testCase(ve, match);
-						matchValues(get(expr(ve), f, m), match);
+						
+						final obj:Dynamic = expr(ve);
+						matchValues(maybe && obj == null ? null : get(obj, f), match);
 						
 					case EVar(id):
 						captures.set(id, match);
@@ -1790,17 +1811,11 @@ class Interp {
 		return null;
 	}
 
-	function get( o : Dynamic, f : String, maybe : Bool = false ) : Dynamic {
+	function get( o : Dynamic, f : String ) : Dynamic {
 		if (canDefer && o is IInsanityType && !o.initialized)
 			throw DDefer;
 		
-		if ( o == null ) {
-			if (!maybe) {
-				error(EInvalidAccess(f));
-			} else {
-				return null;
-			}
-		}
+		if ( o == null ) error(EInvalidAccess(f));
 		
 		if (o is Mirror) {
 			switch (cast(o, Mirror)) {
@@ -1899,7 +1914,8 @@ class Interp {
 		
 		if (!Reflect.isFunction(fun)) {
 			for (t in usings) {
-				var fun = get(t, f, true);
+				var fun = get(t, f);
+				
 				if (Reflect.isFunction(fun)) {
 					try {
 						args.unshift(o);
