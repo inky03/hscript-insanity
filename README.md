@@ -8,6 +8,8 @@ Experimental fork of [Hscript](https://github.com/HaxeFoundation/hscript) (Parse
 
 README content has been moved to the [wiki](https://github.com/inky03/hscript-insanity/wiki). Make sure to take a look!
 
+Original code written by HaxeFoundation falls under [MIT License](LICENSE). Modifications to this project shall abide by this license, alongside [MIT NON-AI License](LICENSE-insanity) for all additional or modified code belonging to this fork.
+
 
 ## TO-DO
 
