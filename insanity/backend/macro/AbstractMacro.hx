@@ -350,6 +350,24 @@ class AbstractMacro {
 					}
 				})
 			});
+		} else {
+			/*
+			keeps the abstract impl from being killed ??? cpp is a bit more relaxed apparently so im not running this there
+			this is stupid
+			*/
+			
+			fields.push({
+				pos: pos,
+				name: '__KEEP',
+				access: [AStatic],
+				
+				kind: FFun({
+					args: [],
+					params: [],
+					ret: macro:Void,
+					expr: macro { trace('hello'); }
+				})
+			});
 		}
 		
 		c.meta.add(':insanityAbstractInfo', [macro $v {path.join('.')}, macro $v {haxe.Serializer.run(info)}], pos);
