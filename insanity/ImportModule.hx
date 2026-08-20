@@ -3,10 +3,17 @@ package insanity;
 class ImportModule extends Module {
 	var attempted:Bool = false;
 	
+	/**
+	 * Creates a `ImportModule` and parses an import module code string.
+	 * 
+	 * @param	string		The code string to parse.
+	 * @param	origin		The origin of the module (this is used for error reporting).
+	 */
 	public function new(string:String, origin:String = 'hscript'):Void {
 		super(string, 'import', [], origin);
 	}
 	
+	@:inheritDoc
 	public override function parse(string:String) {
 		attempted = false;
 		decls.resize(0);
@@ -20,6 +27,7 @@ class ImportModule extends Module {
 		return decls;
 	}
 	
+	@:inheritDoc
 	public override function start(?environment) {
 		if (attempted) return; // dont reload / reexecute for all modules
 		attempted = true;

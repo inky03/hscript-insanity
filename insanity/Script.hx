@@ -37,7 +37,7 @@ class Script {
 	inline function get_variables():Map<String, Dynamic> { return interp.variables; }
 	
 	/**
-	 * Creates a `Script` and parses a code string.
+	 * Creates a `Script` and parses a script code string.
 	 * 
 	 * @param	string		The code string to parse.
 	 * @param	name		The origin/name of the script (this is used for error reporting).
@@ -54,8 +54,9 @@ class Script {
 	}
 	
 	/**
-	 * Parses code from a string.
-	 * If the code fails to parse, `onParsingError` will be called, otherwise, the expression will be stored in `program`.
+	 * Parses script code from a string.
+	 * 
+	 * If the code fails to parse, `onParsingError` will be called, otherwise, the generated expression will be stored in `program`.
 	 * 
 	 * @param	string		The code string to parse.
 	 * @return	The script expression, or null if the code failed to parse.
@@ -73,6 +74,7 @@ class Script {
 	
 	/**
 	 * Starts the script program.
+	 * 
 	 * If the program fails to start, `onProgramError` will be called.
 	 * 
 	 * @return	The return value of the program, if any.

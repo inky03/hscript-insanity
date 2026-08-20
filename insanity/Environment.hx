@@ -4,12 +4,33 @@ import insanity.backend.types.Scripted;
 import insanity.backend.TypeCollection;
 
 class Environment {
+	/**
+	 * A map storing all modules defined for this environment, by path.
+	 */
 	public var modules:Map<String, Module> = [];
+	/**
+	 * A `TypeCollection` of all modules defined for this environment.
+	 */
 	public var types:TypeCollection;
 	
+	/**
+	 * The environments's global variables.
+	 * 
+	 * All variables set here will also be set in all modules when initializing them.
+	 */
 	public var variables:Map<String, Dynamic> = [];
+	/**
+	 * Signal that is executed once all types in this environment are fully initialized.
+	 * 
+	 * If a function called in it returns false, it will be removed from the array.
+	 */
 	public var onInitialized:Array<Map<String, IInsanityType> -> Bool> = [];
 	
+	/**
+	 * Creates a new `Environment`.
+	 * 
+	 * @param	modules		The modules to store in this environment.
+	 */
 	public function new(?modules:Array<Module>) {
 		if (modules != null) {
 			for (module in modules)
@@ -19,18 +40,36 @@ class Environment {
 		rebuildTypes();
 	}
 	
+	/**
+	 * Adds a single `Module` to this environment.
+	 * 
+	 * @param	module		The module to store in this environment.
+	 * @return	The module that was added to this environment.
+	 */
 	public function addModule(module:Module):Module {
 		modules.set(module.path, module);
 		rebuildTypes();
 		return module;
 	}
 	
+	/**
+	 * Removes a single `Module` to this environment.
+	 * 
+	 * @param	module		The module to remove from this environment.
+	 * @return	The module that was removed from this environment.
+	 */
 	public function removeModule(module:Module):Module {
 		modules.remove(module.path);
 		rebuildTypes();
 		return module;
 	}
 	
+	/**
+	 * Locates a type in this environment from a string.
+	 * 
+	 * @param	path 		The path of the type to resolve.
+	 * @return	The type if any was found, otherwise null.
+	 */
 	public function resolve(path:String):IInsanityType {
 		for (module in modules) {
 			if (module.types.exists(path))
@@ -40,6 +79,11 @@ class Environment {
 		return null;
 	}
 	
+	/**
+	 * Initializes / starts up all modules on this environment.
+	 * 
+	 * Once finished, `onInitialized` will fire.
+	 */
 	public function start():Void {
 		var allTypes:Map<String, IInsanityType> = [];
 		
@@ -62,11 +106,19 @@ class Environment {
 				onInitialized.remove(onInitialized[i]);
 		}
 	}
+	/**
+	 * Snapshots all modules in this environment.
+	 */
 	public function snapshot():Void {
 		for (module in modules)
 			module.snapshot();
 	}
 	
+	/**
+	 * Creates the `TypeCollection` of this environment's types. This will be stored in `types`.
+	 * 
+	 * @return	The new `TypeCollection` for this environment.
+	 */
 	public function rebuildTypes():TypeCollection {
 		var map:TypeMap = { byPackage: [], byModule: [], byPath: [], byCompilePath: [], all: [] };
 		
