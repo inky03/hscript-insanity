@@ -149,10 +149,12 @@ class Interp {
 	inline function set_origin(v:String):String { return position.origin = v; }
 	inline function get_origin():String { return position.origin; }
 	
-	inline function exprOp(op:String, e1:Expr, e2:Expr):Dynamic return basicOp(op, expr(e1), expr(e2));
-	
 	inline function basicOp(op:String, v1:Dynamic, v2:Dynamic):Dynamic {
+		if (v1 is Expr) v1 = expr(v1);
+		
 		if (v1 is InsanityAbstractValue) {
+			if (v2 is Expr) v2 = expr(v2);
+			
 			final ab:InsanityAbstractValue = cast v1, type = AbstractTools.getAbstractTypeCast(v2);
 			final field:Null<String> = ab.findOverload(ABinop(op, type), v2);
 			
@@ -163,20 +165,32 @@ class Interp {
 			} else {
 				return throw 'Cannot perform $op on ${ab.info.name} and ${AbstractTools.abstractTypeCastToString(type)}';
 			}
-		} else if (v2 is InsanityAbstractValue) {
-			final ab:InsanityAbstractValue = cast v2, type = AbstractTools.getAbstractTypeCast(v1);
-			
-			final field:Null<String> = ab.findOverload(ABinop(op, type), v1);
-			
-			if (field != null && (ab.info.methods.get(field).isCommutative || ab.info.methods.get(field).isStatic)) {
-				return v2.binop(op, v1);
-			} else if (!InsanityAbstract.needOps.exists(op)) {
-				return defaultOp(op, v1, v2.__a);
-			} else {
-				return throw 'Cannot perform $op on ${AbstractTools.abstractTypeCastToString(type)} and ${ab.info.name}';
-			}
 		} else {
-			return defaultOp(op, v1, v2);
+			if (op == '??' && v1 != null) {
+				return v1;
+			} else if (op == '||' && v1 == true) {
+				return true;
+			} else if (op == '&&' && v1 != true) {
+				return false;
+			} else {
+				if (v2 is Expr) v2 = expr(v2);
+				
+				if (v2 is InsanityAbstractValue) {
+					final ab:InsanityAbstractValue = cast v2, type = AbstractTools.getAbstractTypeCast(v1);
+					
+					final field:Null<String> = ab.findOverload(ABinop(op, type), v1);
+					
+					if (field != null && (ab.info.methods.get(field).isCommutative || ab.info.methods.get(field).isStatic)) {
+						return v2.binop(op, v1);
+					} else if (!InsanityAbstract.needOps.exists(op)) {
+						return defaultOp(op, v1, v2.__a);
+					} else {
+						return throw 'Cannot perform $op on ${AbstractTools.abstractTypeCastToString(type)} and ${ab.info.name}';
+					}
+				} else {
+					return defaultOp(op, v1, v2);
+				}
+			}
 		}
 	}
 	
@@ -214,7 +228,7 @@ class Interp {
 		];
 		
 		for (op in ['+', '-', '*', '/', '%', '&', '|', '^', '<<', '>>', '>>>', '==', '!=', '>=', '<=', '>', '<', '||', '&&', '...', '??'])
-			binops.set(op, exprOp.bind(op));
+			binops.set(op, basicOp.bind(op));
 		
 		for (op in ['+', '-', '*', '/', '%', '&', '|', '^', '<<', '>>', '>>>', '??'])
 			assignOp('$op=', basicOp.bind(op));
