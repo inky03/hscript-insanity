@@ -1916,7 +1916,17 @@ class Interp {
 	}
 
 	function fcall( o : Dynamic, f : String, args : Array<Dynamic> ) : Dynamic {
+		#if hl
+		var fun:Dynamic, isLong:Bool = false;
+		if (o is IInsanityScripted) {
+			fun = get(o, f);
+		} else {
+			isLong = ((fun = Reflect.field(o, 'insanityhl$f')) != null); // maybe should index this to avoid slowdown...
+			fun ??= get(o, f);
+		}
+		#else
 		var fun:Dynamic = get(o, f);
+		#end
 		
 		if (o != Std || f != 'string') { // dirty solution but Yeah what ever
 			for (i => arg in args)
@@ -1938,6 +1948,7 @@ class Interp {
 			error(ECustom('Cannot call $fun'));
 		}
 		
+		#if hl if (isLong) return fun(args); #end
 		return call(o, fun, args);
 	}
 
@@ -1957,11 +1968,13 @@ class Interp {
 		}
 		
 		if (f != Std.string) {
-			for (i => arg in args)
-				args[i] = (AbstractTools.isAbstract(arg) ? arg.__a : arg);
+			for (i => arg in args) {
+				if (AbstractTools.isAbstract(arg))
+					args[i] = arg.__a;
+			}
 		}
 		
-		return Reflect.callMethod(o,f,args);
+		return Reflect.callMethod(o, f, args);
 	}
 
 	function cnew( cl : String, args : Array<Dynamic> ) : Dynamic {

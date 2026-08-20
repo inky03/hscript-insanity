@@ -31,6 +31,7 @@ class ScriptedMacro {
 		cls.meta.add(':access', [macro insanity.Module], pos);
 		cls.meta.add(':access', [macro insanity.backend.Interp], pos);
 		cls.meta.add(':access', [macro insanity.backend.types.InsanityScriptedClass], pos);
+		cls.meta.add(':insanityScripted', [], pos);
 		
 		var knownFields:Array<String> = [];
 		var inlinedFields:Array<String> = [];

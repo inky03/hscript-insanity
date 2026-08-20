@@ -7,8 +7,67 @@ import haxe.macro.Type;
 
 using haxe.macro.ExprTools;
 using haxe.macro.TypeTools;
+using Lambda;
 
 class HLMacro {
+	public static macro function fixLongMethods():Array<Field> {
+		var fields:Array<Field> = Context.getBuildFields();
+		
+		if (!Context.defined('hl')) return fields;
+		
+		var pos = Context.currentPos();
+		var type = Context.getLocalType(), cls:ClassType;
+		
+		switch (type) {
+			case TInst(r, _):
+				cls = r.get();
+				
+				if (cls.meta.has(':hlNative') || cls.meta.has(':insanityScripted') || cls.name.indexOf('_Impl_') != -1 || cls.isInterface)
+					return fields;
+			
+			default:
+				return fields;
+		}
+		
+		function createHLExpr(name:String, args:Array<FunctionArg>, isStatic:Bool):Expr {
+			final callArgs:Array<Expr> = [for (i => arg in args) macro arguments[$v {i}] ?? $e {arg.value ?? macro null}];
+			// i forgot expr reification was a thing until like 10 minutes ago ... so cool ...
+			return macro return $i {isStatic ? cls.name : 'this'}.$name($a {callArgs});
+		}
+		
+		for (field in fields) {
+			if (field.name == 'new') continue; // todo
+			
+			switch (field.kind) {
+				default:
+				case FFun(fun) if (fun.args.length >= 9):
+					// trace('fix ${cls.module+'.'+cls.name}.${field.name}');
+					
+					final funName:String = 'insanityhl${field.name}';
+					final access:Null<Array<Access>> = field.access?.copy();
+					
+					if (fields.exists((field:Field) -> field.name == funName) || field.meta?.exists((meta:MetadataEntry) -> meta.name == ':hlNative'))
+						continue;
+					
+					access.remove(APublic);
+					fields.push({
+						pos: pos,
+						meta: field.meta?.copy(),
+						access: access,
+						name: funName,
+						
+						kind: FFun({
+							params: fun.params?.copy(),
+							args: [{opt: false, name: 'arguments', type: macro:Array<Dynamic>}],
+							expr: createHLExpr(field.name, fun.args, access?.contains(AStatic))
+						})
+					});
+			}
+		}
+		
+		return fields;
+	}
+	
 	public static macro function build(e:Expr):Array<Field> {
 		var pos = Context.currentPos();
 		var fields:Array<Field> = Context.getBuildFields();
