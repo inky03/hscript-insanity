@@ -110,7 +110,6 @@ class Interp {
 		variables = new Map();
 		declared = new Array();
 		
-		setDefaults();
 		initOps();
 	}
 
