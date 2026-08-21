@@ -32,19 +32,20 @@ class HLMacro {
 		function createHLExpr(name:String, args:Array<FunctionArg>, isStatic:Bool):Expr {
 			final callArgs:Array<Expr> = [for (i => arg in args) macro arguments[$v {i}] ?? $e {arg.value ?? macro null}];
 			// i forgot expr reification was a thing until like 10 minutes ago ... so cool ...
+			
+			if (name == 'new') return macro return $e {{pos: pos, expr: ENew({pack: cls.pack, name: cls.name}, callArgs)}};
+			
 			return macro return $i {isStatic ? cls.name : 'this'}.$name($a {callArgs});
 		}
 		
 		for (field in fields) {
-			if (field.name == 'new') continue; // todo
-			
 			switch (field.kind) {
 				default:
 				case FFun(fun) if (fun.args.length >= 9):
 					// trace('fix ${cls.module+'.'+cls.name}.${field.name}');
 					
 					final funName:String = 'insanityhl${field.name}';
-					final access:Null<Array<Access>> = field.access?.copy();
+					final access:Array<Access> = (field.access?.copy() ?? []);
 					
 					if (fields.exists((field:Field) -> field.name == funName) || field.meta?.exists((meta:MetadataEntry) -> meta.name == ':hlNative'))
 						continue;
@@ -59,9 +60,11 @@ class HLMacro {
 						kind: FFun({
 							params: fun.params?.copy(),
 							args: [{opt: false, name: 'arguments', type: macro:Array<Dynamic>}],
-							expr: createHLExpr(field.name, fun.args, access?.contains(AStatic))
+							expr: createHLExpr(field.name, fun.args, access.contains(AStatic))
 						})
 					});
+					
+					if (field.name == 'new') access.push(AStatic);
 			}
 		}
 		

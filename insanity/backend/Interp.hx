@@ -1821,6 +1821,10 @@ class Interp {
 		error(ECustom("Invalid map keys "+keys));
 		return null;
 	}
+	
+	#if hl
+	var insanityhlFunctions:Array<Dynamic> = [];
+	#end
 
 	function get( o : Dynamic, f : String ) : Dynamic {
 		if (canDefer && o is IInsanityType && !o.initialized)
@@ -1847,16 +1851,20 @@ class Interp {
 			if (bypassAccessor) {
 				Reflect.field(o, f);
 			} else {
-				#if php
-					// https://github.com/HaxeFoundation/haxe/issues/4915
-					try {
-						Reflect.getProperty(o, f);
-					} catch (e:Dynamic) {
-						Reflect.field(o, f);
+				#if hl
+				if (!(o is IInsanityScripted || o is IInsanityType)) {
+					final v:Dynamic = Reflect.field(o, 'insanityhl$f');
+					
+					if (v != null) { // maybe should index this to avoid slowdown...
+						if (!insanityhlFunctions.contains(v))
+							insanityhlFunctions.push(v);
+						
+						return v;
 					}
-				#else
-					Reflect.getProperty(o, f);
+				}
 				#end
+				
+				Reflect.getProperty(o, f);
 			}
 		);
 		
@@ -1907,8 +1915,6 @@ class Interp {
 	inline function getFieldsClass(path:String):Dynamic {
 		if (path.endsWith('_Fields_')) return null;
 		
-		// if (path.startsWith('InsanityAbstract_')) path = Type.resolveClass(path).impl;
-		
 		var pack = path.substr(0, path.lastIndexOf('.') + 1);
 		var name = path.substr(path.lastIndexOf('.') + 1);
 		
@@ -1916,17 +1922,7 @@ class Interp {
 	}
 
 	function fcall( o : Dynamic, f : String, args : Array<Dynamic> ) : Dynamic {
-		#if hl
-		var fun:Dynamic, isLong:Bool = false;
-		if (o is IInsanityScripted) {
-			fun = get(o, f);
-		} else {
-			isLong = ((fun = Reflect.field(o, 'insanityhl$f')) != null); // maybe should index this to avoid slowdown...
-			fun ??= get(o, f);
-		}
-		#else
-		var fun:Dynamic = get(o, f);
-		#end
+		final fun:Dynamic = get(o, f);
 		
 		if (o != Std || f != 'string') { // dirty solution but Yeah what ever
 			for (i => arg in args)
@@ -1948,7 +1944,7 @@ class Interp {
 			error(ECustom('Cannot call $fun'));
 		}
 		
-		#if hl if (isLong) return fun(args); #end
+		#if hl if (insanityhlFunctions.contains(fun)) return fun(args); #end
 		return call(o, fun, args);
 	}
 
@@ -1978,13 +1974,15 @@ class Interp {
 	}
 
 	function cnew( cl : String, args : Array<Dynamic> ) : Dynamic {
-		var c = Tools.resolve(cl, environment);
+		var c:Dynamic = Tools.resolve(cl, environment);
 		c ??= resolve(cl);
 		
 		if (canDefer && c is IInsanityType && !c.initialized)
 			throw DDefer;
 		
-		return Type.createInstance(c,args);
+		#if hl if (c is Class && c.insanityhlnew != null) return c.insanityhlnew(args); #end
+		
+		return Type.createInstance(c, args);
 	}
 
 }
