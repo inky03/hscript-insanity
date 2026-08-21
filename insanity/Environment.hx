@@ -141,7 +141,11 @@ class Environment {
 					name: type.name,
 				};
 				
-				if (type is InsanityScriptedInterface) info.isInterface = true;
+				if (type is InsanityScriptedInterface) {
+					info.isInterface = true;
+				} else if (type is InsanityScriptedClass) {
+					info.structInitFields = cast(type, InsanityScriptedClass).structInitFields;
+				}
 				
 				var tp:Array<String> = info.pack.copy(); tp.push(info.name);
 				

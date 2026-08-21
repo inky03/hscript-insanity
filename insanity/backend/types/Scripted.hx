@@ -10,7 +10,9 @@ import insanity.backend.Expr;
 import insanity.Environment;
 import insanity.Module;
 
+using Lambda;
 using StringTools;
+using insanity.tools.Tools;
 using insanity.backend.TypeCollection;
 
 class ScriptedTools {
@@ -46,6 +48,7 @@ class InsanityScriptedClass implements IInsanityType implements IInsanityInterp 
 	public var instanceClass(get, never):Dynamic;
 	
 	public var implementing:Array<Dynamic> = [];
+	public var structInitFields:Null<Array<StructInitField>> = null;
 	
 	var decl:ClassDecl;
 	var __vars:Map<String, Variable> = [];
@@ -65,6 +68,51 @@ class InsanityScriptedClass implements IInsanityType implements IInsanityInterp 
 		interp = Type.createInstance(Config.interpClass, []);
 		interp.canDefer = true;
 		interp.origin = path;
+		
+		if (decl.meta.exists((meta:MetadataEntry) -> meta.name == ':structInit')) initStructInit();
+	}
+	
+	public function initStructInit():Void {
+		var constructor:FieldDecl = decl.fields.find((field:FieldDecl) -> field.name == 'new');
+		
+		if (constructor == null) { // gay macro
+			final args:Array<Argument> = [];
+			final pos:Position = {origin: interp.position.origin, line: interp.position.line};
+			
+			for (field in decl.fields) {
+				switch (field.kind) {
+					default:
+					case KVar(v):
+						if (v.set != null && v.set != 'default' && v.set != 'null') continue;
+						
+						args.push({name: field.name, opt: v.expr != null, t: v.type});
+				}
+			}
+			
+			final newExpr:Expr = EBlock([for (arg in args) {
+				EIf(
+					EBinop('!=', EIdent(arg.name).mk(pos), EIdent('null').mk(pos)).mk(pos),
+					EBinop('=', EField(EIdent('this').mk(pos), arg.name).mk(pos), EIdent(arg.name).mk(pos)).mk(pos)
+				).mk(pos);
+			}]).mk(pos);
+			
+			decl.fields.push(constructor = {
+				meta: [],
+				name: 'new',
+				access: [APublic],
+				kind: KFunction({
+					args: args,
+					expr: newExpr,
+					ret: null
+				})
+			});
+		}
+		
+		switch (constructor.kind) {
+			default:
+			case KFunction(fun):
+				structInitFields = [for (arg in fun.args) {name: arg.name, optional: arg.opt || arg.value != null}];
+		}
 	}
 	
 	public function init(?env:Environment, ?baseInterp:Interp, restore:Bool = true):Void {

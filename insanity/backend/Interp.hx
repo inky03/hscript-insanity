@@ -1098,7 +1098,7 @@ class Interp {
 			var r = null;
 			if (inTry) {
 				try {
-					r = tryCast(exprReturn(fexpr), ret);
+					r = tryCast(exprReturn(fexpr), ret, true);
 				} catch( e : Dynamic ) {
 					shiftStack(functionLocals == null);
 					#if neko
@@ -1526,17 +1526,23 @@ class Interp {
 				switch (t) {
 					default:
 					case CTPath(p, _):
-						var path = p.join('.');
-						var info = (TypeCollection.main.fromPath(path) ?? environment?.types.fromPath(path));
+						final path:Dynamic = p.join('.');
+						final cls:Dynamic = (imports.get(path) ?? variables.get(path) ?? Tools.resolve(path, environment));
 						
-						if (info != null && info[0]?.structInitFields != null)
-							return structInitClass(info[0], fl);
+						var structInitFields:Null<Array<StructInitField>> = null, path:Null<String> = Type.getClassName(cls);
+						
+						if (cls is Class) {
+							structInitFields = TypeCollection.main.fromCompilePath(path)[0].structInitFields;
+						} else if (cls is InsanityScriptedClass) {
+							structInitFields = cls.structInitFields;
+						}
+						
+						if (structInitFields != null) return structInitClass(path, structInitFields, fl);
 				}
 			}
 			
-			var o = {};
-			for( f in fl )
-				set(o,f.name,expr(f.e));
+			final o:Dynamic = {};
+			for (f in fl) HaxeReflect.setField(o, f.name, expr(f.e));
 			
 			return o;
 		case ETernary(econd,e1,e2):
@@ -1698,13 +1704,18 @@ class Interp {
 		return (void ? Interp.void : null);
 	}
 	
-	public function structInitClass(info:TypeInfo, fields:Array<{name:String, e:Expr}>):Dynamic {
+	public function structInitClass(path:String, structInitFields:Array<StructInitField>, fields:Array<{name:String, e:Expr}>):Dynamic {
 		static var fieldIndex:Map<String, Dynamic> = [];
 		
 		fieldIndex.clear();
-		for (field in fields) fieldIndex.set(field.name, expr(field.e));
+		for (field in fields) {
+			fieldIndex.set(field.name, expr(field.e));
+			
+			if (!Lambda.exists(structInitFields, (f:StructInitField) -> f.name == field.name))
+				error(ECustom('Object has extra field ${field.name}'));
+		}
 		
-		return cnew(info.compilePath(), [for (field in info.structInitFields) {
+		return cnew(path, [for (field in structInitFields) {
 			if (!field.optional && !fieldIndex.exists(field.name)) error(ECustom('Object requires field ${field.name}'));
 			
 			fieldIndex.get(field.name);
@@ -1745,24 +1756,49 @@ class Interp {
 		return false;
 	}
 	
-	function tryCast(e:Dynamic, ?type):Dynamic {
+	function tryCast(e:Dynamic, ?type:CType, allowStruct:Bool = false):Dynamic {
 		switch (type) {
 			case CTPath(p, _):
-				var path = p.join('.');
-				var t = imports.get(path);
+				if (e == null) return null;
 				
-				if (t == null) {
-					var info = TypeCollection.main.fromPath(path);
-					if (info != null)
-						t = info[0].compilePath().resolve();
-				}
+				final path:String = p.join('.');
+				final t:Dynamic = (imports.get(path) ?? variables.get(path) ?? Tools.resolve(path, environment));
 				
-				if (e == null || t == null) return e;
+				if (t == null) return e;
 				
 				if (t is InsanityAbstract) {
 					return t.castFrom(e);
 				} else if (e is InsanityAbstractValue) {
 					return e.castTo(t);
+				} else if (allowStruct && HaxeReflect.isObject(e)) {
+					static var structInitIndex:Map<String, Null<Array<StructInitField>>> = [];
+					
+					var structInitFields:Null<Array<StructInitField>> = null, path:Null<String> = Type.getClassName(t);
+					
+					if (structInitIndex.exists(path)) {
+						structInitFields = structInitIndex.get(path);
+					} else {
+						if (t is Class) {
+							structInitFields = TypeCollection.main.fromCompilePath(path)[0].structInitFields;
+						} else if (t is InsanityScriptedClass) {
+							structInitFields = t.structInitFields;
+						}
+						
+						structInitIndex.set(path, structInitFields);
+					}
+					
+					if (structInitFields != null) {
+						for (field in HaxeReflect.fields(e)) {
+							if (!Lambda.exists(structInitFields, (f:StructInitField) -> f.name == field))
+								error(ECustom('Object has extra field $field'));
+						}
+						
+						return cnew(path, [for (field in structInitFields) {
+							if (!field.optional && !HaxeReflect.hasField(e, field.name)) error(ECustom('Object requires field ${field.name}'));
+							
+							HaxeReflect.field(e, field.name);
+						}]);
+					}
 				}
 				
 				// if (t != null) throw 'Type not found: $path';
@@ -2103,8 +2139,9 @@ class Interp {
 	}
 
 	function cnew( cl : String, args : Array<Dynamic> ) : Dynamic {
-		var c:Dynamic = Tools.resolve(cl, environment);
-		c ??= resolve(cl);
+		final c:Dynamic = (imports.get(cl) ?? variables.get(cl) ?? Tools.resolve(cl, environment));
+		
+		if (c == null) EUnknownType(cl);
 		
 		if (canDefer && c is IInsanityType && !c.initialized)
 			throw DDefer;
