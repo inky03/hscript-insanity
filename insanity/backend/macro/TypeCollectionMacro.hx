@@ -40,6 +40,8 @@ class TypeCollectionMacro {
 				function makeTypeInfo(k:String, d:Dynamic) {
 					var info:TypeInfo = (findTypeInfo(d.module, d.name) ?? {kind: k, module: d.module, name: d.name, pack: d.pack});
 					
+					if (k == 'class') info.hasConstructor = (d.constructor != null);
+					
 					if (k == 'typedef') {
 						info.typedefType = switch (d.type) {
 							case TInst(r, _): makeTypeInfo('class', r.get());
@@ -78,6 +80,13 @@ class TypeCollectionMacro {
 									});
 							}
 						}
+					}
+					
+					if (d.meta.has(':structInit')) {
+						info.structInitFields = switch (d.constructor.get().type) {
+							default: null;
+							case TFun(args, _): [for (arg in args) {name: arg.name, optional: arg.opt}];
+						};
 					}
 					
 					_c['${d.module}.${d.name}'] = info;

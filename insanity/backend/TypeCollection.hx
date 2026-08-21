@@ -10,12 +10,20 @@ typedef TypeInfo = {
 	var name:String;
 	var module:String;
 	var pack:Array<String>;
+	var ?hasConstructor:Bool;
 	
 	var ?typedefType:TypeInfo;
 	var ?isInterface:Bool;
 	
 	var ?interfaceFields:Array<InterfaceField>;
 	var ?interfaceMethods:Array<InterfaceMethod>;
+	
+	var ?structInitFields:Array<StructInitField>;
+}
+
+typedef StructInitField = {
+	var name:String;
+	var optional:Bool;
 }
 
 typedef InterfaceVar = {

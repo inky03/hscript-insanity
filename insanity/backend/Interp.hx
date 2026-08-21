@@ -1522,9 +1522,22 @@ class Interp {
 				return v;
 			}
 		case EObject(fl):
+			if (t != null) {
+				switch (t) {
+					default:
+					case CTPath(p, _):
+						var path = p.join('.');
+						var info = (TypeCollection.main.fromPath(path) ?? environment?.types.fromPath(path));
+						
+						if (info != null && info[0]?.structInitFields != null)
+							return structInitClass(info[0], fl);
+				}
+			}
+			
 			var o = {};
 			for( f in fl )
 				set(o,f.name,expr(f.e));
+			
 			return o;
 		case ETernary(econd,e1,e2):
 			return if( expr(econd) == true ) expr(e1) else expr(e2);
@@ -1683,6 +1696,19 @@ class Interp {
 			return expr(e);
 		}
 		return (void ? Interp.void : null);
+	}
+	
+	public function structInitClass(info:TypeInfo, fields:Array<{name:String, e:Expr}>):Dynamic {
+		static var fieldIndex:Map<String, Dynamic> = [];
+		
+		fieldIndex.clear();
+		for (field in fields) fieldIndex.set(field.name, expr(field.e));
+		
+		return cnew(info.compilePath(), [for (field in info.structInitFields) {
+			if (!field.optional && !fieldIndex.exists(field.name)) error(ECustom('Object requires field ${field.name}'));
+			
+			fieldIndex.get(field.name);
+		}]);
 	}
 	
 	inline function getMeta(name:String):MetadataEntry {
