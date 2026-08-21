@@ -47,9 +47,15 @@ enum Token {
 	TPrepro( s : String );
 }
 
+/**
+ * Generates a script expression from a code string.
+ */
 class Parser {
 
 	// config / variables
+	/**
+	 * This parser's current line.
+	 */
 	public var line : Int;
 	public var opChars : String;
 	public var identChars : String;
@@ -58,28 +64,28 @@ class Parser {
 	public var columnOffset : Int;
 
 	/**
-		allows to check for #if / #else in code
-	**/
+	 * A list of preprocessor values / defines, for conditional compilation (ex. `#if #else #end`).
+	 */
 	public var preprocessorValues : Map<String,Dynamic> = new Map();
 
 	/**
-		activate JSON compatiblity
-	**/
+	 * Whether this parser can read struct / JSON (i.e. `{hello: "world"}`) declarations or not.
+	 */
 	public var allowJSON : Bool;
 
 	/**
-		allow types declarations
-	**/
+	 * Whether this parser can read type (i.e. `var hello:Type`) definitions or not.
+	 */
 	public var allowTypes : Bool;
 
 	/**
-		allow haxe metadata declarations
-	**/
+	 * Whether this parser can read metadata (i.e. `@:metadata`) definitions or not.
+	 */
 	public var allowMetadata : Bool;
 
 	/**
-		resume from parsing errors (when parsing incomplete code, during completion for example)
-	**/
+	 * Whether the parser can resume from parsing errors (when parsing incomplete code, during completion for example) or not.
+	 */
 	public var resumeErrors : Bool;
 
 	// implementation
@@ -103,6 +109,9 @@ class Parser {
 	var oldTokenMax : Int;
 	var tokens : List<{ min : Int, max : Int, t : Token }>;
 	
+	/**
+	 * Creates a new `Parser`.
+	 */
 	public function new() {
 		line = 1;
 		opChars = "+*/-=!><&|^%~";
@@ -149,12 +158,12 @@ class Parser {
 
 	inline function get_currentPos() return readPos + offset;
 
-	public inline function error( err, pmin, pmax ) {
+	@:noCompletion public inline function error( err, pmin, pmax ) {
 		if ( !resumeErrors )
 			throw new ParserException(err, pmin, pmax, origin, line);
 	}
 
-	public function invalidChar(c) {
+	@:noCompletion public function invalidChar(c) {
 		error(EInvalidChar(c), readPos-1, readPos-1);
 	}
 
@@ -178,7 +187,15 @@ class Parser {
 		for( i in 0...identChars.length )
 			idents[identChars.charCodeAt(i)] = true;
 	}
-
+	
+	/**
+	 * Generates a script expression from a code string.
+	 * 
+	 * @param	s			The code string to parse.
+	 * @param	origin		The origin / name of the script (used for error reporting).
+	 * @param	position	The position offset for this parser.
+	 * @return	The generated script expression.
+	 */
 	public function parseScript( s : String, ?origin : String = "hscript", ?position : Int = 0 ) {
 		initParser(origin, position);
 		input = s;
@@ -1266,7 +1283,17 @@ class Parser {
 	}
 
 	// ------------------------ module -------------------------------
-
+	
+	/**
+	 * Generates module declarations from a code string.
+	 * 
+	 * @param	s				The code string to parse.
+	 * @param	origin			The origin / name of the script (used for error reporting).
+	 * @param	position		The position offset for this parser.
+	 * @param	pack			The package to assert for this module.
+	 * @param	importModule	Whether the parsing mode is for import module or not.
+	 * @return	Array containing the generated module declarations.
+	 */
 	public function parseModule(content:String, ?origin:String = "hscript", position:Int = 0, ?pack:Array<String>, importModule:Bool = false) {
 		this.pack = pack;
 		initParser(origin, position);

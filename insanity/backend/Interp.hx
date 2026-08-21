@@ -64,24 +64,53 @@ enum Stop {
 	public var old:Variable;
 }
 
+/**
+ * Interprets script expressions generated from a `Parser`.
+ */
 class Interp {
+	/**
+	 * The interpreter's usings.
+	 */
 	public var usings : Array<Dynamic>;
+	/**
+	 * The interpreter's imports.
+	 */
 	public var imports : Map<String, Dynamic>;
+	/**
+	 * The interpreter's global variables.
+	 */
 	public var variables : Map<String, Dynamic>;
 	var binops : Map<String, Expr -> Expr -> Dynamic >;
 	var mathOps : Map<String, Bool>;
 	
 	public var parent : Dynamic = null;
+	/**
+	 * The interpreter's `Environment`.
+	 */
 	public var environment : Environment;
 	
+	/**
+	 * Whether the interpreter can define global variables and functions or not.
+	 */
 	public var defineGlobals:Bool = false;
-	public var superConstructorAllowed:Bool = false;
+	@:noCompletion public var superConstructorAllowed:Bool = false;
 	
 	static var localsPool : Array<Map<String, Variable>> = [];
+	/**
+	 * The interpreter's local variables.
+	 */
 	var locals (get, never) : Map<String, Variable>;
 	
-	public var callStackDepth : Int = 200;
+	/**
+	 * The interpreter's call stack.
+	 */
 	public var stack : CallStack;
+	/**
+	 * The interpreter's call stack depth.
+	 * 
+	 * If the stack exceeds this number, an exception will be thrown to avoid infinite recursion.
+	 */
+	public var callStackDepth : Int = 200;
 	
 	var inTry : Bool;
 	var metas : Metadata = [];
@@ -95,9 +124,15 @@ class Interp {
 	var origin (get, set) : String;
 	var curAccess : String = '';
 	
-	public var canDefer:Bool = false;
-	public var canInit:Bool = false;
-
+	@:noCompletion public var canDefer:Bool = false;
+	@:noCompletion public var canInit:Bool = false;
+	
+	/**
+	 * Creates a new `Interp`.
+	 * 
+	 * @param	environment	The `Environment` this script will use.
+	 * @param	parent		Unused
+	 */
 	public function new(?environment:Environment, ?parent:Dynamic) {
 		this.environment = environment;
 		this.parent = parent;
@@ -112,7 +147,13 @@ class Interp {
 		
 		initOps();
 	}
-
+	
+	/**
+	 * Initializes default variables within the script.
+	 * 
+	 * @param	wipe			Whether to completely wipe any previously defined imports / usings / variables or not.
+	 * @param	includeConfig	Whether 
+	 */
 	public function setDefaults(wipe:Bool = true, includeConfig:Bool = true) {
 		if (wipe) {
 			imports.clear();
@@ -137,9 +178,12 @@ class Interp {
 	}
 	
 	public function toString() : String {
-		return '(parent: $parent | origin: $origin)';
+		return 'insanity.backend.Interp(parent: $parent | origin: $origin)';
 	}
-
+	
+	/**
+	 * Gets a `PosInfos` from the interpreter's current position.
+	 */
 	public function posInfos(): PosInfos {
 		return cast { fileName : position.origin, lineNumber : position.line };
 	}
@@ -346,6 +390,13 @@ class Interp {
 		return v;
 	}
 	
+	/**
+	 * Retrieves a local variable.
+	 * 
+	 * @param	id		The identifier / name of the local variable.
+	 * @param	map		Map of locals to use. If none provided, uses the interpreter's locals map.
+	 * @return	The value of the local variable, if any.
+	 */
 	public function getLocal(id:String, ?map:Map<String, Variable>):Dynamic {
 		var map:Map<String, Variable> = (map ?? locals);
 		var l:Variable = map.get(id);
@@ -378,6 +429,14 @@ class Interp {
 				throw 'Invalid property accessor'; return null;
 		}
 	}
+	/**
+	 * Sets a local variable.
+	 * 
+	 * @param	id		The identifier / name of the local variable.
+	 * @param	v		The value to set this local variable to.
+	 * @param	map		Map of locals to use. If none provided, uses the interpreter's locals map.
+	 * @return	The new value of the local variable.
+	 */
 	public function setLocal(id:String, v:Dynamic, ?map:Map<String, Variable>):Dynamic {
 		var map:Map<String, Variable> = (map ?? locals);
 		var l:Variable = map.get(id);
@@ -502,6 +561,12 @@ class Interp {
 		}
 	}
 	
+	/**
+	 * Executes an array of module declarations. This only has effect in `import` and `using` statements.
+	 * 
+	 * @param	decls	The module declarations to execute.
+	 * @param	path	Unused
+	 */
 	public function executeModule(decls:Array<ModuleDecl>, path:String):Void {
 		try {
 			if (stack.length == 0)
@@ -528,7 +593,13 @@ class Interp {
 			}
 		}
 	}
-
+	
+	/**
+	 * Executes an expression.
+	 * 
+	 * @param	expr	The expression to execute.
+	 * @return	The expression's return value, if any.
+	 */
 	public function execute( expr : Expr ) : Dynamic {
 		try {
 			stack.stack.resize(0);
@@ -661,6 +732,13 @@ class Interp {
 		}
 	}
 
+	/**
+	 * Resolves an import or global variable. If it can't be resolved, an error will be thrown.
+	 * Can be overridden to add custom variable resolution logic.
+	 * 
+	 * @param	id		The identifier / name of the variable.
+	 * @return	The value of the import or global variable.
+	 */
 	public function resolve(id:String) : Dynamic {
 		if (imports.exists(id)) {
 			var v:Dynamic = imports.get(id);
@@ -677,6 +755,13 @@ class Interp {
 		return resolveMirror(variables.get(id));
 	}
 	
+	/**
+	 * Whether a variable identifier exists or not.
+	 * Can be overridden to add custom variable resolution logic.
+	 * 
+	 * @param	id		The identifier / name of the variable.
+	 * @return	Whether the variable identifier exists or not.
+	 */
 	public function isResolvable(id:String):Bool {
 		return (imports.exists(id) || variables.exists(id));
 	}
@@ -936,6 +1021,17 @@ class Interp {
 		}
 	}
 	
+	/**
+	 * Builds a function from an expression.
+	 * 
+	 * @param	name			The name of this function, if any.
+	 * @param	params			The arguments of this function.
+	 * @param	fexpr			The function's expression.
+	 * @param	ret				The function's return type. This is used for abstract type casting.
+	 * @param	functionLocals	For internal use
+	 * @param	su				For internal use
+	 * @return	The generated function.
+	 */
 	public function buildFunction(?name:String, params:Array<Argument>, fexpr:Expr, ?ret:CType, ?id:Int, ?functionLocals:Map<String, Variable>, su:Bool = false) {
 		var capturedLocals = (functionLocals == null ? duplicate(locals) : null);
 		
@@ -1066,7 +1162,7 @@ class Interp {
 		}
 	}
 	
-	public function expr( e : Expr, ?t : CType, void : Bool = false, mapCompr : Bool = false ) : Dynamic {
+	@:noCompletion public function expr( e : Expr, ?t : CType, void : Bool = false, mapCompr : Bool = false ) : Dynamic {
 		Type.environment = environment;
 		accessingInterp = this;
 		position = e.pos;
@@ -1602,6 +1698,13 @@ class Interp {
 		return entry;
 	}
 	
+	/**
+	 * Evaluates equivalence between two values.
+	 * 
+	 * @param	v		The first type to evaluate.
+	 * @param	with	The second type to evaluate.
+	 * @return	Whether the two values are equivalent or not.
+	 */
 	public static function matchValues(v:Dynamic, with:Dynamic):Bool {
 		if (v == with) {
 			return true;

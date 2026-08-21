@@ -2,6 +2,9 @@ package insanity.custom;
 
 import insanity.backend.types.Scripted.InsanityScriptedClass;
 
+/**
+ * HscriptInsanity's extended version of the `Std` class, to make working with scripted types easier.
+ */
 class InsanityStd {
 	@:deprecated('Std.is is deprecated. Use Std.isOfType instead.')
 	public static inline function is(v:Dynamic, t:Dynamic):Bool {

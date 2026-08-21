@@ -2,6 +2,9 @@ package insanity.custom;
 
 import insanity.custom.InsanityType;
 
+/**
+ * HscriptInsanity's extended version of the `Reflect` class, to make working with scripted types easier.
+ */
 class InsanityReflect {
 	public inline static function hasField(o:Dynamic, field:String):Bool {
 		if (o is ICustomReflection) {

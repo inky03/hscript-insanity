@@ -4,6 +4,9 @@ import insanity.backend.types.Scripted;
 import insanity.Config;
 import Type.ValueType;
 
+/**
+ * HscriptInsanity's extended version of the `Type` class, to make working with scripted types easier.
+ */
 class InsanityType {
 	public static var environment:Environment = null;
 	
@@ -186,28 +189,115 @@ class InsanityType {
 	}
 }
 
+/**
+ * Implements custom behavior for class adjacent functions in `InsanityType`.
+ */
 interface ICustomClassType extends ICustomType {
+	/**
+	 * Behavior override for `Type.createEmptyInstance`.
+	 * Creates an empty (uninitialized) instance.
+	 * 
+	 * @return	The new instance.
+	 */
 	public function typeCreateEmptyInstance():Dynamic;
+	/**
+	 * Behavior override for `Type.createInstance`.
+	 * Creates an instance.
+	 * 
+	 * @param	args	List of arguments to pass to the class' constructor.
+	 * @return	The new instance.
+	 */
 	public function typeCreateInstance(args:Array<Dynamic>):Dynamic;
+	/**
+	 * Behavior override for `Type.getInstanceFields`.
+	 * Gets the names of all of this class' instance fields.
+	 * 
+	 * @return	Array.
+	 */
 	public function typeGetInstanceFields():Array<String>;
+	/**
+	 * Behavior override for `Type.getClassFields`.
+	 * Gets the names of all of this class' static fields.
+	 * 
+	 * @return	Array.
+	 */
 	public function typeGetClassFields():Array<String>;
+	/**
+	 * Behavior override for `Type.getClass`.
+	 * Gets the class this instance belongs to.
+	 * 
+	 * @return	Class.
+	 */
 	public function typeGetClass():Dynamic;
 }
 
+/**
+ * Implements custom behavior for enum adjacent functions in `InsanityType`.
+ */
 interface ICustomEnumType extends ICustomType {
+	/**
+	 * Behavior override for `Type.createEnumIndex`.
+	 * Creates an enum value from the constructor's numerical index.
+	 * 
+	 * @param	index	The index of the enum constructor.
+	 * @param	params	The parameters to pass to the enum's constructor.
+	 * @return	The enum value.
+	 */
 	public function typeCreateEnumIndex(index:Int, ?params:Array<Dynamic>):Dynamic;
+	/**
+	 * Behavior override for `Type.createEnum`.
+	 * Creates an enum value from the constructor's name.
+	 * 
+	 * @param	index	The name of the enum constructor.
+	 * @param	params	The parameters to pass to the enum's constructor.
+	 * @return	The enum value.
+	 */
 	public function typeCreateEnum(constr:String, ?params:Array<Dynamic>):Dynamic;
+	/**
+	 * Behavior override for `Type.getEnumConstructs`.
+	 * Gets the names of all of this enum's constructors.
+	 * 
+	 * @return	Array.
+	 */
 	public function typeGetEnumConstructs():Array<String>;
+	/**
+	 * Behavior override for `Type.getEnumName`.
+	 * Gets the path of this enum.
+	 * 
+	 * @return	The path of the enum.
+	 */
 	public function typeGetEnumName():String;
+	/**
+	 * Behavior override for `Type.allEnums`.
+	 * Returns a list of all constructors of this enum that require no arguments.
+	 * 
+	 * @return	Array.
+	 */
 	public function typeAllEnums():Array<Dynamic>;
 }
 
+/**
+ * Implements custom behavior for enum value adjacent functions in `InsanityType`.
+ */
 interface ICustomEnumValueType extends ICustomType {
 	public var index:Int;
 	public var constructor:String;
 	public var arguments:Array<Dynamic>;
 	
+	/**
+	 * Behavior override for `Type.getEnum`.
+	 * Gets the enum this enum value belongs to.
+	 * 
+	 * @return	Enum.
+	 */
 	public function typeGetEnum():Dynamic;
+	/**
+	 * Behavior override for `Type.enumEq`.
+	 * Evaluates equivalence between this enum value and another.
+	 * 
+	 * @param	e	The enum value to match.
+	 * @return	Whether the two enum values are equivalent or not.
+	 */
 	public function eq(e:ICustomEnumValueType):Bool;
 }
 
