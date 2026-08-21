@@ -103,7 +103,7 @@ class Tools {
 		return e.e;
 	}
 
-	public static inline function mk( e : ExprDef, pos : Position ) {
+	public static inline function mk( e : ExprDef, pos : Position ) : Expr {
 		return { e : e, pos: { pmin : pos.pmin, pmax : pos.pmax, origin : pos.origin, line : pos.line, column : pos.column } };
 	}
 
