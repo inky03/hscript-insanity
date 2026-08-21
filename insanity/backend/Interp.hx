@@ -1033,74 +1033,69 @@ class Interp {
 	 * @return	The generated function.
 	 */
 	public function buildFunction(?name:String, params:Array<Argument>, fexpr:Expr, ?ret:CType, ?id:Int, ?functionLocals:Map<String, Variable>, su:Bool = false) {
-		var capturedLocals = (functionLocals == null ? duplicate(locals) : null);
+		final item:StackItem = (name == null ? SLocalFunction(id) : SMethod(origin, name));
+		final capturedLocals = (functionLocals == null ? duplicate(locals) : null);
 		
-		var hasOpt = false, hasRest = false, minParams = 0;
-		
-		for( p in params ) {
-			if (p.opt) {
-				hasOpt = true;
-			} else if (p.rest) {
+		var minParams:Int = 0, hasRest:Bool = false;
+		for (i => param in params) {
+			if (param.rest) {
 				hasRest = true;
-			} else {
-				minParams++;
+			} else if (!param.opt && i >= minParams) {
+				minParams = (i + 1);
 			}
 		}
 		
-		final origin = origin;
-		
-		var f = Reflect.makeVarArgs(function(args:Array<Dynamic>) {
+		final rest:Null<Array<Dynamic>> = (hasRest ? [] : null);
+		final f = Reflect.makeVarArgs(function(args:Array<Dynamic>) {
 			superConstructorAllowed = su;
 			
-			if( args?.length ?? 0 != params.length ) {
-				if( args.length < minParams ) {
-					var str = "Invalid number of parameters. Got " + args.length + ", required " + minParams;
-					if( name != null ) str += " for function '" + name+"'";
-					error(ECustom(str));
-				}
-				// make sure mandatory args are forced
-				var args2 = [];
-				var extraParams = args.length - minParams;
-				var pos = 0;
-				for( p in params ) {
-					if (p.rest) {
-						if (pos < args.length)
-							args2.push(args[pos++]);
-					} else if( p.opt ) {
-						if( extraParams > 0 ) {
-							args2.push(args[pos++]);
-							extraParams--;
-						} else {
-							args2.push(p.value == null ? null : expr(p.value));
-						}
-					} else
-						args2.push(args[pos++]);
-				}
-				if (hasRest)
-					args2 = args2.concat(args.slice(params.length));
-				args = args2;
-			}
-			var old = declared.length;
-			pushStack(name == null ? SLocalFunction(id) : SMethod(origin, name), functionLocals ?? duplicate(capturedLocals));
+			final old:Int = declared.length;
+			pushStack(item, functionLocals ?? duplicate(capturedLocals));
 			
-			for( i in 0...params.length ) {
-				var name:String = params[i].name;
+			if (args.length < minParams) {
+				var expect:Argument = params[args.length];
+				for (i in args.length ... params.length) {
+					if (!params[i].opt) {
+						expect = params[i];
+						break;
+					}
+				}
+				
+				error(ECustom('Not enough arguments, expected ${expect.name}' + (expect.t == null ? '' : ':${new Printer().typeToString(expect.t)}')));
+			} else if (!hasRest && args.length > params.length) {
+				error(ECustom('Too many arguments'));
+			}
+			
+			var pos:Int = 0;
+			for (param in params) {
+				final name:String = param.name;
 				
 				declared.push({n: name, old: locals.get(name)});
 				
-				if (i == params.length - 1 && hasRest) {
-					locals.set(name, {r: args.slice(params.length - 1)});
+				if (param.rest) {
+					rest.resize(0);
+					for (i in (params.length - 1) ... args.length) rest.push(args[i]);
+					
+					locals.set(name, {r: rest});
+					continue;
+				}
+				
+				final v:Dynamic = args[pos ++];
+				
+				if (param.opt) {
+					locals.set(name, {r: tryCast(v ?? (param.value != null ? expr(param.value) : null), param.t)});
 				} else {
-					locals.set(name, {r: tryCast(args[i], params[i].t)});
+					locals.set(name, {r: tryCast(v, param.t)});
 				}
 			}
 			
-			var r = null;
+			var r:Dynamic = null;
 			if (inTry) {
 				try {
 					r = tryCast(exprReturn(fexpr), ret, true);
 				} catch( e : Dynamic ) {
 					shiftStack(functionLocals == null);
+					
 					#if neko
 					neko.Lib.rethrow(e);
 					#else
@@ -1108,12 +1103,12 @@ class Interp {
 					#end
 				}
 			} else {
-				r = tryCast(exprReturn(fexpr), ret);
+				r = tryCast(exprReturn(fexpr), ret, true);
 			}
 			
-			restore(old);
-			
+			if (functionLocals != null) restore(old);
 			shiftStack(functionLocals == null);
+			
 			superConstructorAllowed = false;
 			
 			return r;
@@ -1121,16 +1116,15 @@ class Interp {
 		
 		if (name != null) {
 			if (stack.length > 1) { // function-in-function is a local function
-				declared.push( { n : name, old : locals.get(name) } );
-				final ref:Variable = { r : f };
-				locals.set(name, ref);
+				declared.push({n: name, old: locals.get(name)});
+				
+				final ref:Variable = {r: f};
 				capturedLocals.set(name, ref); // allow self-recursion
-			} else { // global function
-				if (defineGlobals) {
-					variables.set(name, f);
-				} else {
-					locals.set(name, {r: f});
-				}
+				locals.set(name, ref);
+			} else if (defineGlobals) { // global function
+				variables.set(name, f);
+			} else {
+				locals.set(name, {r: f});
 			}
 		}
 		
@@ -1759,6 +1753,7 @@ class Interp {
 	function tryCast(e:Dynamic, ?type:CType, allowStruct:Bool = false):Dynamic {
 		switch (type) {
 			case CTPath(p, _):
+				if (p[0] == 'Void') return e;
 				if (e == null) return null;
 				
 				final path:String = p.join('.');
