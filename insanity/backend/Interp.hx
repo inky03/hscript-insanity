@@ -96,10 +96,6 @@ class Interp {
 	@:noCompletion public var superConstructorAllowed:Bool = false;
 	
 	static var localsPool : Array<Map<String, Variable>> = [];
-	/**
-	 * The interpreter's local variables.
-	 */
-	var locals (get, never) : Map<String, Variable>;
 	
 	/**
 	 * The interpreter's call stack.
@@ -111,6 +107,10 @@ class Interp {
 	 * If the stack exceeds this number, an exception will be thrown to avoid infinite recursion.
 	 */
 	public var callStackDepth : Int = 200;
+	/**
+	 * The interpreter's current stack frame's local variables.
+	 */
+	public var locals : Map<String, Variable>;
 	
 	var inTry : Bool;
 	var metas : Metadata = [];
@@ -188,7 +188,6 @@ class Interp {
 		return cast { fileName : position.origin, lineNumber : position.line };
 	}
 	
-	inline function get_locals():Map<String, Variable> { return stack.first()?.locals; }
 	inline function set_origin(v:String):String { return position.origin = v; }
 	inline function get_origin():String { return position.origin; }
 	
@@ -602,8 +601,8 @@ class Interp {
 	 */
 	public function execute( expr : Expr ) : Dynamic {
 		try {
-			stack.stack.resize(0);
-			declared = new Array();
+			while (stack.length > 0) shiftStack();
+			declared.resize(0);
 			
 			return exprReturn(expr);
 		} catch (e:haxe.Exception) {
@@ -646,8 +645,11 @@ class Interp {
 				default: SFilePos(last.item, position.origin, position.line, position.column);
 			}});
 		}
+		
 		if (item != null) {
-			stack.stack.unshift({locals: locals ?? duplicate(), item: item});
+			final newLocals = (locals ?? duplicate(stack.first()?.locals));
+			stack.stack.unshift({locals: newLocals, item: item});
+			this.locals = newLocals;
 			
 			if (stack.length > callStackDepth)
 				error(ECustom('Stack overflow'));
@@ -658,15 +660,18 @@ class Interp {
 		
 		if (put) localsPool.push(item.locals);
 		
+		locals = stack.first()?.locals;
+		
 		return item;
 	}
 	inline function duplicate(?h:Map<String, Variable>):Map<String, Variable> {
 		if (localsPool.length > 0) {
 			var locals:Map<String, Variable> = localsPool.pop();
+			locals.clear();
 			
 			if (h != null) {
-				locals.clear();
-				for (k => v in h) locals.set(k, v);
+				for (k => v in h)
+					locals.set(k, v);
 			}
 			
 			return locals;
