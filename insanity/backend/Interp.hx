@@ -637,7 +637,7 @@ class Interp {
 		return null;
 	}
 	
-	function pushStack(?item:StackItem, ?locals:Map<String, Variable>) {
+	function pushStack(?item:StackItem, ?locals:Map<String, Variable>):Void {
 		var last:Stack = stack.stack.shift();
 		
 		if (last != null) {
@@ -653,7 +653,7 @@ class Interp {
 				error(ECustom('Stack overflow'));
 		}
 	}
-	function shiftStack(put:Bool = true):Stack {
+	inline function shiftStack(put:Bool = true):Stack {
 		var item:Stack = stack.stack.shift();
 		
 		if (put) localsPool.push(item.locals);
@@ -687,17 +687,19 @@ class Interp {
 		}
 	}
 
-	function error(e : Error, rethrow=false ) : Dynamic {
+	function error(e:Error, rethrow:Bool = false):Dynamic {
 		pushStack();
 		
 		var exception:InterpException = new InterpException(stack, Printer.errorToString(e));
-		if ( rethrow ) this.rethrow(exception) else throw exception;
+		if (rethrow) this.rethrow(exception) else throw exception;
 		
 		return null;
 	}
 
 	inline function rethrow( e : Dynamic ) {
-		#if hl
+		#if neko
+		neko.Lib.rethrow(e);
+		#elseif hl
 		hl.Api.rethrow(e);
 		#else
 		throw e;
@@ -1095,12 +1097,7 @@ class Interp {
 					r = tryCast(exprReturn(fexpr), ret, true);
 				} catch( e : Dynamic ) {
 					shiftStack(functionLocals == null);
-					
-					#if neko
-					neko.Lib.rethrow(e);
-					#else
-					throw e;
-					#end
+					rethrow(e);
 				}
 			} else {
 				r = tryCast(exprReturn(fexpr), ret, true);
@@ -1679,17 +1676,17 @@ class Interp {
 			
 			return val;
 		case EMeta(meta, args, e):
-			var r:Dynamic, old = metas.length; metas.push({ name : meta, params : args });
+			final old:Int = metas.length;
+			metas.push({name: meta, params: args});
 			
 			try {
-				r = expr(e);
+				final r:Dynamic = expr(e);
 				metas.resize(old);
+				return r;
 			} catch (e:Dynamic) {
 				metas.resize(old);
-				#if neko neko.Lib.rethrow(e); #else throw e; #end
+				rethrow(e);
 			}
-			
-			return r;
 		case ECast(e, t):
 			return tryCast(expr(e), t);
 		case ECheckType(e,_):
