@@ -1028,6 +1028,7 @@ class Interp {
 		}
 	}
 	
+	var _rest:Array<Dynamic> = [];
 	/**
 	 * Builds a function from an expression.
 	 * 
@@ -1052,7 +1053,6 @@ class Interp {
 			}
 		}
 		
-		final rest:Null<Array<Dynamic>> = (hasRest ? [] : null);
 		final f = Reflect.makeVarArgs(function(args:Array<Dynamic>) {
 			superConstructorAllowed = su;
 			
@@ -1062,10 +1062,10 @@ class Interp {
 			if (args.length < minParams) {
 				var expect:Argument = params[args.length];
 				for (i in args.length ... params.length) {
-					if (!params[i].opt) {
-						expect = params[i];
-						break;
-					}
+					if (params[i].opt) continue;
+					
+					expect = params[i];
+					break;
 				}
 				
 				error(ECustom('Not enough arguments, expected ${expect.name}' + (expect.t == null ? '' : ':${new Printer().typeToString(expect.t)}')));
@@ -1077,13 +1077,13 @@ class Interp {
 			for (param in params) {
 				final name:String = param.name;
 				
-				declared.push({n: name, old: locals.get(name)});
+				if (functionLocals != null) declared.push({n: name, old: locals.get(name)});
 				
 				if (param.rest) {
-					rest.resize(0);
-					for (i in (params.length - 1) ... args.length) rest.push(args[i]);
+					_rest.resize(0);
+					for (i in (params.length - 1) ... args.length) _rest.push(args[i]);
 					
-					locals.set(name, {r: rest});
+					locals.set(name, {r: _rest});
 					continue;
 				}
 				
