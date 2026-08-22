@@ -1929,6 +1929,10 @@ class Parser {
 					switch( char ) {
 					case 48,49,50,51,52,53,54,55,56,57:
 						n = n * 10 + (char - 48);
+					case '_'.code: // separator
+						final char:Int = readChar();
+						if (char < 48 || char > 57) invalidChar(char);
+						n = (n * 10 + char - 48);
 					case "e".code, "E".code:
 						var tk = token();
 						var pow : Null<Int> = null;
@@ -1973,6 +1977,11 @@ class Parser {
 								n = (n << 4) + (char - 55);
 							case 97,98,99,100,101,102: // a-f
 								n = (n << 4) + (char - 87);
+							case '_'.code: // separator
+								final char:Int = readChar();
+								if ((char < 48 || char > 57) && (char < 65 || char > 70) && (char < 97 || char > 102))
+									invalidChar(char);
+								readPos --; // yeah WHATEVER
 							default:
 								this.char = char;
 								return TConst(CInt(n));
@@ -2001,6 +2010,10 @@ class Parser {
 						switch( char ) {
 						case 48,49,50,51,52,53,54,55,56,57:
 							n = n * 10 + (char - 48);
+						case '_'.code: // separator
+							final char:Int = readChar();
+							if (char < 48 || char > 57) invalidChar(char);
+							n = (n * 10 + char - 48);
 						default:
 							this.char = char;
 							this.columnOffset = colOffset;
