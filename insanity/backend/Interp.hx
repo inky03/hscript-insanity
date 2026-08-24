@@ -971,8 +971,7 @@ class Interp {
 	public function startDecl(decl:ModuleDecl):Void {
 		position = decl.pos;
 		
-		final metas:Array<MetadataEntry> = [for (meta in metas) meta];
-		
+		final metas:Array<MetadataEntry> = metas.copy();
 		final cls:Null<IInsanityType> = switch (decl.d) {
 			case DClass(m):
 				if (variables.exists(m.name)) return;
