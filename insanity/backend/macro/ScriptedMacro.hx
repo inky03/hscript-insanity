@@ -26,7 +26,7 @@ class ScriptedMacro {
 		var cls = Context.getLocalClass().get();
 		var fields:Array<Field> = Context.getBuildFields();
 		
-		trace('Preparing ${cls.name}');
+		// trace('Preparing ${cls.name}');
 		
 		cls.meta.add(':access', [macro insanity.Module], pos);
 		cls.meta.add(':access', [macro insanity.backend.Interp], pos);
@@ -348,13 +348,12 @@ class ScriptedMacro {
 								
 								var cantInfer:Bool = false;
 								function mapGeneric(t:ComplexType) {
+									if (t == null) return null;
+									
 									switch (t) {
 										case TPath(p):
 											if (generics.exists(p.name)) {
 												return generics.get(p.name);
-											} else if (p.name.length == 1) {
-												cantInfer = true;
-												return t;
 											} else {
 												if (p != null) {
 													for (i => param in p.params)
@@ -363,6 +362,13 @@ class ScriptedMacro {
 															default: param;
 														}
 												}
+												
+												try {
+													Context.resolveType(t, pos);
+												} catch (e) {
+													cantInfer = true;
+												}
+												
 												return t;
 											}
 										case TOptional(t):
@@ -394,12 +400,10 @@ class ScriptedMacro {
 								var args = [for (i => arg in args) {
 									var defaultValue:Expr = defaults[i];
 									
-									var t = mapGeneric(arg.t.toComplexType());
-									
 									{
 										name: arg.name,
 										value: defaultValue,
-										type: (defaultValue == null ? t : null),
+										type: (defaultValue == null ? mapGeneric(arg.t.toComplexType()) : null),
 										opt: (defaultValue == null ? arg.opt : null)
 									}
 								}];
@@ -407,7 +411,9 @@ class ScriptedMacro {
 								
 								if (cantInfer) {
 									omittedFields.push(f);
-									trace('Couldn\'t override field $f ...');
+									if (Context.defined('debug')) {
+										haxe.Log.trace('insanity: Can\'t create scriptable field for $f in ${cls.superClass?.t.get().name ?? cls.name}!!', null);
+									}
 									continue;
 								}
 								

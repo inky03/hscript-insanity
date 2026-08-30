@@ -101,7 +101,6 @@ class HLMacro {
 							expr: macro return $e.$f
 						})
 					});
-					trace(f);
 					
 				case FMethod(m):
 					var args = null, ret = null; // should put all this stuff in one class instead of repeating code i think ... todo
