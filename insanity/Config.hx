@@ -58,7 +58,7 @@ class Config { #if (!macro)
 	 * A map containing paths to block any scripts from accessing.
 	 * This can be used for sandboxing.
 	 */
-	@:unreflective public static var blacklist:Map<ConfigBlacklistKind, Array<String>> = [
+	@:unreflective public static var blacklist:Map<ConfigBlacklistKind, Map<String, Bool>> = [
 		ByPackage(false) => [
 		],
 		ByPackage(true) => [
@@ -66,7 +66,7 @@ class Config { #if (!macro)
 		ByModule => [
 		],
 		ByType => [
-			'insanity.custom.InsanityUnsafeType'
+			'insanity.custom.InsanityUnsafeType' => true
 		],
 	];
 #end }
@@ -85,20 +85,20 @@ class ConfigUtil {
 		if (type == null) return false;
 		
 		var name:String = (type is Enum ? Type.getEnumName(type) : Type.getClassName(type));
-		if (Config.blacklist.get(ByType)?.contains(name))
+		if (Config.blacklist.get(ByType).get(name))
 			return true;
 		
 		var info = insanity.backend.TypeCollection.main.fromCompilePath(name);
 		if (info != null) {
-			if (Config.blacklist.get(ByModule)?.contains(info[0].module))
+			if (Config.blacklist.get(ByModule).get(info[0].module))
 				return true;
-			if (Config.blacklist.get(ByPackage(false))?.contains(info[0].pack.join('.')))
+			if (Config.blacklist.get(ByPackage(false)).get(info[0].pack.join('.')))
 				return true;
 			if (Config.blacklist.exists(ByPackage(true))) {
 				var eq:Bool = false;
 				var pack:String = info[0].pack.join('.');
 				
-				for (p in Config.blacklist.get(ByPackage(true))) {
+				for (p in Config.blacklist.get(ByPackage(true)).keys()) {
 					if (StringTools.startsWith(pack, p))
 						return true;
 				}
