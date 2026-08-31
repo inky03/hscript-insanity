@@ -2,7 +2,6 @@ package insanity.custom;
 
 import insanity.backend.types.Scripted;
 import insanity.Config;
-import Type.ValueType;
 
 /**
  * HscriptInsanity's extended version of the `Type` class, to make working with scripted types easier.
@@ -144,7 +143,7 @@ class InsanityType {
 		}
 	}
 	
-	public static inline function typeof(v:Dynamic):ValueType {
+	public static inline function typeof(v:Dynamic):Type.ValueType {
 		return Type.typeof(v);
 	}
 	

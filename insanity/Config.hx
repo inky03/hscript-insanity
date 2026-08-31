@@ -66,6 +66,7 @@ class Config { #if (!macro)
 		ByModule => [
 		],
 		ByType => [
+			'insanity.custom.InsanityUnsafeType'
 		],
 	];
 #end }
