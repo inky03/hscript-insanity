@@ -19,7 +19,7 @@ class Patcher {
 	 * 
 	 * Note using this may impact performance to some degree!!!
 	 * 
-	 * @param	extreme		If true, additionally turns Class<Dynamic> and Enum<Dynamic> into simply Dynamics
+	 * @param	extreme		If true, additionally turns Class<T> and Enum<T> into simply Dynamics
 	 * 						(which can allow scripted classes/enums to be passed to variables and constructed subsequently).
 	 * 						Note this will NOT work with every class.
 	 * @return	Context fields
