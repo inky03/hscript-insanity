@@ -29,6 +29,7 @@ typedef AbstractInfo = {
 typedef AbstractPropertyInfo = {
 	var isStatic:Bool;
 	var isAbstract:Bool;
+	var isConstructor:Bool;
 	
 	var ?get:AbstractProperty;
 	var ?set:AbstractProperty;
@@ -205,14 +206,14 @@ class AbstractMacro {
 			
 			switch (field.kind) {
 				case FVar(t, e):
-					var prop:AbstractPropertyInfo = {isStatic: isStatic, isAbstract: true};
+					var prop:AbstractPropertyInfo = {isStatic: isStatic, isAbstract: true, isConstructor: true};
 					
 					prop.get = prop.set = ADefault;
 					
 					info.properties.set(field.name, prop);
 					
 				case FProp(get, set, type, _):
-					var prop:AbstractPropertyInfo = {isStatic: isStatic, isAbstract: matchAbstract(type)};
+					var prop:AbstractPropertyInfo = {isStatic: isStatic, isAbstract: matchAbstract(type), isConstructor: false};
 					
 					prop.get = switch (get) {
 						default: ADefault;
@@ -340,7 +341,7 @@ class AbstractMacro {
 							pos: pos,
 							expr: ESwitch(
 								{pos: pos, expr: EConst(CIdent('field'))},
-								[for (name => field in info.properties) if (field.isStatic) {
+								[for (name => field in info.properties) if (field.isStatic || (info.isEnum && field.isConstructor)) {
 									values: [{pos: pos, expr: EConst(CString(name))}],
 									expr: {pos: pos, expr: EConst(CIdent(name))}
 								}],

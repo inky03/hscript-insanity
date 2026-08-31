@@ -1027,6 +1027,8 @@ class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityInte
 		super(info);
 	}
 	
+	override function initEnumConstructors():Void {}
+	
 	function ctypeToAbstractTypeCast(type:Null<CType>):AbstractTypeCast {
 		if (type == null) return null;
 		
@@ -1227,7 +1229,6 @@ class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityInte
 					try {
 						var value:Dynamic = (v.expr == null ? (isEnumValue ? enumValue : null) : interp.exprReturn(v.expr, v.type));
 						
-						if (isEnumValue) value = create(value);
 						if (value is InsanityAbstractValue) {
 							interp.locals.get(f).a = value;
 							value = value.__a;
@@ -1258,6 +1259,7 @@ class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityInte
 							case ATType(t): (t == path);
 							default: false;
 						}),
+						isConstructor: isEnumValue,
 						
 						get: switch (v.get) {
 							default: ADefault;
@@ -1276,9 +1278,16 @@ class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityInte
 			
 			__vars.set(f, interp.locals.get(f));
 		}
+		
+		for (name => field in info.properties) {
+			if (!field.isConstructor) continue;
+		
+			enumConstructors.push(name);
+			enumValues.set(name, create(interp.locals.get(name).r));
+		}
 	}
 	
-	public override function create(v:Dynamic):InsanityScriptedAbstractValue {
+	override function create(v:Dynamic):InsanityScriptedAbstractValue {
 		return new InsanityScriptedAbstractValue(this, v is InsanityAbstractValue ? v.__a : v);
 	}
 	
@@ -1306,6 +1315,8 @@ class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityInte
 		return (__vars.exists(field));
 	}
 	public override function reflectGetField(field:String):Dynamic {
+		if (isEnum && enumValues.exists(field)) return enumValues.get(field);
+		
 		var r = (__vars.exists(field) ? __vars.get(field).r : null);
 		return (info.properties.get(field)?.isAbstract ? create(r) : r);
 	}
@@ -1313,6 +1324,8 @@ class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityInte
 		return (__vars.exists(field) ? __vars.get(field).r = value : null);
 	}
 	public override function reflectGetProperty(property:String):Dynamic {
+		if (isEnum && enumValues.exists(property)) return enumValues.get(property);
+		
 		var r = (__vars.exists(property) ? interp.getLocal(property, __vars) : null);
 		return (info.properties.get(property)?.isAbstract ? create(r) : r);
 	}

@@ -83,6 +83,8 @@ class InsanityAbstract implements ICustomReflection implements ICustomClassType 
 	public var impl:Class<Dynamic>;
 	
 	public var isEnum:Bool = false;
+	public var enumConstructors:Array<String> = [];
+	public var enumValues:Map<String, Dynamic> = [];
 	
 	public static var needOps:Map<String, Bool> = [for (op in ['+', '-', '*', '/', '%', '&', '|', '^', '<<', '>>', '>>>']) op => true];
 	
@@ -97,9 +99,20 @@ class InsanityAbstract implements ICustomReflection implements ICustomClassType 
 		isEnum = info.isEnum;
 		
 		#if cpp resolve = Reflect.field(impl, 'insanityCppResolve'); #end
+		
+		if (isEnum) initEnumConstructors();
 	}
 	
-	public function create(v:Dynamic):InsanityAbstractValue {
+	function initEnumConstructors():Void {
+		for (name => field in info.properties) {
+			if (!field.isConstructor) continue;
+			
+			enumConstructors.push(name);
+			enumValues.set(name, create(#if cpp resolve(name) #else Reflect.field(impl, name) #end));
+		}
+	}
+	
+	function create(v:Dynamic):InsanityAbstractValue {
 		return new InsanityAbstractValue(this, v is InsanityAbstractValue ? v.__a : v);
 	}
 	
@@ -133,9 +146,11 @@ class InsanityAbstract implements ICustomReflection implements ICustomClassType 
 	}
 	
 	public function reflectGetField(field:String):Dynamic {
+		if (isEnum && enumValues.exists(field)) return enumValues.get(field);
+		
 		var f:Null<AbstractPropertyInfo> = info.properties.get(field);
 		
-		if (f != null && (f.isStatic || (isEnum && f.isAbstract))) {
+		if (f != null && f.isStatic) {
 			final r:Dynamic = #if cpp resolve(field) #else Reflect.field(impl, field) #end;
 			
 			return (f.isAbstract ? create(r) : r);
@@ -146,7 +161,7 @@ class InsanityAbstract implements ICustomReflection implements ICustomClassType 
 	public function reflectSetField(field:String, value:Dynamic):Dynamic {
 		var f:Null<AbstractPropertyInfo> = info.properties.get(field);
 		
-		if (f != null && f.isStatic) {
+		if (f != null && f.isStatic && !f.isConstructor) {
 			Reflect.setField(impl, field, value);
 		} else if (info.methods.exists(field)) {
 			throw 'Cannot rebind this method';
@@ -156,9 +171,11 @@ class InsanityAbstract implements ICustomReflection implements ICustomClassType 
 	}
 	
 	public function reflectGetProperty(property:String):Dynamic {
+		if (isEnum && enumValues.exists(property)) return enumValues.get(property);
+		
 		var f:Null<AbstractPropertyInfo> = info.properties.get(property);
 		
-		if (f != null && (f.isStatic || (isEnum && f.isAbstract))) {
+		if (f != null && f.isStatic) {
 			final r:Dynamic = #if cpp resolve(property) #else Reflect.getProperty(impl, property) #end;
 			
 			return (f.isAbstract ? create(r) : r);
@@ -169,13 +186,13 @@ class InsanityAbstract implements ICustomReflection implements ICustomClassType 
 	public function reflectSetProperty(property:String, value:Dynamic):Dynamic {
 		var f:Null<AbstractPropertyInfo> = info.properties.get(property);
 		
-		if (f != null && f.isStatic) Reflect.setProperty(impl, property, value);
+		if (f != null && f.isStatic && !f.isConstructor) Reflect.setProperty(impl, property, value);
 		
 		return value;
 	}
 	
 	public function reflectListFields():Array<String> {
-		var fields = [for (name => f in info.properties) if (f.isStatic || (isEnum && f.get == ADefault && f.set == ADefault)) name];
+		var fields = [for (name => f in info.properties) if (f.isStatic || f.isConstructor) name];
 		
 		for (name => m in info.methods) if (m.isStatic) fields.push(name);
 		
@@ -223,6 +240,7 @@ class InsanityAbstract implements ICustomReflection implements ICustomClassType 
 	}
 }
 
+@:access(insanity.backend.types.InsanityAbstract)
 class InsanityAbstractValue implements ICustomReflection {
 	@:noCompletion public var base:InsanityAbstract;
 	
