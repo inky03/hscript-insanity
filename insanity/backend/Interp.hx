@@ -152,7 +152,7 @@ class Interp {
 	 * Initializes default variables within the interpreter.
 	 * 
 	 * @param	wipe			Whether to completely wipe any previously defined imports / usings / variables or not.
-	 * @param	includeConfig	Whether to define `Config`'s default variables and imports in this interpreter.
+	 * @param	includeConfig	Whether to define `Config`'s default variables and imports in this interpreter or not.
 	 */
 	public function setDefaults(wipe:Bool = true, includeConfig:Bool = true):Void {
 		if (wipe) {
