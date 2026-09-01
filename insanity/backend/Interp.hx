@@ -1487,10 +1487,7 @@ class Interp {
 			
 			return arr[index];
 		case ENew(cl,params):
-			var a = new Array();
-			for( e in params )
-				a.push(expr(e));
-			return cnew(cl,a);
+			return cnew(cl, [for (e in params) expr(e)]);
 		case EThrow(e):
 			throw expr(e);
 		case ETry(e,n,_,ecatch):
@@ -1866,8 +1863,11 @@ class Interp {
 		var it = makeIterator(expr(it));
 		var next:Void -> Dynamic = Reflect.field(it, 'next'), hasNext:Void -> Bool = Reflect.field(it, 'hasNext');
 		
+		final iterV:Variable = {r: null};
+		locals.set(n, iterV);
+		
 		while( hasNext() ) {
-			locals.set(n, {r: next()});
+			iterV.r = next();
 			
 			if (!loopRun(ef))
 				break;
@@ -1884,14 +1884,18 @@ class Interp {
 		var it = makeKeyValueIterator(expr(it));
 		var next:Void -> Dynamic = Reflect.field(it, 'next'), hasNext:Void -> Bool = Reflect.field(it, 'hasNext');
 		
+		final iterV:Variable = {r: null}, iterK:Variable = {r: null};
+		locals.set(vk, iterV);
+		locals.set(vv, iterK);
+		
 		while( hasNext() ) {
-			var v = next();
+			final v = next();
 			
 			if (v.key == null) error(EUnknownField(v, 'key'));
 			if (v.value == null) error(EUnknownField(v, 'value'));
 			
-			locals.set(vk, {r: v.key});
-			locals.set(vv, {r: v.value});
+			iterV.r = v.key;
+			iterK.r = v.value;
 			
 			if (!loopRun(ef))
 				break;
@@ -2135,7 +2139,7 @@ class Interp {
 	}
 	
 	var _constructCache:Map<String, Dynamic> = [];
-	function cnew( cl : String, args : Array<Dynamic> ) : Dynamic {
+	inline function cnew( cl : String, args : Array<Dynamic> ) : Dynamic {
 		final c:Dynamic = (_constructCache.get(cl) ?? variables.get(cl) ?? imports.get(cl) ?? Tools.resolve(cl, environment));
 		
 		if (c == null) EUnknownType(cl);
@@ -2145,9 +2149,8 @@ class Interp {
 		if (canDefer && c is IInsanityType && !c.initialized)
 			throw DDefer;
 		
-		#if hl if (c is Class && c.insanityhlnew != null) return c.insanityhlnew(args); #end
+		#if hl if (c is Class && c.insanityhlnew != null) return c.insanityhlnew(args); else #end
 		
 		return Type.createInstance(c, args);
 	}
-
 }
