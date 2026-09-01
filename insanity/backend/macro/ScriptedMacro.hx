@@ -465,7 +465,7 @@ class ScriptedMacro {
 		}
 		
 		var newExpr = macro {
-			__vars = new Map();
+			__vars = [];
 			__func = '';
 			
 			__base = base;
@@ -473,7 +473,7 @@ class ScriptedMacro {
 			__interp = Type.createInstance(insanity.Config.interpClass, [base.interp.environment, this]);
 			__interp.pushStack(insanity.backend.CallStack.StackItem.SModule(base.module?.path ?? base.name));
 			
-			__interp.setDefaults();
+			__interp.setDefaults(false, false);
 			__interp.variables.set('this', this);
 			__interp.variables.set('interp', __interp);
 			
