@@ -637,10 +637,10 @@ class Interp {
 	}
 	
 	function pushStack(?item:StackItem, ?locals:Map<String, Variable>):Void {
-		var last:Stack = stack.stack.shift();
+		var last:Stack = stack.shift();
 		
 		if (last != null) {
-			stack.stack.unshift({locals: last.locals, item: switch (last.item) {
+			stack.unshift({locals: last.locals, item: switch (last.item) {
 				case SFilePos(item, _, _): SFilePos(item, position.origin, position.line, position.column);
 				default: SFilePos(last.item, position.origin, position.line, position.column);
 			}});
@@ -648,7 +648,7 @@ class Interp {
 		
 		if (item != null) {
 			final newLocals = (locals ?? duplicate(stack.first()?.locals));
-			stack.stack.unshift({locals: newLocals, item: item});
+			stack.unshift({locals: newLocals, item: item});
 			this.locals = newLocals;
 			
 			if (stack.length > callStackDepth)
@@ -656,7 +656,7 @@ class Interp {
 		}
 	}
 	inline function shiftStack(put:Bool = true):Stack {
-		var item:Stack = stack.stack.shift();
+		var item:Stack = stack.shift();
 		
 		if (put) localsPool.push(item.locals);
 		
@@ -2133,11 +2133,14 @@ class Interp {
 		
 		return Reflect.callMethod(o, f, args);
 	}
-
+	
+	var _constructCache:Map<String, Dynamic> = [];
 	function cnew( cl : String, args : Array<Dynamic> ) : Dynamic {
-		final c:Dynamic = (imports.get(cl) ?? variables.get(cl) ?? Tools.resolve(cl, environment));
+		final c:Dynamic = (_constructCache.get(cl) ?? variables.get(cl) ?? imports.get(cl) ?? Tools.resolve(cl, environment));
 		
 		if (c == null) EUnknownType(cl);
+		
+		if (!_constructCache.exists(cl)) _constructCache.set(cl, c);
 		
 		if (canDefer && c is IInsanityType && !c.initialized)
 			throw DDefer;

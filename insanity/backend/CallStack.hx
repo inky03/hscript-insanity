@@ -2,23 +2,19 @@ package insanity.backend;
 
 import insanity.backend.Interp;
 
-typedef Stack = {
-	var locals : Map<String, Variable>;
-	var item : StackItem;
+@:structInit class Stack {
+	public var locals:Map<String, Variable>;
+	public var item:StackItem;
 }
 
-class CallStack {
-	public var stack:Array<Stack>;
-	
-	public var length(get, never):Int;
-	inline function get_length():Int return stack.length;
-	
-	public inline function last() { return stack[stack.length - 1]; }
-	public inline function first() { return stack[0]; }
+@:forward(length, shift, unshift)
+abstract CallStack(Array<Stack>) from Array<Stack> {
+	public inline function last() { return this[this.length - 1]; }
+	public inline function first() { return this[0]; }
 	
 	public function toString():String {
 		var b = new StringBuf();
-		for (s in stack) {
+		for (s in this) {
 			b.add('\nCalled from ');
 			itemToString(b, s.item);
 		}
@@ -26,7 +22,7 @@ class CallStack {
 	}
 	
 	public function new() {
-		stack = [];
+		this = [];
 	}
 	
 	public function subtract(stack:CallStack):CallStack {
@@ -34,7 +30,7 @@ class CallStack {
 		var i = -1;
 		while (++i < this.length) {
 			for (j in 0...stack.length) {
-				if (equalItems(this.stack[i].item, stack.stack[j].item)) {
+				if (equalItems(this[i].item, stack[j].item)) {
 					if (startIndex < 0)
 						startIndex = i;
 					++ i;
@@ -45,18 +41,18 @@ class CallStack {
 			}
 			if (startIndex >= 0) break;
 		}
-		if (startIndex >= 0)
-			this.stack = this.stack.slice(0, startIndex);
-		return this;
+		return (startIndex >= 0 ? this.slice(0, startIndex) : this);
 	}
 	
 	public inline function copy():CallStack {
-		var copy:CallStack = new CallStack();
-		copy.stack = stack.copy();
-		return copy;
+		return this.copy();
 	}
 	
-	static function equalItems(item1:Null<StackItem>, item2:Null<StackItem>):Bool {
+	@:arrayAccess public inline function get(index:Int):Stack {
+		return this[index];
+	}
+	
+	static inline function equalItems(item1:Null<StackItem>, item2:Null<StackItem>):Bool {
 		return switch([item1, item2]) {
 			case [null, null]: true;
 			case [SScript(m1), SScript(m2)]:
@@ -73,7 +69,7 @@ class CallStack {
 		}
 	}
 	
-	static function itemToString(b:StringBuf, s) {
+	static inline function itemToString(b:StringBuf, s) {
 		switch (s) {
 			case SScript(s):
 				b.add('script ');
