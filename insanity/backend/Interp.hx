@@ -1823,37 +1823,36 @@ class Interp {
 		restore(old);
 	}
 
-	function makeIterator(v:Dynamic):Iterator<Dynamic>
+	inline function makeIterator(v:Dynamic):Iterator<Dynamic>
 	{
-		if (v is Array) return (v : Array<Dynamic>).iterator();
-		
-		var iter:Dynamic = v.iterator;
-		v = (iter != null ? #if hl Reflect.callMethod(v, iter, []) #else (iter : haxe.Constraints.Function)() #end : v);
-		
-		if (v.hasNext == null || v.next == null)
-			error(EInvalidIterator(v));
-		
-		return v;
+		if (v is Array) {
+			return (v : Array<Dynamic>).iterator();
+		} else {
+			var iter:Dynamic = v.iterator;
+			v = (iter != null ? #if hl Reflect.callMethod(v, iter, []) #else (iter : haxe.Constraints.Function)() #end : v);
+			
+			if (v.hasNext == null || v.next == null)
+				error(EInvalidIterator(v));
+			
+			return v;
+		}
 	}
 	
-	function makeKeyValueIterator(v:Dynamic):KeyValueIterator<Dynamic, Dynamic>
+	inline function makeKeyValueIterator(v:Dynamic):KeyValueIterator<Dynamic, Dynamic>
 	{
-		if ((v is haxe.ds.IntMap) || (v is haxe.ds.StringMap) || (v is haxe.ds.ObjectMap) || (v is haxe.ds.EnumValueMap))
-		{
+		if ((v is haxe.ds.IntMap) || (v is haxe.ds.StringMap) || (v is haxe.ds.ObjectMap) || (v is haxe.ds.EnumValueMap)) {
 			return (v : haxe.Constraints.IMap<Dynamic, Dynamic>).keyValueIterator();
-		}
-		else if (v is Array)
-		{
+		} else if (v is Array) {
 			return (v : Array<Dynamic>).keyValueIterator();
+		} else {
+			var iter:Dynamic = v.keyValueIterator;
+			v = (iter != null ? #if hl Reflect.callMethod(v, iter, []) #else (iter : haxe.Constraints.Function)() #end : v);
+			
+			if (v.hasNext == null || v.next == null)
+				error(EInvalidIterator(v));
+			
+			return v;
 		}
-		
-		var iter:Dynamic = v.keyValueIterator;
-		v = (iter != null ? #if hl Reflect.callMethod(v, iter, []) #else (iter : haxe.Constraints.Function)() #end : v);
-		
-		if (v.hasNext == null || v.next == null)
-			error(EInvalidIterator(v));
-		
-		return v;
 	}
 
 	function forLoop(n,it,ef:Dynamic) {
