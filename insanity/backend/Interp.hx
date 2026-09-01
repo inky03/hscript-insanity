@@ -169,12 +169,20 @@ class Interp {
 				importPath(k.split('.'), v);
 		}
 		
-		variables.set('trace', Reflect.makeVarArgs(function(el) {
-			var inf = posInfos();
-			var v = el.shift();
-			if (el.length > 0) inf.customParams = el;
-			haxe.Log.trace(Std.string(v), inf);
-		}));
+		variables.set('trace', Reflect.makeVarArgs(this.trace));
+	}
+	
+	/**
+	 * Outputs to console, including information about the position where the `trace()` call was made.
+	 * Can be overridden to execute custom behavior.
+	 * 
+	 * @param	args	Array of arguments to output
+	 */
+	public function trace(args:Array<Dynamic>):Void {
+		var inf = posInfos();
+		var v = args.shift();
+		if (args.length > 0) inf.customParams = args;
+		haxe.Log.trace(Std.string(v), inf);
 	}
 	
 	public function toString() : String {
@@ -182,7 +190,7 @@ class Interp {
 	}
 	
 	/**
-	 * Gets a `PosInfos` from the interpreter's current position.
+	 * Gets a `haxe.PosInfos` from the interpreter's current position.
 	 */
 	public function posInfos(): PosInfos {
 		return cast { fileName : position.origin, lineNumber : position.line };
