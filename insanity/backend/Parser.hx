@@ -1822,6 +1822,9 @@ class Parser {
 					return TConst( CString(b.toString(), true) );
 				} else if (next == '$'.code) {
 					b.addChar(c);
+				} else if (next == until) {
+					b.addChar(c);
+					break;
 				} else {
 					b.addChar(c);
 					b.addChar(next);
