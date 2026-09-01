@@ -149,12 +149,12 @@ class Interp {
 	}
 	
 	/**
-	 * Initializes default variables within the script.
+	 * Initializes default variables within the interpreter.
 	 * 
 	 * @param	wipe			Whether to completely wipe any previously defined imports / usings / variables or not.
-	 * @param	includeConfig	Whether 
+	 * @param	includeConfig	Whether to define `Config`'s default variables and imports in this interpreter.
 	 */
-	public function setDefaults(wipe:Bool = true, includeConfig:Bool = true) {
+	public function setDefaults(wipe:Bool = true, includeConfig:Bool = true):Void {
 		if (wipe) {
 			imports.clear();
 			usings.resize(0);
