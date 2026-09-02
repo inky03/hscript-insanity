@@ -258,8 +258,8 @@ class Module {
 	public function startType(?environment:Environment, type:IInsanityType):IInsanityType {
 		if (type.initializing || type.initialized || type.failed) return type;
 		
-		if (starting || !started) return type;
-		start(environment);
+		if (starting) return type;
+		if (!started) start(environment);
 		
 		try {
 			type.initializing = true;

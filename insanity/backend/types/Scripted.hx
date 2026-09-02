@@ -834,6 +834,7 @@ class InsanityScriptedInterface implements IInsanityType implements IInsanityInt
 		interp.setDefaults(true, baseInterp == null);
 		
 		if (baseInterp != null) {
+			for (u in baseInterp.usings) interp.usings.push(u);
 			for (k => i in baseInterp.imports) interp.imports.set(k, i);
 		}
 		

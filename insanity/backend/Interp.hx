@@ -845,7 +845,7 @@ class Interp {
 				final std:Bool = (type.module == 'StdTypes'); // on some @:coreType shit
 				
 				final modName:String = (type.module.contains('.') ? type.module.substring(type.module.lastIndexOf('.') + 1) : type.module);
-				if (modName != type.name && !std && type.name != 'Main') continue; // lol
+				if (modName != type.name && type.name != 'Main' && !std) continue; // lol
 				if (type.name.indexOf('_Impl_') > -1) continue;
 				
 				importType(type.name, type.kind == 'abstract' && !std ? AbstractTools.resolve(type.compilePath()) : type.resolve(environment), false);
@@ -939,7 +939,7 @@ class Interp {
 									continue;
 								}
 								
-								importType(type.name, type.kind == 'abstract' ? AbstractTools.resolve(type.compilePath()) : type.resolve(environment));
+								importType(type.name, type.kind == 'abstract' && type.module != 'StdTypes' ? AbstractTools.resolve(type.compilePath()) : type.resolve(environment));
 							}
 					}
 					
@@ -1384,10 +1384,12 @@ class Interp {
 			exprCompr = function(e:Expr, inFor:Bool = false):Dynamic {
 				return switch (Tools.expr(e)) {
 					case EBlock(e):
+						var old = declared.length;
 						var v = Interp.void;
 						
 						for (e in e) v = exprCompr(e, inFor);
 						
+						restore(old);
 						v;
 						
 					case EParent(e):

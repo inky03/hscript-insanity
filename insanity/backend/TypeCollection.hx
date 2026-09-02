@@ -159,9 +159,7 @@ class TypeCollection {
 	 * @return	The type found.
 	 */
 	public static function resolve(info:TypeInfo, ?env:Environment):Dynamic {
-		if (info.typedefType != null)
-			return Tools.resolve(compilePath(info.typedefType), env);
-		return Tools.resolve(compilePath(info), env);
+		return Tools.resolve(compilePath(info.typedefType ?? info), env);
 	}
 	#end
 }
