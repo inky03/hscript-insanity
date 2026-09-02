@@ -639,7 +639,7 @@ class InsanityScriptedTypedef implements IInsanityType {
 					throw Printer.errorToString(EUnknownType(fullPath));
 				
 			default:
-				trace('Non type-alias typedefs are not supported');
+				#if debug trace('Non type-alias typedefs are not supported'); #end
 		}
 	}
 	
