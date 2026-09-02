@@ -196,7 +196,9 @@ class Patcher {
 		if (cls.meta.has(':hlNative') || cls.meta.has(':insanityScripted') || cls.name.indexOf('_Impl_') != -1 || cls.isInterface) return fields;
 		
 		function createHLExpr(name:String, args:Array<FunctionArg>, isStatic:Bool):Expr {
-			final callArgs:Array<Expr> = [for (i => arg in args) macro arguments[$v {i}] ?? $e {arg.value ?? macro null}];
+			final callArgs:Array<Expr> = [for (i => arg in args) {
+				(!arg.opt && arg.value == null) ? macro arguments[$v {i}] : macro arguments[$v {i}] ?? $e {arg.value ?? macro null}
+			}];
 			// i forgot expr reification was a thing until like 10 minutes ago ... so cool ...
 			
 			if (name == 'new') return macro return $e {{pos: pos, expr: ENew({pack: cls.pack, name: cls.name}, callArgs)}};
