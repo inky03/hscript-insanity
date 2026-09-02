@@ -844,7 +844,8 @@ class Interp {
 			for (type in types) {
 				final std:Bool = (type.module == 'StdTypes'); // on some @:coreType shit
 				
-				if (type.module != type.name && !std && type.name != 'Main') continue; // lol
+				final modName:String = (type.module.contains('.') ? type.module.substring(type.module.lastIndexOf('.') + 1) : type.module);
+				if (modName != type.name && !std && type.name != 'Main') continue; // lol
 				if (type.name.indexOf('_Impl_') > -1) continue;
 				
 				importType(type.name, type.kind == 'abstract' && !std ? AbstractTools.resolve(type.compilePath()) : type.resolve(environment), false);
