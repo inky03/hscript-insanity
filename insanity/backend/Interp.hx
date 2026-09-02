@@ -2156,7 +2156,7 @@ class Interp {
 	inline function cnew( cl : String, args : Array<Dynamic> ) : Dynamic {
 		final c:Dynamic = (_constructCache.get(cl) ?? variables.get(cl) ?? imports.get(cl) ?? Tools.resolve(cl, environment));
 		
-		if (c == null) EUnknownType(cl);
+		if (c == null) error(EUnknownType(cl));
 		
 		if (!_constructCache.exists(cl)) _constructCache.set(cl, c);
 		
