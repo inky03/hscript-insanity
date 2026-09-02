@@ -112,6 +112,12 @@ class Interp {
 	 */
 	public var locals : Map<String, Variable>;
 	
+	/**
+	 * Whether functions created by this interpreter can have more arguments than specified or not.
+	 * If not, "Too many arguments" exceptions will be able to thrown.
+	 */
+	public var argumentOverflow:Bool = Config.argumentOverflow;
+	
 	var inTry : Bool;
 	var metas : Metadata = [];
 	var captures : Map<String, Dynamic>;
@@ -1076,7 +1082,7 @@ class Interp {
 				}
 				
 				error(ECustom('Not enough arguments, expected ${expect.name}' + (expect.t == null ? '' : ':${new Printer().typeToString(expect.t)}')));
-			} else if (!hasRest && args.length > params.length) {
+			} else if (!hasRest && !argumentOverflow && args.length > params.length) {
 				error(ECustom('Too many arguments'));
 			}
 			

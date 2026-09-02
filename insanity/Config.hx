@@ -18,6 +18,14 @@ class Config { #if (!macro)
 	public static var interpClass:Class<insanity.backend.Interp> = insanity.backend.Interp;
 	
 	/**
+	 * Whether functions created in Hscript can have more arguments than specified or not by default.
+	 * If not, "Too many arguments" exceptions will be able to thrown.
+	 * 
+	 * This can be modified per script with `Interp.argumentOverflow`!
+	 */
+	public static var argumentOverflow:Bool = false;
+	
+	/**
 	 * A map with all preprocessor values to allow scripts to check for conditional compilation (ex. `#if #else #end`).
 	 */
 	public static var preprocessorValues:Map<String, Dynamic> = Defines.appendCompilerDefines([
