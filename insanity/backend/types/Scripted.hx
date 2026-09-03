@@ -16,18 +16,19 @@ using insanity.tools.Tools;
 using insanity.backend.TypeCollection;
 
 class ScriptedTools {
-	public static var scriptedClasses(default, never):Map<String, Class<IInsanityScripted>> = insanity.backend.macro.ScriptedMacro.listScriptedClasses();
+	public static var scriptedClasses(default, never):Map<String, Class<IInsanityScripted>> = [];//insanity.backend.macro.ScriptedMacro.listScriptedClasses();
 	
 	public static function resolve(t:Dynamic):Dynamic {
 		if (t is InsanityScriptedClass)
 			return cast t;
 		
-		var cls:String = Type.getClassName(t);
+		return t;
+		/*var cls:String = Type.getClassName(t);
 		if (scriptedClasses.exists(cls))
 			return scriptedClasses.get(cls);
 		
 		throw 'Class $cls can\'t be extended for scripting';
-		return null;
+		return null;*/
 	}
 }
 
@@ -492,8 +493,9 @@ class InsanityScriptedClass implements IInsanityType implements IInsanityInterp 
 	public function typeCreateInstance(arguments:Array<Dynamic>):Dynamic {
 		if (!initialized) throw 'Type $path is not initialized';
 		
-		var inst:IInsanityScripted = Type.createEmptyInstance(instanceClass);
+		var inst:Dynamic = Type.createEmptyInstance(instanceClass);
 		inst.__construct(this, arguments);
+		
 		return inst;
 	}
 	public function typeCreateEmptyInstance():Dynamic {
@@ -561,7 +563,7 @@ class InsanityScriptedClass implements IInsanityType implements IInsanityInterp 
 	public dynamic function onExpressionError(error:Dynamic, field:String, ?expr:Expr):Void {
 		trace('Error on field $field of $path: $error');
 	}
-	public dynamic function onInstanceError(error:Dynamic, fun:String, ?instance:IInsanityScripted):Void {
+	public dynamic function onInstanceError(error:Dynamic, fun:String, ?instance:Dynamic):Void {
 		trace('Error on function $fun of $path: $error');
 	}
 }
@@ -969,7 +971,7 @@ class InsanityScriptedInterface implements IInsanityType implements IInsanityInt
 	public dynamic function onExpressionError(error:Dynamic, field:String, ?expr:Expr):Void {
 		trace('Error on field $field of $path: $error');
 	}
-	public dynamic function onInstanceError(error:Dynamic, fun:String, ?instance:IInsanityScripted):Void {
+	public dynamic function onInstanceError(error:Dynamic, fun:String, ?instance:Dynamic):Void {
 		trace('Error on function $fun of $path: $error');
 	}
 	
@@ -1349,7 +1351,7 @@ class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityInte
 	public dynamic function onExpressionError(error:Dynamic, field:String, ?expr:Expr):Void {
 		trace('Error on field $field of $path: $error');
 	}
-	public dynamic function onInstanceError(error:Dynamic, fun:String, ?instance:IInsanityScripted):Void {
+	public dynamic function onInstanceError(error:Dynamic, fun:String, ?instance:Dynamic):Void {
 		trace('Error on function $fun of $path: $error');
 	}
 }
@@ -1433,9 +1435,7 @@ class InsanityScriptedAbstractValue extends InsanityAbstractValue {
 	}
 }
 
-class InsanityDummyClass implements IInsanityScripted {
-	public function new() {}
-}
+class InsanityDummyClass {}
 
 interface IInsanityInterp {
 	public var interp:Interp;
@@ -1457,15 +1457,13 @@ interface IInsanityType {
 
 @:autoBuild(insanity.backend.macro.ScriptedMacro.build())
 interface IInsanityScripted extends ICustomReflection extends ICustomClassType {
-	private var __base:InsanityScriptedClass;
+	private var __scriptedBase:InsanityScriptedClass;
 	private var __interp:insanity.backend.Interp;
-	private var __vars:Map<String, insanity.backend.Interp.Variable>;
+	private var __interpSafe:Bool;
+	// private var __vars:Map<String, insanity.backend.Interp.Variable>;
 	
-	private var __safe:Bool;
 	private var __func:String;
 	private var __fields:Array<String>;
-	
-	private function __construct(base:InsanityScriptedClass, arguments:Array<Dynamic>):Void;
 }
 
 enum Defer {

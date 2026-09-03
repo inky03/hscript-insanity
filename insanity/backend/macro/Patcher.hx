@@ -238,6 +238,152 @@ class Patcher {
 		
 		return fields;
 	}
+	
+	/**
+	 * 
+	 */
+	public static macro function buildHscript(exclude:Array<String>):Array<Field> {
+		var fields:Array<Field> = Context.getBuildFields();
+		var cls:ClassType = Context.getLocalClass()?.get();
+		var pos = Context.currentPos();
+		
+		if (cls == null || cls.meta.has(':coreApi') || cls.meta.has(':extern') || cls.meta.has(':hlNative') || cls.meta.has(':native') || cls.isInterface || cls.isExtern) return fields;
+		switch (cls.pack[0]) {
+			case 'haxe' | 'hl' | 'cpp' | 'neko' | 'js' | 'cs' | 'lua' | 'php' | 'macro' | 'java' | 'flash' | 'python' | 'insanity': return fields;
+			default:
+		}
+		switch (cls.kind) {
+			case KGeneric: return fields;
+			case KAbstractImpl(_): return fields;
+			default:
+		}
+		for (ex in exclude) {
+			if (cls.module.indexOf(ex) == 0)
+				return fields;
+		}
+		
+		var lastClassWithConstr:Null<ClassType> = (cls.constructor != null ? cls : null);
+		var hasConstructor:Bool = false;
+		
+		var superClass = cls.superClass?.t.get();
+		var su = superClass;
+		
+		while (true) {
+			if (su == null) break;
+			if (su.isExtern || su.meta.has(':coreApi') || su.meta.has(':extern') || su.meta.has(':hlNative') || su.meta.has(':native')) return fields;
+			
+			switch (su.pack[0]) {
+				case 'haxe' | 'hl' | 'cpp' | 'neko' | 'js' | 'cs' | 'lua' | 'php' | 'macro' | 'java' | 'flash' | 'python' | 'insanity': return fields;
+				default:
+			}
+			for (ex in exclude) {
+				if (su.module.indexOf(ex) == 0)
+					return fields;
+			}
+			
+			lastClassWithConstr ??= (su.constructor != null ? su : null);
+			
+			su = su?.superClass?.t.get();
+		}
+		
+		var expr:Array<Expr> = [];
+		var constrArgs:Array<FunctionArg> = [];
+		var constrParams:Null<Array<TypeParamDecl>> = null;
+		
+		function getName(cls:ClassType):String {
+			switch (cls.kind) {
+				case KGenericInstance(cl, params):
+					cls = cl.get();
+					
+				default:
+			}
+			
+			var pack:Array<String> = cls.pack.copy();
+			pack.push(cls.name);
+			
+			return pack.join('_');
+		}
+		
+		function mapConstructor(expr:Expr):Expr {
+			if (expr == null) return null;
+			
+			return switch (expr.expr) {
+				case ECall({pos: p, expr: EConst(CIdent('super'))}, params):
+					{pos: expr.pos, expr: ECall({pos: p, expr: EConst(CIdent('insanitySuper${getName(lastClassWithConstr)}'))}, params)};
+				
+				default:
+					expr.map(mapConstructor);
+			}
+		}
+		
+		for (field in fields) {
+			switch (field.kind) {
+				default:
+				
+				case FVar(t, e) if (field.access?.contains(AFinal) && !field.access.contains(AInline)):
+					field.kind = FProp('default', 'null', t, e);
+					field.access.remove(AFinal);
+					
+				case FFun(fun) if (field.name == 'new'):
+					var constr = mapConstructor(fun.expr);
+					switch (constr.expr) {
+						case EBlock(a): for (e in a) expr.push(e);
+						default: expr.push(constr);
+					};
+					constrParams = fun.params;
+					constrArgs = fun.args;
+					hasConstructor = true;
+			}
+		}
+		
+		if (cls.name != '') {
+		for (field in fields) {
+			final f:String = field.name;
+			
+			if (field?.access.contains(AStatic) || field?.access.contains(AInline)) continue;
+			if (field.meta?.exists((meta) -> meta.name == ':deprecated')) continue;
+			
+			switch (field.kind) {
+				default:
+				
+				case FProp(get, set, _, e) if (e != null && set != 'set' && set != 'never'):
+					expr.unshift(macro $i {f} = $e);
+				
+				case FVar(_, e) if (e != null):
+					// trace(field.name + ' = ' + e.toString());
+					expr.unshift(macro $i {f} = $e);
+			}
+		}
+		// trace((macro $b {expr}).toString());
+		}
+		
+		if (lastClassWithConstr == null) {
+			if (!hasConstructor) expr = [macro throw $v {'${cls.pack.join('.') + (cls.pack.length > 0 ? '.' : '') + cls.name} does not have a constructor'}];
+			
+			fields.push({
+				pos: pos,
+				name: 'insanitySuper${getName(cls)}',
+				
+				kind: FFun({
+					ret: macro:Void,
+					expr: macro $b {expr},
+					args: constrArgs,
+					params: constrParams
+				})
+			});
+		}
+		
+		cls.meta.add(':insanityScriptable', [macro false], pos);
+		
+		if (superClass == null) {
+			fields.push({
+				pos: pos, name: '__insanitySuperName',
+				kind: FVar(macro:String, macro $v {getName(lastClassWithConstr ?? cls)})
+			});
+		}
+		
+		return fields;
+	}
 }
 #else
 import insanity.backend.types.Scripted;
