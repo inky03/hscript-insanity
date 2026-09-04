@@ -17,6 +17,8 @@ class Patcher {
 	static var patched:Int = 0;
 	static var patchedHL:Int = 0;
 	static var patchedExtreme:Int = 0;
+	static var omitted:Int = 0;
+	static var excluded:Int = 0;
 	
 	/**
 	 * Patches classes that use `Reflect` and `Type` to use HscriptInsanity's implementations.
@@ -30,6 +32,8 @@ class Patcher {
 	 * @return	Context fields
 	 */
 	public static macro function patch(extreme:Bool = false):Array<Field> {
+		if (Context.defined('display')) return Context.getBuildFields();
+		
 		Insanity.beginLog('Applying Patcher.patch');
 		Insanity.finishLog['Patcher.patch'] ??= () -> 'Patched $patched expressions ($patchedExtreme extreme)';
 		
@@ -203,6 +207,8 @@ class Patcher {
 	 * @return	Context fields
 	 */
 	public static macro function fixHLLongMethods():Array<Field> {
+		if (Context.defined('display')) return Context.getBuildFields();
+		
 		Insanity.beginLog('Applying Patcher.fixHLLongMethods');
 		Insanity.finishLog['Patcher.fixHLLongMethods'] ??= () -> 'Patched $patchedHL methods';
 		
@@ -271,19 +277,51 @@ class Patcher {
 	 * 
 	 */
 	public static macro function buildHscript(exclude:Array<String>):Array<Field> {
+		if (Context.defined('display')) return Context.getBuildFields();
+		
 		Insanity.beginLog('Applying Patcher.buildHscript');
 		
 		var fields:Array<Field> = Context.getBuildFields();
 		var cls:ClassType = Context.getLocalClass()?.get();
 		var pos = Context.currentPos();
 		
-		if (Context.defined('display')) return fields;
 		if (cls == null || cls.meta.has(':coreApi') || cls.meta.has(':extern') || cls.meta.has(':hlNative') || cls.meta.has(':native') ||
-			cls.isInterface || cls.isExtern || cls.name.contains('_Fields_'))
+			cls.isInterface || cls.isExtern || cls.name.contains('_Fields_')) {
+			omitted ++;
+			
+			if (Insanity.isVerbose() && cls != null && !cls.isInterface && !cls.name.contains('_Fields_')) {
+				var path:Array<String> = cls.pack.copy(); path.push(cls.name);
+				
+				haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mPatcher.buildHScript${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (${switch (cls) {
+					case _ if (cls.meta.has(':coreApi')): 'coreApi';
+					case _ if (cls.meta.has(':extern') || cls.isExtern): 'extern class';
+					case _ if (cls.meta.has(':hlNative')): 'hlNative';
+					case _ if (cls.meta.has(':native')): 'native';
+					default: '???';
+				}})', null);
+			}
+			
 			return fields;
+		}
 		switch (cls.pack[0]) {
-			case 'haxe' | 'hl' | 'cpp' | 'neko' | 'js' | 'cs' | 'lua' | 'php' | 'macro' | 'java' | 'flash' | 'python': return fields;
-			case 'insanity' if (cls.name != 'InsanityDummyClass'): return fields;
+			case 'haxe' | 'hl' | 'cpp' | 'neko' | 'js' | 'cs' | 'lua' | 'php' | 'macro' | 'java' | 'flash' | 'python':
+				if (Insanity.isVerbose()) {
+					var path:Array<String> = cls.pack.copy(); path.push(cls.name);
+					
+					haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mPatcher.buildHscript${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (internal)', null);
+				}
+				
+				return fields;
+				
+			case 'insanity' if (cls.name != 'InsanityDummyClass'):
+				if (Insanity.isVerbose()) {
+					var path:Array<String> = cls.pack.copy(); path.push(cls.name);
+					
+					haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mPatcher.buildHscript${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (internal)', null);
+				}
+				
+				return fields;
+				
 			default:
 		}
 		switch (cls.kind) {
@@ -291,8 +329,17 @@ class Patcher {
 			default:
 		}
 		for (ex in exclude) {
-			if (cls.module.indexOf(ex) == 0)
+			if (cls.module.indexOf(ex) == 0) {
+				excluded ++;
+				
+				/*if (Insanity.isVerbose()) { thisones too obvious
+					var path:Array<String> = cls.pack.copy(); path.push(cls.name);
+					
+					haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mPatcher.buildHScript${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (exclusion $ex)', null);
+				}*/
+				
 				return fields;
+			}
 		}
 		
 		function classHasConstructor(ccls:ClassType):Bool {
@@ -346,11 +393,11 @@ class Patcher {
 			return pack.join('_');
 		}
 		
-		if (Insanity.isVerbose()) {
+		/*if (Insanity.isVerbose()) {
 			var path:Array<String> = cls.pack.copy(); path.push(cls.name);
 			
 			haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mPatcher.buildHscript${Insanity.ansiEsc}0m ${path.join('.')}', null);
-		}
+		}*/
 		
 		function mapConstructor(expr:Expr):Expr {
 			if (expr == null) return null;

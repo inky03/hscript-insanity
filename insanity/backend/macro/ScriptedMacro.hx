@@ -25,27 +25,62 @@ class ScriptedMacro {
 	static var _name:String = 'insanity.backend.macro.ScriptedMacro';
 	
 	#if macro
+	@:access(insanity.backend.macro.Patcher)
 	public static macro function buildScriptable(evil:Bool = false, superEvil:Bool = false):Array<Field> {
+		if (Context.defined('display')) return Context.getBuildFields();
+		
 		Insanity.beginLog('Applying ScriptedMacro.buildScriptable');
-		Insanity.finishLog['ScriptedMacro.buildScriptable'] ??= () -> 'Injected $generated classes${generated == 0 ? ' (did you run Patcher.buildHscript?)' : ''}';
+		Insanity.finishLog['ScriptedMacro.buildScriptable'] ??= () -> {
+			var str:String = 'Injected $generated classes';
+			
+			if (Insanity.isVerbose()) {
+				str += ' (';
+				if (Patcher.omitted > 0) str += 'omitted ${Patcher.omitted}';
+				if (Patcher.omitted > 0 && Patcher.excluded > 0) str += ' | '; // it s 3 am okay
+				if (Patcher.excluded > 0) str += 'excluded ${Patcher.excluded}';
+				str += ')';
+			}
+			
+			if ((generated + Patcher.omitted + Patcher.excluded) == 0) str += '. Did you run Patcher.buildHscript?';
+			
+			str;
+		};
 		
 		var pos = Context.currentPos();
 		var cls = Context.getLocalClass()?.get();
 		var fields:Array<Field> = Context.getBuildFields();
 		
-		function isPrivate(cls:ClassType):Bool {
+		inline function isPrivate(cls:ClassType):Bool {
 			return (cls.pack.length > 0 && cls.pack[cls.pack.length - 1].charAt(0) == '_');
 		}
-		function isEligible(cls:ClassType):Bool { // about time
+		function isEligible(cls:ClassType):Bool { // about time (nvm i didnt even use it anywher else)
 			if (cls == null || !cls.meta.has(':insanityScriptable')) return false;
 			
 			if (!superEvil && isPrivate(cls)) {
+				Patcher.omitted ++;
+				
+				if (Insanity.isVerbose()) {
+					var path:Array<String> = cls.pack.copy(); path.push(cls.name);
+					
+					haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mScriptedMacro.buildScriptable${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (private class)', null);
+				}
+				
 				// trace('private ${cls.pack.join('.') + '.' + cls.name}');
 				return false;
 			}
 			
 			switch (cls.kind) {
-				case KGeneric: return false;
+				case KGeneric:
+					Patcher.omitted ++;
+					
+					if (Insanity.isVerbose()) {
+						var path:Array<String> = cls.pack.copy(); path.push(cls.name);
+						
+						haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mScriptedMacro.buildScriptable${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (generic class)', null);
+					}
+					
+					return false;
+					
 				default:
 			}
 			
@@ -74,7 +109,17 @@ class ScriptedMacro {
 		while (true) {
 			if (su == null) break;
 			
-			if (!superEvil && isPrivate(su)) return fields;
+			if (!superEvil && isPrivate(su)) {
+				Patcher.omitted ++;
+				
+				if (Insanity.isVerbose()) {
+					var path:Array<String> = cls.pack.copy(); path.push(cls.name);
+					
+					haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mScriptedMacro.buildScriptable${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (extends private class)', null);
+				}
+				
+				return fields;
+			}
 			
 			for (field in su.statics.get()) {
 				if (field.name == 'toString') hasToString = true;

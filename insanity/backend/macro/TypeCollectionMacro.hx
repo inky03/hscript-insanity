@@ -16,6 +16,8 @@ class TypeCollectionMacro {
 	static var _name:String = 'insanity.backend.macro.TypeCollectionMacro';
 	
 	public static macro function build() {
+		if (Context.defined('display')) return macro [];
+		
 		Context.onAfterTyping(function(types) {
 			var self = TypeTools.getClass(Context.getType(_name));
 			if (self.meta.has('typed')) return;
