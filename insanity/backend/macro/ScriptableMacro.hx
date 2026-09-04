@@ -544,6 +544,7 @@ class ScriptableMacro {
 			
 			return null;
 		}
+		if (cls.meta.has(':insanityScriptable')) return null;
 		switch (cls.pack[0]) {
 			case 'haxe' | 'hl' | 'cpp' | 'neko' | 'js' | 'cs' | 'lua' | 'php' | 'macro' | 'java' | 'flash' | 'python':
 				omitted ++;

@@ -1439,13 +1439,13 @@ class InsanityScriptedAbstractValue extends InsanityAbstractValue {
 	}
 }
 
+@:autoBuild(insanity.backend.macro.ScriptableMacro.buildScriptable())
 class InsanityDummyClass {}
 
 interface IInsanityInterp {
 	public var interp:Interp;
 }
 
-@:autoBuild(insanity.backend.macro.ScriptableMacro.build())
 interface IInsanityScripted extends ICustomReflection extends ICustomClassType {
 	private var __scriptedBase:InsanityScriptedClass;
 	private var __interp:insanity.backend.Interp;
