@@ -248,7 +248,9 @@ class Patcher {
 		var cls:ClassType = Context.getLocalClass()?.get();
 		var pos = Context.currentPos();
 		
-		if (cls == null || cls.meta.has(':coreApi') || cls.meta.has(':extern') || cls.meta.has(':hlNative') || cls.meta.has(':native') || cls.isInterface || cls.isExtern) return fields;
+		if (cls == null || cls.meta.has(':coreApi') || cls.meta.has(':extern') || cls.meta.has(':hlNative') || cls.meta.has(':native') ||
+			cls.isInterface || cls.isExtern || cls.name.contains('_Fields_'))
+			return fields;
 		switch (cls.pack[0]) {
 			case 'haxe' | 'hl' | 'cpp' | 'neko' | 'js' | 'cs' | 'lua' | 'php' | 'macro' | 'java' | 'flash' | 'python': return fields;
 			case 'insanity' if (cls.name != 'InsanityDummyClass'): return fields;

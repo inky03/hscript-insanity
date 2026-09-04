@@ -32,9 +32,7 @@ class ScriptedMacro {
 			default:
 		}
 		
-		var path = cls.pack.copy();
-		path.push(cls.name);
-		
+		var hasToString:Bool = false;
 		var knownFields:Map<String, Bool> = [];
 		var inlinedFields:Map<String, Bool> = [];
 		
@@ -47,14 +45,40 @@ class ScriptedMacro {
 			case EConst(CString(s)): s;
 			default: throw '???';
 		}
-		//trace(superName);
+		
+		var su = cls.superClass?.t.get();
+		var addFields:Bool = (cls.superClass == null);
+		
+		while (true) {
+			if (su == null) break;
+			
+			for (field in su.statics.get()) {
+				if (field.name == 'toString') hasToString = true;
+			}
+			
+			for (field in su.fields.get()) {
+				knownFields.set(field.name, true);
+				
+				if (field.name == 'toString') hasToString = true;
+				
+				switch (field.kind) {
+					case FMethod(MethInline) if (!evil):
+						inlinedFields.set(field.name, true);
+					
+					default:
+				}
+			}
+			
+			su = su.superClass?.t.get();
+		}
 		
 		for (field in fields) {
 			final f:String = field.name;
 			
+			if (f == 'toString') hasToString = true;
 			if (f.contains('insanitySuper') || ignoreFields.exists(f)) continue;
 			
-			final isStatic:Bool = (field?.access.contains(AStatic) ?? false);
+			final isStatic:Bool = (field?.access.contains(AStatic));
 			
 			if (!isStatic) knownFields.set(f, true);
 			
@@ -68,71 +92,42 @@ class ScriptedMacro {
 				default:
 				case FFun(fun) if (!isStatic):
 					// trace(f + ' - ' + field.access);
-					final oldExpr:Expr = fun.expr;
-					
 					var isVoid:Bool = (fun.ret == null || fun.ret.match(TPath({name: 'Void', pack: _})));
-					function checkVoid(expr:Expr):Void {
-						if (expr == null) return;
-						
-						switch (expr.expr) {
-							case EFunction(_, _): expr;
-							case EReturn(e) if (e != null): isVoid = false;
-							default: expr.iter(checkVoid);
+					
+					if (isVoid) {
+						function checkVoid(expr:Expr):Void {
+							if (expr == null) return;
+							
+							switch (expr.expr) {
+								case EFunction(_, _): expr;
+								case EReturn(e) if (e != null): isVoid = false;
+								default: expr.iter(checkVoid);
+							}
 						}
+						
+						checkVoid(fun.expr);
 					}
 					
-					checkVoid(fun.expr);
+					fun.expr = scriptableExpr(fun.expr, f, [for (arg in fun.args) macro $i {arg.name}], isVoid);
 					
-					final argsArray:Array<Expr> = [for (arg in fun.args) macro $i {arg.name}];
-					
-					var rr = {pos: oldExpr.pos, expr: EReturn(null)}; // debugging cus it was pising me off
-					var ii = {pos: oldExpr.pos, expr: EConst(CIdent('__isScripted'))};
-					
-					fun.expr = macro {
-						final fname:String = $v {f};
-						
-						if ($ii && __func != fname && __interp.locals.exists(fname)) {
-							final prevFunc:String = __func;
-							__func = fname; // prevent loop
-							
-							var r:Dynamic = null;
-							if (__interpSafe) {
-								__interp.inTry = true;
-								
-								try {
-									r = Reflect.callMethod(__interp, __interp.locals.get(fname).r, $a {argsArray});
-								} catch (e:Dynamic) {
-									__scriptedBase.onInstanceError(e, fname, this);
-								}
-							} else {
-								r = Reflect.callMethod(__interp, __interp.locals.get(fname).r, $a {argsArray});
-							}
-							
-							__func = prevFunc;
-							${isVoid ? rr : macro return cast r};
-						} else $oldExpr;
+					if (f == 'toString' && !addFields && !field.access?.contains(AOverride)) {
+						field.access ??= [];
+						field.access.push(AOverride);
 					}
 			}
 		}
 		
-		var su = cls.superClass?.t.get();
-		var addFields:Bool = (cls.superClass == null);
+		var path:Array<String> = cls.pack.copy(); path.push(cls.name);
 		
-		while (true) {
-			if (su == null) break;
-			
-			for (field in su.fields.get()) {
-				knownFields.set(field.name, true);
-				
-				switch (field.kind) {
-					case FMethod(MethInline) if (!evil):
-						inlinedFields.set(field.name, true);
-					
-					default:
-				}
-			}
-			
-			su = su.superClass?.t.get();
+		if (!hasToString) {
+			fields.push({
+				pos: pos, access: (addFields ? [APublic] : [APublic, AOverride]), name: 'toString',
+				kind: FFun({
+					args: [],
+					expr: scriptableExpr(macro return (__isScripted ? __scriptedBase.path : __classString), 'toString', []),
+					ret: macro:String
+				})
+			});
 		}
 		
 		var ii = {pos: cls.pos, expr: EConst(CIdent(superName))};
@@ -142,6 +137,7 @@ class ScriptedMacro {
 			__vars = [];
 			__func = '';
 			__isScripted = true;
+			__classString = base.path;
 			
 			__scriptedBase = base;
 			__interpSafe = base.safe;
@@ -270,7 +266,7 @@ class ScriptedMacro {
 		
 		fields = fields.concat([{
 			pos: pos, name: 'insanityNew',
-			access: (cls.superClass == null ? [] : [AOverride]),
+			access: (addFields ? [] : [AOverride]),
 			kind: FFun({
 				ret: macro:Void,
 				args: [{name: 'base', type: macro:insanity.backend.types.Scripted.InsanityScriptedClass}, {name: 'arguments', type: macro:Array<Dynamic>}],
@@ -292,6 +288,9 @@ class ScriptedMacro {
 			}, {
 				pos: pos, name: '__isScripted',
 				kind: FVar(macro:Bool, macro false)
+			}, {
+				pos: pos, name: '__classString',
+				kind: FVar(macro:String, macro $v {path.join('.')})
 			}, {
 				pos: pos, name: '__scriptedBase',
 				kind: FVar(macro:Null<insanity.backend.types.Scripted.InsanityScriptedClass>, macro null)
@@ -400,39 +399,40 @@ class ScriptedMacro {
 					expr: macro return __scriptedBase,
 					ret: macro:insanity.backend.types.Scripted.InsanityScriptedClass
 				})
-			}/*, {
-				pos: pos, access: [APublic], name: 'typeCreateInstance',
-				kind: FFun({
-					args: [{name: 'args', type: macro:Array<Dynamic>}],
-					expr: macro { throw 'Invalid'; return null; },
-					ret: macro:Dynamic
-				})
-			}, {
-				pos: pos, access: [APublic], name: 'typeCreateEmptyInstance',
-				kind: FFun({
-					args: [],
-					expr: macro { throw 'Invalid'; return null; },
-					ret: macro:Dynamic
-				})
-			}, {
-				pos: pos, access: [APublic], name: 'typeGetInstanceFields',
-				kind: FFun({
-					args: [],
-					expr: macro return [],
-					ret: macro:Array<String>
-				})
-			}, {
-				pos: pos, access: [APublic], name: 'typeGetClassFields',
-				kind: FFun({
-					args: [],
-					expr: macro return [],
-					ret: macro:Array<String>
-				})
-			}*/]);
+			}]);
 		}
 		
 		// trace('make ${cls.pack.join('.')}.${cls.name} scriptable');
 		
 		return fields;
 	}
+	
+	#if macro
+	static inline function scriptableExpr(oldExpr:Expr, field:String, argsArray:Array<Expr>, isVoid:Bool = false):Expr {
+		return macro {
+			final fname:String = $v {field};
+			
+			if (__isScripted && __func != fname && __interp.locals.exists(fname)) {
+				final prevFunc:String = __func;
+				__func = fname; // prevent loop
+				
+				var r:Dynamic = null;
+				if (__interpSafe) {
+					__interp.inTry = true;
+					
+					try {
+						r = Reflect.callMethod(__interp, __interp.locals.get(fname).r, $a {argsArray});
+					} catch (e) {
+						__scriptedBase.onInstanceError(e, fname, this);
+					}
+				} else {
+					r = Reflect.callMethod(__interp, __interp.locals.get(fname).r, $a {argsArray});
+				}
+				
+				__func = prevFunc;
+				${isVoid ? macro return : macro return cast r};
+			} else $oldExpr;
+		}
+	}
+	#end
 }
