@@ -67,6 +67,8 @@ enum AbstractTypeCast {
 }
 
 class AbstractMacro {
+	static var generated:Int = 0;
+	
 	static inline function typeName(t:Dynamic):String {
 		var path = t.pack.copy();
 		path.push(t.name);
@@ -89,6 +91,9 @@ class AbstractMacro {
 	}
 	
 	public static macro function build():Array<Field> {
+		Insanity.beginLog('Applying AbstractMacro.build');
+		Insanity.finishLog['AbstractMacro.build'] ??= () -> 'Injected $generated abstracts';
+		
 		var pos = Context.currentPos();
 		var type = Context.getLocalType();
 		var fields = Context.getBuildFields();
@@ -128,6 +133,8 @@ class AbstractMacro {
 		
 		var path:Array<String> = ab.pack.copy();
 		path.push(ab.name);
+		
+		if (Insanity.isVerbose()) haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mAbstractMacro.build${Insanity.ansiEsc}0m ${path.join('.')}', null);
 		
 		var implPath:Array<String> = ab.module.split('.');
 		if (implPath.length > 0) implPath[implPath.length - 1] = '_${implPath[implPath.length - 1]}';
@@ -374,6 +381,7 @@ class AbstractMacro {
 		}
 		
 		c.meta.add(':insanityAbstractInfo', [macro $v {path.join('.')}, macro $v {haxe.Serializer.run(info)}], pos);
+		generated ++;
 		
 		return fields;
 	}

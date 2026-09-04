@@ -14,6 +14,10 @@ using Lambda;
  * Utility macro functions that patch classes to boost their use with Hscript.
  */
 class Patcher {
+	static var patched:Int = 0;
+	static var patchedHL:Int = 0;
+	static var patchedExtreme:Int = 0;
+	
 	/**
 	 * Patches classes that use `Reflect` and `Type` to use HscriptInsanity's implementations.
 	 * Use this with `Compiler.addMetadata` or `Compiler.addGlobalMetadata`!
@@ -26,6 +30,9 @@ class Patcher {
 	 * @return	Context fields
 	 */
 	public static macro function patch(extreme:Bool = false):Array<Field> {
+		Insanity.beginLog('Applying Patcher.patch');
+		Insanity.finishLog['Patcher.patch'] ??= () -> 'Patched $patched expressions ($patchedExtreme extreme)';
+		
 		var fields:Array<Field> = Context.getBuildFields();
 		var cls:ClassType = Context.getLocalClass()?.get();
 		
@@ -36,6 +43,7 @@ class Patcher {
 			default:
 		}
 		
+		// IDK how to evn begin thinking about full verbos log of this one s o i wont
 		function mapPatch(expr:Expr):Expr {
 			return switch(expr.expr) {
 				case EIs(expr, type):
@@ -47,10 +55,12 @@ class Patcher {
 							pack = p.pack.copy();
 							pack.push(p.name);
 					}
+					patched ++;
 					macro insanity.custom.InsanityStd.isOfType($expr, $p{pack});
-				case EField({pos: _, expr: EConst(CIdent('Std'))}, 'isOfType', Normal): macro insanity.custom.InsanityStd.isOfType;
-				case EConst(CIdent('Reflect')): macro insanity.custom.InsanityReflect;
-				case EConst(CIdent('Type')): macro insanity.custom.InsanityUnsafeType;
+					
+				case EField({pos: _, expr: EConst(CIdent('Std'))}, 'isOfType', Normal): patched ++; macro insanity.custom.InsanityStd.isOfType;
+				case EConst(CIdent('Reflect')): patched ++; macro insanity.custom.InsanityReflect;
+				case EConst(CIdent('Type')): patched ++; macro insanity.custom.InsanityUnsafeType;
 				/* case EConst(CIdent('Std')): macro insanity.custom.InsanityStd;
 				bad performance issues ineed to resolve ? (either way not much point of using this one outside scripts ig)*/
 				default: expr.map(mapPatch);
@@ -61,8 +71,16 @@ class Patcher {
 			if (t == null) return null;
 			
 			var t = switch (t) {
-				case TPath(p) if (p.name == 'Class'): TPath({sub: 'InsanityClass', name: 'Patcher', pack: ['insanity', 'backend', 'macro'], params: p.params});
-				case TPath(p) if (p.name == 'Enum'): TPath({sub: 'InsanityEnum', name: 'Patcher', pack: ['insanity', 'backend', 'macro'], params: p.params});
+				case TPath(p) if (p.name == 'Class'):
+					patched ++;
+					patchedExtreme ++;
+					TPath({sub: 'InsanityClass', name: 'Patcher', pack: ['insanity', 'backend', 'macro'], params: p.params});
+					
+				case TPath(p) if (p.name == 'Enum'):
+					patched ++;
+					patchedExtreme ++;
+					TPath({sub: 'InsanityEnum', name: 'Patcher', pack: ['insanity', 'backend', 'macro'], params: p.params});
+					
 				default: t;
 			}
 			
@@ -185,6 +203,9 @@ class Patcher {
 	 * @return	Context fields
 	 */
 	public static macro function fixHLLongMethods():Array<Field> {
+		Insanity.beginLog('Applying Patcher.fixHLLongMethods');
+		Insanity.finishLog['Patcher.fixHLLongMethods'] ??= () -> 'Patched $patchedHL methods';
+		
 		var fields:Array<Field> = Context.getBuildFields();
 		
 		if (!Context.defined('hl')) return fields;
@@ -211,7 +232,13 @@ class Patcher {
 			switch (field.kind) {
 				default:
 				case FFun(fun) if (fun.args.length >= 9):
+					if (Insanity.isVerbose()) {
+						var path:Array<String> = cls.pack.copy(); path.push(cls.name);
+						
+						haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mPatcher.fixHLLongMethods${Insanity.ansiEsc}0m ${path.join('.')}.${field.name}', null);
+					}
 					// trace('fix ${cls.module+'.'+cls.name}.${field.name}');
+					patchedHL ++;
 					
 					final funName:String = 'insanityhl${field.name}';
 					final access:Array<Access> = (field.access?.copy() ?? []);
@@ -244,6 +271,8 @@ class Patcher {
 	 * 
 	 */
 	public static macro function buildHscript(exclude:Array<String>):Array<Field> {
+		Insanity.beginLog('Applying Patcher.buildHscript');
+		
 		var fields:Array<Field> = Context.getBuildFields();
 		var cls:ClassType = Context.getLocalClass()?.get();
 		var pos = Context.currentPos();
@@ -312,10 +341,15 @@ class Patcher {
 				default:
 			}
 			
-			var pack:Array<String> = cls.pack.copy();
-			pack.push(cls.name);
+			var pack:Array<String> = cls.pack.copy(); pack.push(cls.name);
 			
 			return pack.join('_');
+		}
+		
+		if (Insanity.isVerbose()) {
+			var path:Array<String> = cls.pack.copy(); path.push(cls.name);
+			
+			haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mPatcher.buildHscript${Insanity.ansiEsc}0m ${path.join('.')}', null);
 		}
 		
 		function mapConstructor(expr:Expr):Expr {

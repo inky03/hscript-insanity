@@ -23,21 +23,18 @@ class InterpException extends Exception {
 		var stack:haxe.CallStack = (previous?.stack?.copy() ?? stack?.copy());
 		if (stack != null) {
 			if (!fullStack && stack.length > 0) {
-				var max:Int = -1, i:Int = 0;
+				var min:Int = (stack.length - 1), i:Int = stack.length;
 				
-				while (i < stack.length) {
+				while (-- i > 0) {
 					switch (stack[i]) {
 						case FilePos(s, file, line, col) if (StringTools.startsWith(file, 'insanity/')):
-							// if (i < min) min = i;
-							if (i > max) max = i;
+							if (i < min) min = i;
 						
 						default:
 					}
-					
-					i ++;
 				}
 				
-				stack.asArray().splice(0, max + 1);
+				stack.asArray().splice(min, stack.length - min);
 			}
 			
 			b.add(Std.string(stack));

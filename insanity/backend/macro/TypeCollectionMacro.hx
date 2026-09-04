@@ -105,6 +105,8 @@ class TypeCollectionMacro {
 			for (type in types)
 				map.push(getTypeInfo(type));
 			
+			if (Insanity.isVerbose()) Insanity.finishLog['TypeCollectionMacro.build'] = () -> 'Indexed ${map.length} type infos';
+			
 			self.meta.add('typed', [macro $v {haxe.Serializer.run(map)}], self.pos);
 			// Context.info('types registered !!', Context.currentPos());
 		});

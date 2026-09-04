@@ -20,11 +20,15 @@ class ScriptedMacro {
 	]) f => true];
 	
 	static var scriptedClasses:Map<String, Bool> = [];
+	static var generated:Int = 0;
 	
 	static var _name:String = 'insanity.backend.macro.ScriptedMacro';
 	
 	#if macro
 	public static macro function buildScriptable(evil:Bool = false, superEvil:Bool = false):Array<Field> {
+		Insanity.beginLog('Applying ScriptedMacro.buildScriptable');
+		Insanity.finishLog['ScriptedMacro.buildScriptable'] ??= () -> 'Injected $generated classes${generated == 0 ? ' (did you run Patcher.buildHscript?)' : ''}';
+		
 		var pos = Context.currentPos();
 		var cls = Context.getLocalClass()?.get();
 		var fields:Array<Field> = Context.getBuildFields();
@@ -138,7 +142,8 @@ class ScriptedMacro {
 		}
 		
 		var path:Array<String> = cls.pack.copy(); path.push(cls.name);
-		scriptedClasses.set(path.join('.'), true);
+		
+		if (Insanity.isVerbose()) haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mScriptedMacro.buildScriptable${Insanity.ansiEsc}0m ${path.join('.')}', null);
 		
 		if (!hasToString) {
 			fields.push({
@@ -424,6 +429,9 @@ class ScriptedMacro {
 		}
 		
 		// trace('make ${cls.pack.join('.')}.${cls.name} scriptable');
+		
+		scriptedClasses.set(path.join('.'), true);
+		generated ++;
 		
 		return fields;
 	}

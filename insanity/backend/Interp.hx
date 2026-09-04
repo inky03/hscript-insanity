@@ -95,7 +95,7 @@ class Interp {
 	public var defineGlobals:Bool = false;
 	@:noCompletion public var superConstructorAllowed:Bool = false;
 	
-	static var localsPool : Array<Map<String, Variable>> = [];
+	var localsPool : Array<Map<String, Variable>> = [];
 	
 	/**
 	 * The interpreter's call stack.
@@ -651,18 +651,18 @@ class Interp {
 	}
 	
 	function pushStack(?item:StackItem, ?locals:Map<String, Variable>):Void {
-		var last:Stack = stack.shift();
-		
-		if (last != null) {
-			stack.unshift({locals: last.locals, item: switch (last.item) {
+		if (stack.length > 0) {
+			final last:Stack = stack.last();
+			
+			last.item = switch (last.item) {
 				case SFilePos(item, _, _): SFilePos(item, position.origin, position.line, position.column);
-				default: SFilePos(last.item, position.origin, position.line, position.column);
-			}});
+				case item: SFilePos(item, position.origin, position.line, position.column);
+			};
 		}
 		
 		if (item != null) {
-			final newLocals = (locals ?? duplicate(stack.first()?.locals));
-			stack.unshift({locals: newLocals, item: item});
+			final newLocals:Map<String, Variable> = (locals ?? duplicate(stack.last()?.locals));
+			stack.push({locals: newLocals, item: item});
 			this.locals = newLocals;
 			
 			if (stack.length > callStackDepth)
@@ -670,11 +670,11 @@ class Interp {
 		}
 	}
 	inline function shiftStack(put:Bool = true):Stack {
-		var item:Stack = stack.shift();
+		var item:Stack = stack.pop();
 		
 		if (put) localsPool.push(item.locals);
 		
-		locals = stack.first()?.locals;
+		locals = stack.last()?.locals;
 		
 		return item;
 	}
