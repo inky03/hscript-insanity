@@ -1,4 +1,4 @@
-package insanity.backend.macro;
+package insanity.macro;
 
 #if macro
 import haxe.macro.Context;
@@ -81,12 +81,12 @@ class Patcher {
 				case TPath(p) if (p.name == 'Class'):
 					patched ++;
 					patchedExtreme ++;
-					TPath({sub: 'InsanityClass', name: 'Patcher', pack: ['insanity', 'backend', 'macro'], params: p.params});
+					TPath({sub: 'InsanityClass', name: 'Patcher', pack: ['insanity', 'macro'], params: p.params});
 					
 				case TPath(p) if (p.name == 'Enum'):
 					patched ++;
 					patchedExtreme ++;
-					TPath({sub: 'InsanityEnum', name: 'Patcher', pack: ['insanity', 'backend', 'macro'], params: p.params});
+					TPath({sub: 'InsanityEnum', name: 'Patcher', pack: ['insanity', 'macro'], params: p.params});
 					
 				default: t;
 			}

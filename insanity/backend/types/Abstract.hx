@@ -1,6 +1,7 @@
 package insanity.backend.types;
 
-import insanity.backend.macro.AbstractMacro;
+import insanity.macro.AbstractMacro;
+
 import insanity.backend.types.Scripted;
 
 import insanity.custom.InsanityReflect;

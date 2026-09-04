@@ -21,16 +21,18 @@
  */
 package insanity.backend;
 
-import insanity.backend.Expr;
-import insanity.backend.Exception;
-import insanity.backend.CallStack;
-import insanity.backend.types.Scripted;
-import insanity.backend.macro.AbstractMacro;
 import haxe.PosInfos;
 import haxe.Constraints.IMap;
 
 import Type as HaxeType;
 import Reflect as HaxeReflect;
+
+import insanity.macro.AbstractMacro;
+
+import insanity.backend.Expr;
+import insanity.backend.Exception;
+import insanity.backend.CallStack;
+import insanity.backend.types.Scripted;
 
 #if (insanity.scriptableTypes) import insanity.custom.InsanityType.ICustomEnumValueType; #end
 import insanity.custom.InsanityReflect as Reflect;

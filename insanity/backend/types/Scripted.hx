@@ -3,7 +3,8 @@ package insanity.backend.types;
 import insanity.custom.InsanityReflect;
 import insanity.custom.InsanityType;
 
-import insanity.backend.macro.AbstractMacro;
+import insanity.macro.AbstractMacro;
+
 import insanity.backend.types.Abstract;
 import insanity.backend.Interp;
 import insanity.backend.Expr;
@@ -16,7 +17,7 @@ using insanity.tools.Tools;
 using insanity.backend.TypeCollection;
 
 class ScriptedTools {
-	public static var scriptableClasses(default, never):Map<String, Class<Dynamic>> = insanity.backend.macro.ScriptableMacro.listScriptableClasses();
+	public static var scriptableClasses(default, never):Map<String, Class<Dynamic>> = insanity.macro.ScriptableMacro.listScriptableClasses();
 	
 	public static function resolve(t:Dynamic):Dynamic {
 		#if (insanity.scriptableTypes)
@@ -148,7 +149,7 @@ class InsanityScriptedClass implements IInsanityType implements IInsanityInterp 
 			
 			if (f == 'new') continue;
 			
-			if (insanity.backend.macro.ScriptableMacro.ignoreFields.exists(f)) {
+			if (insanity.macro.ScriptableMacro.ignoreFields.exists(f)) {
 				throw 'Field $f reserved for internal use!!! - HScriptInsanity';
 			} else if (knownFields.contains(f)) {
 				throw 'Duplicate class field declaration: $name.$f';
@@ -261,7 +262,7 @@ class InsanityScriptedClass implements IInsanityType implements IInsanityInterp 
 				var inlinedFields:Map<String, Bool> = cls.inlinedFields;
 				
 				for (field in instanceFields) {
-					if (insanity.backend.macro.ScriptableMacro.ignoreFields.exists(field)) continue;
+					if (insanity.macro.ScriptableMacro.ignoreFields.exists(field)) continue;
 					
 					if (overridingFields.contains(field)) {
 						if (inlinedFields?.exists(field)) { throw 'Field $field is inlined and cannot be overridden'; }
@@ -534,7 +535,7 @@ class InsanityScriptedClass implements IInsanityType implements IInsanityInterp 
 				}
 			} else if (c is Class) {
 				for (f in Type.getInstanceFields(c)) {
-					if (!fields.contains(f) && !insanity.backend.macro.ScriptableMacro.ignoreFields.exists(f))
+					if (!fields.contains(f) && !insanity.macro.ScriptableMacro.ignoreFields.exists(f))
 						fields.push(f);
 				}
 			}
@@ -893,7 +894,7 @@ class InsanityScriptedInterface implements IInsanityType implements IInsanityInt
 				throw 'You can only declare static fields in extern interfaces';
 			} else if (field.access.contains(AOverride)) {
 				throw 'Invalid modifier: override on field of class that has no parent';
-			} else if (insanity.backend.macro.ScriptableMacro.ignoreFields.exists(f)) {
+			} else if (insanity.macro.ScriptableMacro.ignoreFields.exists(f)) {
 				throw 'Field $f reserved for internal use!!! - HScriptInsanity';
 			} else if (knownFields.contains(f)) {
 				throw 'Duplicate class field declaration: $name.$f';
@@ -942,7 +943,7 @@ class InsanityScriptedInterface implements IInsanityType implements IInsanityInt
 				}
 			} else if (c is Class) {
 				for (f in Type.getInstanceFields(c)) {
-					if (!fields.contains(f) && !insanity.backend.macro.ScriptableMacro.ignoreFields.exists(f))
+					if (!fields.contains(f) && !insanity.macro.ScriptableMacro.ignoreFields.exists(f))
 						fields.push(f);
 				}
 			}
@@ -1112,7 +1113,7 @@ class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityInte
 		for (field in decl.fields) {
 			final f:String = field.name;
 			
-			if (f != 'new' && insanity.backend.macro.ScriptableMacro.ignoreFields.exists(f)) {
+			if (f != 'new' && insanity.macro.ScriptableMacro.ignoreFields.exists(f)) {
 				throw 'Field $f reserved for internal use!!! - HScriptInsanity';
 			} else if (knownFields.contains(f)) {
 				throw 'Duplicate abstract field declaration: $name.$f';
@@ -1439,7 +1440,7 @@ class InsanityScriptedAbstractValue extends InsanityAbstractValue {
 	}
 }
 
-@:autoBuild(insanity.backend.macro.ScriptableMacro.buildScriptable())
+@:autoBuild(insanity.macro.ScriptableMacro.buildScriptable())
 class InsanityDummyClass {}
 
 interface IInsanityInterp {

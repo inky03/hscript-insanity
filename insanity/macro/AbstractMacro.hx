@@ -1,4 +1,4 @@
-package insanity.backend.macro;
+package insanity.macro;
 
 #if macro
 import haxe.macro.Context;
@@ -410,7 +410,7 @@ class AbstractMacro {
 		return fields;
 	}
 	
-	static var _name:String = 'insanity.backend.macro.AbstractMacro';
+	static var _name:String = 'insanity.macro.AbstractMacro';
 	
 	public static macro function listAbstractInfos() {
 		Context.onAfterTyping(function(types) {

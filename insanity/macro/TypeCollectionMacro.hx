@@ -1,4 +1,4 @@
-package insanity.backend.macro;
+package insanity.macro;
 
 #if macro
 import haxe.macro.Compiler;
@@ -13,7 +13,7 @@ import haxe.macro.TypedExprTools;
 import insanity.backend.TypeCollection;
 
 class TypeCollectionMacro {
-	static var _name:String = 'insanity.backend.macro.TypeCollectionMacro';
+	static var _name:String = 'insanity.macro.TypeCollectionMacro';
 	
 	public static macro function build() {
 		if (Context.defined('display')) return macro [];
