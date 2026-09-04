@@ -210,8 +210,11 @@ enum ImportMode {
 }
 
 enum Mirror {
-	MSuper(?locals:Map<String, Interp.Variable>, ?constructor:Dynamic);
 	MProperty(t:Dynamic, f:String);
 	MEnumValue(t:Dynamic, i:Int);
+	
+	#if (insanity.scriptableTypes)
+	MSuper(?locals:Map<String, Interp.Variable>, ?constructor:Dynamic);
 	MScriptAbstract(a:insanity.backend.types.Scripted.InsanityScriptedAbstractValue);
+	#end
 }

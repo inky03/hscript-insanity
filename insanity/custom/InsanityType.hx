@@ -13,71 +13,88 @@ class InsanityType {
 		if (o is ICustomClassType) {
 			var o:ICustomClassType = cast o;
 			return o.typeGetClass();
-		} else {
+		} #if (insanity.scriptableTypes) else if (o?.__isScripted) {
+			return o.typeGetClass();
+		} #end else {
 			var t:Class<Dynamic> = Type.getClass(o);
-			if (t == null) return null;
-			
-			return (ConfigUtil.assertBlacklisted(Config.typeProxy.get(Type.getClassName(t)) ?? t));
+			return (t == null ? null : ConfigUtil.assertBlacklisted(Config.typeProxy.get(Type.getClassName(t)) ?? t));
 		}
 	}
 	
 	public static inline function getEnum(o:Dynamic):Dynamic {
-		if (o is ICustomEnumValueType) {
+		#if (insanity.scriptableTypes) if (o is ICustomEnumValueType) {
 			var o:ICustomEnumValueType = cast o;
 			return o.typeGetEnum();
-		} else {
+		} else #end {
 			var t:Enum<Dynamic> = Type.getEnum(o);
-			if (t == null) return null;
-			
-			return (ConfigUtil.assertBlacklisted(Config.typeProxy.get(Type.getEnumName(t)) ?? t));
+			return (t == null ? null : ConfigUtil.assertBlacklisted(Config.typeProxy.get(Type.getEnumName(t)) ?? t));
 		}
 	}
 	
 	public static inline function getSuperClass(c:Dynamic):Dynamic {
-		if (c is InsanityScriptedClass)
+		#if (insanity.scriptableTypes)
+		if (c is InsanityScriptedClass) {
 			return cast(c:InsanityScriptedClass).extending;
-		
-		if (c is InsanityScriptedInterface)
+		} else if (c is InsanityScriptedInterface) {
 			return null;
-		
-		var c:Class<Dynamic> = Type.getSuperClass(c);
-		if (c == null) return null;
-		
-		return (ConfigUtil.assertBlacklisted(Config.typeProxy.get(Type.getClassName(c)) ?? c));
+		} else #end {
+			var c:Class<Dynamic> = Type.getSuperClass(c);
+			return (c == null ? null : ConfigUtil.assertBlacklisted(Config.typeProxy.get(Type.getClassName(c)) ?? c));
+		}
 	}
 	
 	public static inline function getClassName(c:Dynamic):String {
-		if (c is ICustomClassType)
+		if (c is ICustomClassType) {
 			return cast(c:ICustomClassType).path;
-		
-		return Type.getClassName(c);
+		} else {
+			return Type.getClassName(c);
+		}
 	}
 	
 	public static inline function getEnumName(e:Dynamic):String {
-		if (e is InsanityScriptedEnum)
+		#if (insanity.scriptableTypes) if (e is InsanityScriptedEnum) {
 			return cast(e:InsanityScriptedEnum).path;
-		
-		return Type.getEnumName(e);
+		} else #end {
+			return Type.getEnumName(e);
+		}
 	}
 	
 	public static inline function resolveClass(name:String):Dynamic {
+		#if (insanity.noScriptableTypes)
+		
+		var t:Class<Dynamic> = Type.resolveClass(name);
+		return (t == null ? null : ConfigUtil.assertBlacklisted(Config.typeProxy.get(name) ?? t));
+		
+		#else
+		
 		var t:Dynamic = environment?.resolve(name);
-		if (t != null && (t is InsanityScriptedClass || t is InsanityScriptedInterface)) return t;
+		if (t != null && (t is InsanityScriptedClass || t is InsanityScriptedInterface)) {
+			return t;
+		} else {
+			t = Type.resolveClass(name);
+			return (t == null ? null : ConfigUtil.assertBlacklisted(Config.typeProxy.get(name) ?? t));
+		}
 		
-		t = Type.resolveClass(name);
-		if (t == null) return null;
-		
-		return (ConfigUtil.assertBlacklisted(Config.typeProxy.get(name) ?? t));
+		#end
 	}
 	
 	public static inline function resolveEnum(name:String):Dynamic {
+		#if (insanity.noScriptableTypes)
+		
+		var t:Enum<Dynamic> = Type.resolveEnum(name);
+		return (t == null ? null : ConfigUtil.assertBlacklisted(Config.typeProxy.get(name) ?? t));
+		
+		#else
+		
 		var t:Dynamic = environment?.resolve(name);
-		if (t != null && t is InsanityScriptedEnum) return t;
+		if (t != null && t is InsanityScriptedEnum) {
+			return t;
+		} else {
+			t = Type.resolveEnum(name);
+			return (t == null ? null : ConfigUtil.assertBlacklisted(Config.typeProxy.get(name) ?? t));
+		}
 		
-		t = Type.resolveEnum(name);
-		if (t == null) return null;
-		
-		return (ConfigUtil.assertBlacklisted(Config.typeProxy.get(name) ?? t));
+		#end
 	}
 	
 	public static inline function createInstance(cl:Dynamic, args:Array<Dynamic>):Dynamic {
@@ -99,19 +116,19 @@ class InsanityType {
 	}
 	
 	public static inline function createEnum(e:Dynamic, constr:String, ?params:Array<Dynamic>):Dynamic {
-		if (e is ICustomEnumType) {
+		#if (insanity.scriptableTypes) if (e is ICustomEnumType) {
 			var e:ICustomEnumType = cast e;
 			return e.typeCreateEnum(constr, params);
-		} else {
+		} else #end {
 			return Type.createEnum(e, constr, params);
 		}
 	}
 	
 	public static inline function createEnumIndex(e:Dynamic, index:Int, ?params:Array<Dynamic>):Dynamic {
-		if (e is ICustomEnumType) {
+		#if (insanity.scriptableTypes) if (e is ICustomEnumType) {
 			var e:ICustomEnumType = cast e;
 			return e.typeCreateEnumIndex(index, params);
-		} else {
+		} else #end {
 			return Type.createEnumIndex(e, index, params);
 		}
 	}
@@ -135,10 +152,10 @@ class InsanityType {
 	}
 	
 	public static inline function getEnumConstructs(e:Dynamic):Array<String> {
-		if (e is ICustomEnumType) {
+		#if (insanity.scriptableTypes) if (e is ICustomEnumType) {
 			var e:ICustomEnumType = cast e;
 			return e.typeGetEnumConstructs();
-		} else {
+		} else #end {
 			return Type.getEnumConstructs(e);
 		}
 	}
@@ -148,41 +165,44 @@ class InsanityType {
 	}
 	
 	public static inline function enumEq(a:Dynamic, b:Dynamic):Bool {
-		if (a is ICustomEnumValueType) {
+		#if (insanity.scriptableTypes)  if (a is ICustomEnumValueType) {
 			if (b is ICustomEnumValueType)
 				return cast(a:ICustomEnumValueType).eq(b);
 			return false;
-		} else {
+		} else #end {
 			return Type.enumEq(a, b);
 		}
 	}
 	
 	public static inline function enumConstructor(e:Dynamic):String {
-		if (e is ICustomEnumValueType)
+		#if (insanity.scriptableTypes) if (e is ICustomEnumValueType) {
 			return cast(e:ICustomEnumValueType).constructor;
-		
-		return Type.enumConstructor(e);
+		} else #end {
+			return Type.enumConstructor(e);
+		}
 	}
 	
 	public static inline function enumParameters(e:Dynamic):Array<Dynamic> {
-		if (e is ICustomEnumValueType)
+		#if (insanity.scriptableTypes) if (e is ICustomEnumValueType) {
 			return (cast(e:ICustomEnumValueType).arguments ?? []);
-		
-		return Type.enumParameters(e);
+		} else #end {
+			return Type.enumParameters(e);
+		}
 	}
 	
 	public static inline function enumIndex(e:Dynamic):Int {
-		if (e is ICustomEnumValueType)
+		#if (insanity.scriptableTypes) if (e is ICustomEnumValueType) {
 			return cast(e:ICustomEnumValueType).index;
-		
-		return Type.enumIndex(e);
+		} else #end {
+			return Type.enumIndex(e);
+		}
 	}
 	
 	public static inline function allEnums(e:Dynamic):Array<Dynamic> {
-		if (e is ICustomEnumType) {
+		#if (insanity.scriptableTypes) if (e is ICustomEnumType) {
 			var e:ICustomEnumType = cast e;
 			return e.typeAllEnums();
-		} else {
+		} else #end {
 			return Type.allEnums(e);
 		}
 	}
@@ -230,6 +250,7 @@ interface ICustomClassType extends ICustomType {
 	public function typeGetClass():Dynamic;
 }
 
+#if (insanity.scriptableTypes)
 /**
  * Implements custom behavior for enum adjacent functions in `InsanityType`.
  */
@@ -299,5 +320,6 @@ interface ICustomEnumValueType extends ICustomType {
 	 */
 	public function eq(e:ICustomEnumValueType):Bool;
 }
+#end
 
 interface ICustomType {}

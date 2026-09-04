@@ -50,7 +50,7 @@ class Module {
 	/**
 	 * The `Module_Fields_` implementation class for this module's [module level fields](https://haxe.org/blog/module-level-fields/) (if any).
 	 */
-	public var moduleFields:InsanityScriptedClass = null;
+	public var moduleFields:#if (insanity.scriptableTypes) InsanityScriptedClass #else Dynamic #end = null;
 	/**
 	 * Signal that is executed once the module's types are fully initialized.
 	 * 
@@ -91,6 +91,10 @@ class Module {
 	 * @param	pack		The module's packages. This is also used to assert the package and an error will be thrown if the module doesn't match it.
 	 * @param	origin		The origin of the module (this is used for error reporting).
 	 */
+	#if (insanity.noScriptableTypes && (insanity.verbose || insanity.verboseFull || verbose))
+	@:haxe.warning('+WDeprecated') // um well that probably works
+	@:deprecated('\x1B[14DScriptable types were disabled in this project!') // this is stupid
+	#end
 	public function new(string:String, name:String = 'Module', pack:Array<String>, origin:String = 'hscript'):Void {
 		parser.allowTypes = parser.allowJSON = true;
 		interp = Type.createInstance(Config.interpClass, [null, this]);
@@ -116,6 +120,7 @@ class Module {
 		types.clear();
 		
 		try {
+			#if (insanity.scriptableTypes)
 			var declList:Array<ModuleDecl> = parser.parseModule(string, origin, pack);
 			for (decl in declList) {
 				decls.push(decl);
@@ -124,6 +129,7 @@ class Module {
 				
 				if (type != null) types.set(Tools.pathToString(type.name, pack), type);
 			}
+			#end
 		} catch (e:haxe.Exception) {
 			onParsingError(e);
 		}
@@ -144,6 +150,7 @@ class Module {
 		return switch (decl.d) {
 			default:
 				null;
+			#if (insanity.scriptableTypes)
 			case DClass(m):
 				new InsanityScriptedClass(m, this);
 			case DEnum(m):
@@ -189,6 +196,7 @@ class Module {
 				}
 				
 				null;
+			#end
 		}
 	}
 	
@@ -219,6 +227,7 @@ class Module {
 	 */
 	public function start(?environment:Environment):Void {
 		try {
+			#if (insanity.scriptableTypes)
 			if (decls.length == 0) throw 'Module is uninitialized';
 			
 			starting = true;
@@ -230,9 +239,11 @@ class Module {
 					for (u in module.interp.usings) interp.usings.push(u);
 					for (n => i in module.interp.imports) interp.imports.set(n, i);
 				} else {
+					#if (insanity.scriptableTypes)
 					var mainType:IInsanityType = module.types.get(module.path);
 					
 					if (mainType != null) module.interp.imports.set(mainType.name, mainType);
+					#end
 				}
 			}
 			
@@ -241,6 +252,7 @@ class Module {
 			
 			starting = false;
 			started = true;
+			#end
 		} catch (e:haxe.Exception) {
 			onProgramError(e);
 		}
@@ -256,6 +268,7 @@ class Module {
 	 * @return 	The scripted type instance that was initialized.
 	 */
 	public function startType(?environment:Environment, type:IInsanityType):IInsanityType {
+		#if (insanity.scriptableTypes)
 		if (type.initializing || type.initialized || type.failed) return type;
 		
 		if (starting) return type;
@@ -275,6 +288,7 @@ class Module {
 			
 			onTypeError(e, type);
 		}
+		#end
 		
 		return type;
 	}
@@ -288,6 +302,7 @@ class Module {
 	 * @return 	A map with all initialized scripted types.
 	 */
 	public function startTypes(?environment:Environment):Map<String, IInsanityType> {
+		#if (insanity.scriptableTypes)
 		if (moduleFields != null)
 		{
 			startType(environment, moduleFields);
@@ -303,6 +318,7 @@ class Module {
 			if (!onInitialized[i](types))
 				onInitialized.remove(onInitialized[i]);
 		}
+		#end
 		
 		return types;
 	}

@@ -126,7 +126,7 @@ class AbstractMacro {
 							if (Insanity.isVerbose()) {
 								var path:Array<String> = ab.pack.copy(); path.push(ab.name);
 								
-								haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mAbstractMacro.build${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (coreType)', null);
+								haxe.Log.trace('${Insanity.blobWarn} ${Insanity.ansiEsc}49;33mAbstractMacro.build${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (coreType)', null);
 							}
 							
 							return fields;
@@ -143,7 +143,7 @@ class AbstractMacro {
 						if (Insanity.isVerbose()) {
 							var path:Array<String> = ab.pack.copy(); path.push(ab.name);
 							
-							haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mAbstractMacro.build${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (internal)', null);
+							haxe.Log.trace('${Insanity.blobWarn} ${Insanity.ansiEsc}49;33mAbstractMacro.build${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (internal)', null);
 						}
 						
 						return fields;

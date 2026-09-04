@@ -19,6 +19,7 @@ class ScriptedTools {
 	public static var scriptedClasses(default, never):Map<String, Class<Dynamic>> = insanity.backend.macro.ScriptedMacro.listScriptableClasses();
 	
 	public static function resolve(t:Dynamic):Dynamic {
+		#if (insanity.scriptableTypes)
 		if (t is InsanityScriptedClass)
 			return cast t;
 		
@@ -27,10 +28,13 @@ class ScriptedTools {
 			return scriptedClasses.get(cls);
 		
 		throw 'Class $cls can\'t be extended for scripting';
+		#end
+		
 		return null;
 	}
 }
 
+#if (insanity.scriptableTypes)
 @:access(insanity.backend.Interp)
 @:access(insanity.backend.types.IInsanityScripted)
 class InsanityScriptedClass implements IInsanityType implements IInsanityInterp implements ICustomReflection implements ICustomClassType {
@@ -1441,20 +1445,6 @@ interface IInsanityInterp {
 	public var interp:Interp;
 }
 
-interface IInsanityType {
-	public var name:String;
-	public var module:Module;
-	public var pack:Array<String>;
-	public var path:String;
-	
-	public var failed:Bool;
-	public var initialized:Bool;
-	public var initializing:Bool;
-	
-	public function init(?env:Environment, ?baseInterp:Interp, restore:Bool = true):Void;
-	public function snapshot():Void;
-}
-
 @:autoBuild(insanity.backend.macro.ScriptedMacro.build())
 interface IInsanityScripted extends ICustomReflection extends ICustomClassType {
 	private var __scriptedBase:InsanityScriptedClass;
@@ -1468,4 +1458,19 @@ interface IInsanityScripted extends ICustomReflection extends ICustomClassType {
 
 enum Defer {
 	DDefer;
+}
+#end
+
+interface IInsanityType {
+	public var name:String;
+	public var module:Module;
+	public var pack:Array<String>;
+	public var path:String;
+	
+	public var failed:Bool;
+	public var initialized:Bool;
+	public var initializing:Bool;
+	
+	public function init(?env:Environment, ?baseInterp:Interp, restore:Bool = true):Void;
+	public function snapshot():Void;
 }

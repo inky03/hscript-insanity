@@ -34,6 +34,11 @@ class Patcher {
 	public static macro function patch(extreme:Bool = false):Array<Field> {
 		if (Context.defined('display')) return Context.getBuildFields();
 		
+		if (Context.defined('insanity.noScriptableTypes')) {
+			Insanity.beginLog('${Insanity.ansiEsc}49;31mPatcher.patch${Insanity.ansiEsc}0m Scriptable types were disabled in this project! Won\'t patch any classes', Insanity.blobError);
+			return Context.getBuildFields();
+		}
+		
 		Insanity.beginLog('Applying Patcher.patch');
 		Insanity.finishLog['Patcher.patch'] ??= () -> 'Patched $patched expressions ($patchedExtreme extreme)';
 		
@@ -279,6 +284,11 @@ class Patcher {
 	public static macro function buildHscript(exclude:Array<String>):Array<Field> {
 		if (Context.defined('display')) return Context.getBuildFields();
 		
+		if (Context.defined('insanity.noScriptableTypes')) {
+			Insanity.beginLog('${Insanity.ansiEsc}49;31mPatcher.buildHscript${Insanity.ansiEsc}0m Scriptable types were disabled in this project! Won\'t inject any classes', Insanity.blobError);
+			return Context.getBuildFields();
+		}
+		
 		Insanity.beginLog('Applying Patcher.buildHscript');
 		
 		var fields:Array<Field> = Context.getBuildFields();
@@ -292,7 +302,7 @@ class Patcher {
 			if (Insanity.isVerbose() && cls != null && !cls.isInterface && !cls.name.contains('_Fields_')) {
 				var path:Array<String> = cls.pack.copy(); path.push(cls.name);
 				
-				haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mPatcher.buildHScript${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (${switch (cls) {
+				haxe.Log.trace('${Insanity.blobWarn} ${Insanity.ansiEsc}49;33mPatcher.buildHScript${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (${switch (cls) {
 					case _ if (cls.meta.has(':coreApi')): 'coreApi';
 					case _ if (cls.meta.has(':extern') || cls.isExtern): 'extern class';
 					case _ if (cls.meta.has(':hlNative')): 'hlNative';
@@ -308,7 +318,7 @@ class Patcher {
 				if (Insanity.isVerbose()) {
 					var path:Array<String> = cls.pack.copy(); path.push(cls.name);
 					
-					haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mPatcher.buildHscript${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (internal)', null);
+					haxe.Log.trace('${Insanity.blobWarn} ${Insanity.ansiEsc}49;33mPatcher.buildHscript${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (internal)', null);
 				}
 				
 				return fields;
@@ -317,7 +327,7 @@ class Patcher {
 				if (Insanity.isVerbose()) {
 					var path:Array<String> = cls.pack.copy(); path.push(cls.name);
 					
-					haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mPatcher.buildHscript${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (internal)', null);
+					haxe.Log.trace('${Insanity.blobWarn} ${Insanity.ansiEsc}49;33mPatcher.buildHscript${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (internal)', null);
 				}
 				
 				return fields;

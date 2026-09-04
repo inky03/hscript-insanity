@@ -59,7 +59,7 @@ class Config { #if (!macro)
 		
 		'Reflect' => InsanityReflect,
 		'Type' => InsanityType,
-		'Std' => InsanityStd
+		#if (insanity.scriptableTypes) 'Std' => InsanityStd #end
 	];
 	
 	/**

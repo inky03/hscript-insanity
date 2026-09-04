@@ -31,6 +31,10 @@ class Environment {
 	 * 
 	 * @param	modules		The modules to store in this environment.
 	 */
+	#if (insanity.noScriptableTypes && (insanity.verbose || insanity.verboseFull || verbose))
+	@:haxe.warning('+WDeprecated')
+	@:deprecated('\x1B[14DScriptable types were disabled in this project!')
+	#end
 	public function new(?modules:Array<Module>) {
 		if (modules != null) {
 			for (module in modules)
@@ -122,6 +126,7 @@ class Environment {
 	public function rebuildTypes():TypeCollection {
 		var map:TypeMap = { byPackage: [], byModule: [], byPath: [], byCompilePath: [], all: [] };
 		
+		#if (insanity.scriptableTypes)
 		function makeTypeInfo(module:Module) {
 			var pack:String = module.pack.join('.');
 			
@@ -164,6 +169,7 @@ class Environment {
 		
 		for (module in modules)
 			makeTypeInfo(module);
+		#end
 		
 		return types = new TypeCollection(map);
 	}

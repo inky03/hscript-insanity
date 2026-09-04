@@ -29,17 +29,16 @@ class ScriptedMacro {
 	public static macro function buildScriptable(evil:Bool = false, superEvil:Bool = false):Array<Field> {
 		if (Context.defined('display')) return Context.getBuildFields();
 		
+		if (Context.defined('insanity.noScriptableTypes')) {
+			Insanity.beginLog('${Insanity.ansiEsc}49;31mScriptedMacro.buildScriptable${Insanity.ansiEsc}0m Scriptable types were disabled in this project! Won\'t inject any classes', Insanity.blobError);
+			return Context.getBuildFields();
+		}
+		
 		Insanity.beginLog('Applying ScriptedMacro.buildScriptable');
 		Insanity.finishLog['ScriptedMacro.buildScriptable'] ??= () -> {
 			var str:String = 'Injected $generated classes';
 			
-			if (Insanity.isVerbose()) {
-				str += ' (';
-				if (Patcher.omitted > 0) str += 'omitted ${Patcher.omitted}';
-				if (Patcher.omitted > 0 && Patcher.excluded > 0) str += ' | '; // it s 3 am okay
-				if (Patcher.excluded > 0) str += 'excluded ${Patcher.excluded}';
-				str += ')';
-			}
+			if (Insanity.isVerbose()) str += ' (omitted ${Patcher.omitted} | excluded ${Patcher.excluded})';
 			
 			if ((generated + Patcher.omitted + Patcher.excluded) == 0) str += '. Did you run Patcher.buildHscript?';
 			
@@ -327,9 +326,14 @@ class ScriptedMacro {
 			
 			constructor ??= superConstr;
 			
+			__interp.inTry = __interpSafe;
+			
 			if (__interpSafe) {
-				try { Reflect.callMethod(this, constructor, arguments); }
-				catch (e:Dynamic) { base.onInstanceError(e, 'new', this); }
+				try {
+					Reflect.callMethod(this, constructor, arguments);
+				} catch (e) {
+					base.onInstanceError(e, 'new', this);
+				}
 			} else {
 				Reflect.callMethod(this, constructor, arguments);
 			}
@@ -491,8 +495,6 @@ class ScriptedMacro {
 				
 				var r:Dynamic = null;
 				if (__interpSafe) {
-					__interp.inTry = true;
-					
 					try {
 						r = Reflect.callMethod(__interp, __interp.locals.get(fname).r, $a {argsArray});
 					} catch (e) {
@@ -510,6 +512,8 @@ class ScriptedMacro {
 	#end
 	
 	public static macro function listScriptableClasses():Expr {
+		if (Lambda.empty(scriptedClasses)) return macro [];
+		
 		return macro [for (cls in $v {scriptedClasses}.keys()) cls => Type.resolveClass(cls)];
 	}
 }

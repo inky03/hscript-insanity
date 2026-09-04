@@ -3,6 +3,7 @@ package insanity.custom;
 import insanity.backend.types.Scripted;
 import insanity.custom.InsanityType;
 
+#if (insanity.scriptableTypes)
 /**
  * unsafe version of InsanityType (internal use ONLY)
  */
@@ -36,17 +37,19 @@ class InsanityUnsafeType {
 	}
 	
 	public static inline function getClassName(c:Dynamic):String {
-		if (c is ICustomClassType)
+		if (c is ICustomClassType) {
 			return cast(c:ICustomClassType).path;
-		
-		return Type.getClassName(c);
+		} else {
+			return Type.getClassName(c);
+		}
 	}
 	
 	public static inline function getEnumName(e:Dynamic):String {
-		if (e is InsanityScriptedEnum)
+		if (e is InsanityScriptedEnum) {
 			return cast(e:InsanityScriptedEnum).path;
-		
-		return Type.getEnumName(e);
+		} else {
+			return Type.getEnumName(e);
+		}
 	}
 	
 	public static inline function resolveClass(name:String):Dynamic {
@@ -135,24 +138,27 @@ class InsanityUnsafeType {
 	}
 	
 	public static inline function enumConstructor(e:Dynamic):String {
-		if (e is ICustomEnumValueType)
+		if (e is ICustomEnumValueType) {
 			return cast(e:ICustomEnumValueType).constructor;
-		
-		return Type.enumConstructor(e);
+		} else {
+			return Type.enumConstructor(e);
+		}
 	}
 	
 	public static inline function enumParameters(e:Dynamic):Array<Dynamic> {
-		if (e is ICustomEnumValueType)
+		if (e is ICustomEnumValueType) {
 			return (cast(e:ICustomEnumValueType).arguments ?? []);
-		
-		return Type.enumParameters(e);
+		} else {
+			return Type.enumParameters(e);
+		}
 	}
 	
 	public static inline function enumIndex(e:Dynamic):Int {
-		if (e is ICustomEnumValueType)
+		if (e is ICustomEnumValueType) {
 			return cast(e:ICustomEnumValueType).index;
-		
-		return Type.enumIndex(e);
+		} else {
+			return Type.enumIndex(e);
+		}
 	}
 	
 	public static inline function allEnums(e:Dynamic):Array<Dynamic> {
@@ -166,3 +172,4 @@ class InsanityUnsafeType {
 }
 
 typedef ValueType = Type.ValueType; // booooring
+#end

@@ -9,9 +9,9 @@ class InsanityReflect {
 	public inline static function hasField(o:Dynamic, field:String):Bool {
 		if (o is ICustomReflection) {
 			return cast(o:ICustomReflection).reflectHasField(field);
-		} else if (o.__isScripted) { // ill prob change how to approach this eventually
+		} #if (insanity.scriptableTypes) else if (o?.__isScripted) { // ill prob change how to approach this eventually
 			return o.reflectHasField(field);
-		} else {
+		} #end else {
 			return Reflect.hasField(o, field);
 		}
 	}
@@ -19,9 +19,9 @@ class InsanityReflect {
 	public inline static function field(o:Dynamic, field:String):Dynamic {
 		if (o is ICustomReflection) {
 			return cast(o:ICustomReflection).reflectGetField(field);
-		} else if (o.__isScripted) {
+		} #if (insanity.scriptableTypes) else if (o?.__isScripted) {
 			return o.reflectGetField(field);
-		} else {
+		} #end else {
 			return Reflect.field(o, field);
 		}
 	}
@@ -29,9 +29,9 @@ class InsanityReflect {
 	public inline static function setField(o:Dynamic, field:String, value:Dynamic):Dynamic {
 		if (o is ICustomReflection) {
 			return cast(o:ICustomReflection).reflectSetField(field, value);
-		} else if (o.__isScripted) {
+		} #if (insanity.scriptableTypes) else if (o?.__isScripted) {
 			return o.reflectSetField(field, value);
-		} else {
+		} #end else {
 			Reflect.setField(o, field, value);
 			return value;
 		}
@@ -40,9 +40,9 @@ class InsanityReflect {
 	public inline static function getProperty(o:Dynamic, field:String):Dynamic {
 		if (o is ICustomReflection) {
 			return cast(o:ICustomReflection).reflectGetProperty(field);
-		} else if (o.__isScripted) {
+		} #if (insanity.scriptableTypes) else if (o?.__isScripted) {
 			return o.reflectGetProperty(field);
-		} else {
+		} #end else {
 			return Reflect.getProperty(o, field);
 		}
 	}
@@ -50,9 +50,9 @@ class InsanityReflect {
 	public inline static function setProperty(o:Dynamic, field:String, value:Dynamic):Dynamic {
 		if (o is ICustomReflection) {
 			return cast(o:ICustomReflection).reflectSetProperty(field, value);
-		} else if (o.__isScripted) {
+		} #if (insanity.scriptableTypes) else if (o?.__isScripted) {
 			return o.reflectSetProperty(field, value);
-		} else {
+		} #end else {
 			Reflect.setProperty(o, field, value);
 			return value;
 		}
@@ -61,9 +61,9 @@ class InsanityReflect {
 	public inline static function fields(o:Dynamic):Array<String> {
 		if (o is ICustomReflection) {
 			return cast(o:ICustomReflection).reflectListFields();
-		} else if (o.__isScripted) {
+		} #if (insanity.scriptableTypes) else if (o?.__isScripted) {
 			return o.reflectListFields(field);
-		} else {
+		} #end else {
 			return Reflect.fields(o);
 		}
 	}
@@ -89,8 +89,7 @@ class InsanityReflect {
 	}
 
 	public inline static function isEnumValue(v:Dynamic):Bool {
-		if (v is ICustomEnumValueType) return true;
-		return Reflect.isEnumValue(v);
+		return (#if (insanity.scriptableTypes) v is ICustomEnumValueType ? true : #end Reflect.isEnumValue(v));
 	}
 	
 	public inline static function deleteField(o:Dynamic, field:String):Bool {
