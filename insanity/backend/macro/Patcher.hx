@@ -7,6 +7,7 @@ import haxe.macro.Type;
 
 using haxe.macro.ExprTools;
 using haxe.macro.TypeTools;
+using StringTools;
 using Lambda;
 
 /**
@@ -249,11 +250,11 @@ class Patcher {
 		
 		if (cls == null || cls.meta.has(':coreApi') || cls.meta.has(':extern') || cls.meta.has(':hlNative') || cls.meta.has(':native') || cls.isInterface || cls.isExtern) return fields;
 		switch (cls.pack[0]) {
-			case 'haxe' | 'hl' | 'cpp' | 'neko' | 'js' | 'cs' | 'lua' | 'php' | 'macro' | 'java' | 'flash' | 'python' | 'insanity': return fields;
+			case 'haxe' | 'hl' | 'cpp' | 'neko' | 'js' | 'cs' | 'lua' | 'php' | 'macro' | 'java' | 'flash' | 'python': return fields;
+			case 'insanity' if (cls.name != 'InsanityDummyClass'): return fields;
 			default:
 		}
 		switch (cls.kind) {
-			case KGeneric: return fields;
 			case KAbstractImpl(_): return fields;
 			default:
 		}
@@ -262,7 +263,17 @@ class Patcher {
 				return fields;
 		}
 		
-		var lastClassWithConstr:Null<ClassType> = (cls.constructor != null ? cls : null);
+		function classHasConstructor(ccls:ClassType):Bool {
+			var constr:ClassField = ccls?.constructor?.get();
+			
+			if (constr == null) return false;
+			
+			/* i fgiured out a class without a constructor FOR ITSELF actualy just uses the same pos as the entire class . kinda dirty but it gets the job done
+			(checking for .constructor isnt enough since haxe fills it in automatically?) */
+			return (Std.string(ccls.pos) != Std.string(constr.pos));
+		}
+		
+		var lastClassWithConstr:Null<ClassType> = (classHasConstructor(cls) ? cls : null);
 		var hasConstructor:Bool = false;
 		
 		var superClass = cls.superClass?.t.get();
@@ -281,7 +292,7 @@ class Patcher {
 					return fields;
 			}
 			
-			lastClassWithConstr ??= (su.constructor != null ? su : null);
+			lastClassWithConstr ??= (classHasConstructor(su) ? su : null);
 			
 			su = su?.superClass?.t.get();
 		}
@@ -333,18 +344,39 @@ class Patcher {
 					constrParams = fun.params;
 					constrArgs = fun.args;
 					hasConstructor = true;
+					lastClassWithConstr = cls;
 			}
 		}
 		
-		if (cls.name != '') {
 		for (field in fields) {
 			final f:String = field.name;
+			
+			for (meta in field.meta) {
+				if (meta.name != ':allow') continue;
+				
+				switch (meta.params[0].expr) {
+					case EField(e, f, a) if (f == 'new'):
+						field.meta.push({
+							pos: meta.pos,
+							name: ':allow',
+							params: [{
+								pos: meta.pos,
+								expr: EField(e, 'insanitySuper${e.toString().replace('.', '_')}', a) //gay
+							}]
+						});
+						
+					default:
+				}
+			}
 			
 			if (field?.access.contains(AStatic) || field?.access.contains(AInline)) continue;
 			if (field.meta?.exists((meta) -> meta.name == ':deprecated')) continue;
 			
 			switch (field.kind) {
 				default:
+				
+				case FProp(get, set, _, e) if (e != null && (set == 'set' || set == 'dynamic')):
+					expr.unshift(macro Reflect.setField(this, $v {f}, $e));
 				
 				case FProp(get, set, _, e) if (e != null && set != 'set' && set != 'never'):
 					expr.unshift(macro $i {f} = $e);
@@ -354,10 +386,8 @@ class Patcher {
 					expr.unshift(macro $i {f} = $e);
 			}
 		}
-		// trace((macro $b {expr}).toString());
-		}
 		
-		if (lastClassWithConstr == null) {
+		if (hasConstructor || lastClassWithConstr == null) {
 			if (!hasConstructor) expr = [macro throw $v {'${cls.pack.join('.') + (cls.pack.length > 0 ? '.' : '') + cls.name} does not have a constructor'}];
 			
 			fields.push({
@@ -374,13 +404,7 @@ class Patcher {
 		}
 		
 		cls.meta.add(':insanityScriptable', [macro false], pos);
-		
-		if (superClass == null) {
-			fields.push({
-				pos: pos, name: '__insanitySuperName',
-				kind: FVar(macro:String, macro $v {getName(lastClassWithConstr ?? cls)})
-			});
-		}
+		cls.meta.add(':insanitySuperName', [macro $v {'insanitySuper${getName(hasConstructor ? cls : lastClassWithConstr ?? cls)}'}], pos);
 		
 		return fields;
 	}

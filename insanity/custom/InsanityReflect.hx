@@ -9,6 +9,8 @@ class InsanityReflect {
 	public inline static function hasField(o:Dynamic, field:String):Bool {
 		if (o is ICustomReflection) {
 			return cast(o:ICustomReflection).reflectHasField(field);
+		} else if (o.__isScripted) { // ill prob change how to approach this eventually
+			return o.reflectHasField(field);
 		} else {
 			return Reflect.hasField(o, field);
 		}
@@ -17,6 +19,8 @@ class InsanityReflect {
 	public inline static function field(o:Dynamic, field:String):Dynamic {
 		if (o is ICustomReflection) {
 			return cast(o:ICustomReflection).reflectGetField(field);
+		} else if (o.__isScripted) {
+			return o.reflectGetField(field);
 		} else {
 			return Reflect.field(o, field);
 		}
@@ -25,6 +29,8 @@ class InsanityReflect {
 	public inline static function setField(o:Dynamic, field:String, value:Dynamic):Dynamic {
 		if (o is ICustomReflection) {
 			return cast(o:ICustomReflection).reflectSetField(field, value);
+		} else if (o.__isScripted) {
+			return o.reflectSetField(field, value);
 		} else {
 			Reflect.setField(o, field, value);
 			return value;
@@ -34,6 +40,8 @@ class InsanityReflect {
 	public inline static function getProperty(o:Dynamic, field:String):Dynamic {
 		if (o is ICustomReflection) {
 			return cast(o:ICustomReflection).reflectGetProperty(field);
+		} else if (o.__isScripted) {
+			return o.reflectGetProperty(field);
 		} else {
 			return Reflect.getProperty(o, field);
 		}
@@ -42,6 +50,8 @@ class InsanityReflect {
 	public inline static function setProperty(o:Dynamic, field:String, value:Dynamic):Dynamic {
 		if (o is ICustomReflection) {
 			return cast(o:ICustomReflection).reflectSetProperty(field, value);
+		} else if (o.__isScripted) {
+			return o.reflectSetProperty(field, value);
 		} else {
 			Reflect.setProperty(o, field, value);
 			return value;
@@ -51,6 +61,8 @@ class InsanityReflect {
 	public inline static function fields(o:Dynamic):Array<String> {
 		if (o is ICustomReflection) {
 			return cast(o:ICustomReflection).reflectListFields();
+		} else if (o.__isScripted) {
+			return o.reflectListFields(field);
 		} else {
 			return Reflect.fields(o);
 		}

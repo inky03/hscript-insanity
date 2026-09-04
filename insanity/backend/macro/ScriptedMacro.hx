@@ -13,36 +13,56 @@ using haxe.macro.ComplexTypeTools;
 #end
 
 class ScriptedMacro {
-	public static var ignoreFields:Array<String> = [
+	public static var ignoreFields:Map<String, Bool> = [for (f in [
 		'reflectHasField', 'reflectGetField', 'reflectSetField', 'reflectListFields', 'reflectGetProperty', 'reflectSetProperty',
 		'typeCreateInstance', 'typeGetClass', 'typeGetClassFields', 'typeCreateEmptyInstance', 'typeGetInstanceFields',
-		'__isScripted', '__scriptedBase', '__interpSafe', '__interp', '__func', '__fields', '__vars', 'instanceFields', 'inlinedFields', 'unexposedFields', 'new', 'super', '__insanitySuperName'
-	];
+		'__isScripted', '__scriptedBase', '__interpSafe', '__interp', '__func', '__fields', '__vars', '__instanceFields','instanceFields', 'inlinedFields', 'new', 'super'
+	]) f => true];
 	
 	static var _name:String = 'insanity.backend.macro.ScriptedMacro';
 	
-	public static macro function buildScriptable():Array<Field> {
+	public static macro function buildScriptable(evil:Bool = false):Array<Field> {
 		var pos = Context.currentPos();
 		var cls = Context.getLocalClass()?.get();
 		var fields:Array<Field> = Context.getBuildFields();
 		
 		if (cls == null || !cls.meta.has(':insanityScriptable')) return fields;
+		switch (cls.kind) {
+			case KGeneric: return fields;
+			default:
+		}
 		
-		var knownFields:Array<String> = [];
+		var path = cls.pack.copy();
+		path.push(cls.name);
+		
+		var knownFields:Map<String, Bool> = [];
+		var inlinedFields:Map<String, Bool> = [];
 		
 		cls.meta.remove(':insanityScriptable');
 		cls.meta.add(':insanityScriptable', [macro true], pos);
 		cls.meta.add(':access', [macro insanity.backend.Interp], pos);
 		cls.meta.add(':access', [macro insanity.backend.types.InsanityScriptedClass], pos);
 		
+		var superName:String = switch(cls.meta.extract(':insanitySuperName').pop().params[0].expr) {
+			case EConst(CString(s)): s;
+			default: throw '???';
+		}
+		//trace(superName);
+		
 		for (field in fields) {
 			final f:String = field.name;
 			
-			if (f.contains('insanitySuper') || ignoreFields.contains(f)) continue;
+			if (f.contains('insanitySuper') || ignoreFields.exists(f)) continue;
 			
-			final isStatic:Bool = (field?.access.contains(AStatic));
+			final isStatic:Bool = (field?.access.contains(AStatic) ?? false);
 			
-			if (!isStatic) knownFields.push(f);
+			if (!isStatic) knownFields.set(f, true);
+			
+			if (field?.access.contains(AInline) && !evil) {
+				if (!isStatic) inlinedFields.set(f, true);
+				
+				continue;
+			}
 			
 			switch (field.kind) {
 				default:
@@ -66,7 +86,7 @@ class ScriptedMacro {
 					final argsArray:Array<Expr> = [for (arg in fun.args) macro $i {arg.name}];
 					
 					var rr = {pos: oldExpr.pos, expr: EReturn(null)}; // debugging cus it was pising me off
-					var ii = {pos: oldExpr.pos, expr: EConst(CIdent('__isScripted'))}
+					var ii = {pos: oldExpr.pos, expr: EConst(CIdent('__isScripted'))};
 					
 					fun.expr = macro {
 						final fname:String = $v {f};
@@ -80,12 +100,12 @@ class ScriptedMacro {
 								__interp.inTry = true;
 								
 								try {
-									r = Reflect.callMethod(__interp, __interp.getLocal(fname), $a {argsArray});
+									r = Reflect.callMethod(__interp, __interp.locals.get(fname).r, $a {argsArray});
 								} catch (e:Dynamic) {
 									__scriptedBase.onInstanceError(e, fname, this);
 								}
 							} else {
-								r = Reflect.callMethod(__interp, __interp.getLocal(fname), $a {argsArray});
+								r = Reflect.callMethod(__interp, __interp.locals.get(fname).r, $a {argsArray});
 							}
 							
 							__func = prevFunc;
@@ -96,19 +116,28 @@ class ScriptedMacro {
 		}
 		
 		var su = cls.superClass?.t.get();
+		var addFields:Bool = (cls.superClass == null);
 		
 		while (true) {
 			if (su == null) break;
 			
 			for (field in su.fields.get()) {
-				if (!knownFields.contains(field.name)) knownFields.push(field.name);
+				knownFields.set(field.name, true);
+				
+				switch (field.kind) {
+					case FMethod(MethInline) if (!evil):
+						inlinedFields.set(field.name, true);
+					
+					default:
+				}
 			}
 			
 			su = su.superClass?.t.get();
 		}
 		
+		var ii = {pos: cls.pos, expr: EConst(CIdent(superName))};
 		var newExpr = macro {
-			instanceFields = $v {knownFields};
+			__instanceFields = instanceFields;
 			
 			__vars = [];
 			__func = '';
@@ -127,18 +156,18 @@ class ScriptedMacro {
 			for (k => i in base.interp.imports) __interp.imports.set(k, i);
 			for (k => v in base.interp.variables) if (!__interp.variables.exists(k)) __interp.variables.set(k, v);
 			
-			var superConstr = Reflect.field(this, __insanitySuperName);
+			var superConstr = $ii;
 			
 			__fields = [];
 			var constructor:Dynamic = null;
 			function setInstanceFields(i:Dynamic) {
-				var instanceFields:Array<String> = i.instanceFields;
+				var instanceFields:Map<String, Bool> = i.instanceFields;
 				if (instanceFields == null) return;
 				
 				var superLocals:Map<String, insanity.backend.Interp.Variable> = __interp.duplicate(__interp.locals);
 				
-				for (field in instanceFields) {
-					if (insanity.backend.macro.ScriptedMacro.ignoreFields.contains(field)) continue;
+				for (field in instanceFields.keys()) {
+					if (insanity.backend.macro.ScriptedMacro.ignoreFields.exists(field)) continue;
 					
 					if (!__interp.variables.exists(field)) __interp.variables.set(field, insanity.backend.Expr.Mirror.MProperty(this, field));
 					
@@ -159,7 +188,7 @@ class ScriptedMacro {
 							__interp.locals.set(f, {r: null, access: field.access});
 							
 						case KVar(v):
-							if (instanceFields.contains(f)) {
+							if (__instanceFields.exists(f)) {
 								Reflect.setField(this, f, __interp.exprReturn(v.expr));
 							} else {
 								final l:insanity.backend.Interp.Variable = {r: null, access: field.access, get: v.get, set: v.set};
@@ -175,10 +204,10 @@ class ScriptedMacro {
 				for (loc => v in t.__vars)
 					superLocals.set(loc, v);
 				
-				var instanceFields:Array<String> = t.extending?.instanceFields;
+				var instanceFields:Map<String, Bool> = t.extending?.instanceFields;
 				if (instanceFields != null) {
-					for (field in instanceFields) {
-						if (insanity.backend.macro.ScriptedMacro.ignoreFields.contains(field)) continue;
+					for (field in instanceFields.keys()) {
+						if (insanity.backend.macro.ScriptedMacro.ignoreFields.exists(field)) continue;
 						
 						if (!__interp.variables.exists(field)) __interp.variables.set(field, insanity.backend.Expr.Mirror.MProperty(this, field));
 						
@@ -239,7 +268,7 @@ class ScriptedMacro {
 			}
 		};
 		
-		fields.concat([{
+		fields = fields.concat([{
 			pos: pos, name: 'insanityNew',
 			access: (cls.superClass == null ? [] : [AOverride]),
 			kind: FFun({
@@ -247,13 +276,19 @@ class ScriptedMacro {
 				args: [{name: 'base', type: macro:insanity.backend.types.Scripted.InsanityScriptedClass}, {name: 'arguments', type: macro:Array<Dynamic>}],
 				expr: newExpr
 			})
+		}, {
+			pos: pos, access: [AStatic, APublic], name: 'instanceFields',
+			kind: FVar(macro:Map<String, Bool>, macro $v {knownFields})
+		}, {
+			pos: pos, access: [AStatic, APublic], name: 'inlinedFields',
+			kind: FVar(macro:Map<String, Bool>, macro $v {inlinedFields})
 		}]);
 		
-		if (cls.superClass == null) {
+		if (addFields) {
 			// trace(cls.name);
 			fields = fields.concat([{
-				pos: pos, name: 'instanceFields',
-				kind: FVar(macro:Array<String>, macro null)
+				pos: pos, name: '__instanceFields',
+				kind: FVar(macro:Map<String, Bool>, macro null)
 			}, {
 				pos: pos, name: '__isScripted',
 				kind: FVar(macro:Bool, macro false)
@@ -280,8 +315,8 @@ class ScriptedMacro {
 				kind: FFun({
 					args: [{name: 'field', type: macro:String}],
 					expr: macro {
-						if (insanity.backend.macro.ScriptedMacro.ignoreFields.contains(field)) return false;
-						return (instanceFields.contains(field) || Reflect.hasField(this, field) || __vars.exists(field));
+						if (insanity.backend.macro.ScriptedMacro.ignoreFields.exists(field)) return false;
+						return (__instanceFields.exists(field) || Reflect.hasField(this, field) || __vars.exists(field));
 					},
 					ret: macro:Bool
 				})
@@ -290,8 +325,8 @@ class ScriptedMacro {
 				kind: FFun({
 					args: [{name: 'field', type: macro:String}],
 					expr: macro {
-						if (insanity.backend.macro.ScriptedMacro.ignoreFields.contains(field)) return null;
-						if (instanceFields.contains(field) || Reflect.hasField(this, field)) {
+						if (insanity.backend.macro.ScriptedMacro.ignoreFields.exists(field)) return null;
+						if (__instanceFields.exists(field) || Reflect.hasField(this, field)) {
 							return Reflect.field(this, field);
 						} else if (__vars.exists(field)) {
 							return __vars.get(field).r;
@@ -305,8 +340,8 @@ class ScriptedMacro {
 				kind: FFun({
 					args: [{name: 'field', type: macro:String}, {name: 'value', type: macro:Dynamic}],
 					expr: macro {
-						if (insanity.backend.macro.ScriptedMacro.ignoreFields.contains(field)) return null;
-						if (instanceFields.contains(field) || Reflect.hasField(this, field)) {
+						if (insanity.backend.macro.ScriptedMacro.ignoreFields.exists(field)) return null;
+						if (__instanceFields.exists(field) || Reflect.hasField(this, field)) {
 							Reflect.setField(this, field, value);
 							return Reflect.field(this, field);
 						} else if (__vars.exists(field)) {
@@ -321,8 +356,8 @@ class ScriptedMacro {
 				kind: FFun({
 					args: [{name: 'property', type: macro:String}],
 					expr: macro {
-						if (insanity.backend.macro.ScriptedMacro.ignoreFields.contains(property)) return null;
-						if (instanceFields.contains(property) || Reflect.hasField(this, property)) {
+						if (insanity.backend.macro.ScriptedMacro.ignoreFields.exists(property)) return null;
+						if (__instanceFields.exists(property) || Reflect.hasField(this, property)) {
 							return Reflect.getProperty(this, property);
 						} else if (__vars.exists(property)) {
 							return __interp.getLocal(property, __vars);
@@ -336,8 +371,8 @@ class ScriptedMacro {
 				kind: FFun({
 					args: [{name: 'property', type: macro:String}, {name: 'value', type: macro:Dynamic}],
 					expr: macro {
-						if (insanity.backend.macro.ScriptedMacro.ignoreFields.contains(property)) return null;
-						if (instanceFields.contains(property) || Reflect.hasField(this, property)) {
+						if (insanity.backend.macro.ScriptedMacro.ignoreFields.exists(property)) return null;
+						if (__instanceFields.exists(property) || Reflect.hasField(this, property)) {
 							Reflect.setProperty(this, property, value);
 							return Reflect.field(this, property);
 						} else if (__vars.exists(property)) {
@@ -352,8 +387,8 @@ class ScriptedMacro {
 				kind: FFun({
 					args: [],
 					expr: macro {
-						var fields = [for (f in Reflect.fields(this)) if (!insanity.backend.macro.ScriptedMacro.ignoreFields.contains(f)) f];
-						for (f in __vars.keys()) { if (!insanity.backend.macro.ScriptedMacro.ignoreFields.contains(f) && !fields.contains(f)) fields.push(f); }
+						var fields:Array<String> = [for (f in Reflect.fields(this)) if (!insanity.backend.macro.ScriptedMacro.ignoreFields.exists(f)) f];
+						for (f in __vars.keys()) { if (!insanity.backend.macro.ScriptedMacro.ignoreFields.exists(f) && !fields.contains(f)) fields.push(f); }
 						return fields;
 					},
 					ret: macro:Array<String>
@@ -362,10 +397,10 @@ class ScriptedMacro {
 				pos: pos, access: [APublic], name: 'typeGetClass',
 				kind: FFun({
 					args: [],
-					expr: macro { return __scriptedBase; },
+					expr: macro return __scriptedBase,
 					ret: macro:insanity.backend.types.Scripted.InsanityScriptedClass
 				})
-			}, {
+			}/*, {
 				pos: pos, access: [APublic], name: 'typeCreateInstance',
 				kind: FFun({
 					args: [{name: 'args', type: macro:Array<Dynamic>}],
@@ -383,17 +418,17 @@ class ScriptedMacro {
 				pos: pos, access: [APublic], name: 'typeGetInstanceFields',
 				kind: FFun({
 					args: [],
-					expr: macro { return []; },
+					expr: macro return [],
 					ret: macro:Array<String>
 				})
 			}, {
 				pos: pos, access: [APublic], name: 'typeGetClassFields',
 				kind: FFun({
 					args: [],
-					expr: macro { return []; },
+					expr: macro return [],
 					ret: macro:Array<String>
 				})
-			}]);
+			}*/]);
 		}
 		
 		// trace('make ${cls.pack.join('.')}.${cls.name} scriptable');
