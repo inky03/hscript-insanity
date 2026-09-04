@@ -50,5 +50,9 @@ class Insanity {
 		
 		return (compilerVerbose || Context.defined('insanity.verboseFull') || (!fullOnly && Context.defined('insanity.verbose')));
 	}
+	
+	public static inline function classIsPrivate(cls:haxe.macro.Type.ClassType):Bool {
+		return (cls.pack.length > 0 && cls.pack[cls.pack.length - 1].charAt(0) == '_');
+	}
 }
 #end
