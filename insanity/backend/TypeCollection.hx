@@ -1,7 +1,6 @@
 package insanity.backend;
 
 #if (!macro)
-import insanity.backend.macro.TypeCollectionMacro;
 import insanity.Environment;
 #end
 
@@ -65,7 +64,7 @@ class TypeCollection {
 	/**
 	 * A `TypeCollection` that stores information for all classes generated at compile time.
 	 */
-	public static var main(default, never):TypeCollection = new TypeCollection(TypeCollectionMacro.build());
+	public static var main(default, never):TypeCollection = new TypeCollection(insanity.macro.TypeCollectionMacro.build());
 	/**
 	 * This collection's index.
 	 */

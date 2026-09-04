@@ -1,4 +1,4 @@
-package insanity.backend.macro;
+package insanity.macro;
 
 #if macro
 import haxe.macro.Context;
@@ -12,56 +12,63 @@ using haxe.macro.ExprTools;
 using haxe.macro.ComplexTypeTools;
 #end
 
-class ScriptedMacro {
+class ScriptableMacro {
 	public static var ignoreFields:Map<String, Bool> = [for (f in [
 		'reflectHasField', 'reflectGetField', 'reflectSetField', 'reflectListFields', 'reflectGetProperty', 'reflectSetProperty',
 		'typeCreateInstance', 'typeGetClass', 'typeGetClassFields', 'typeCreateEmptyInstance', 'typeGetInstanceFields',
 		'__isScripted', '__scriptedBase', '__interpSafe', '__interp', '__func', '__fields', '__vars', '__instanceFields','instanceFields', 'inlinedFields', 'new', 'super'
 	]) f => true];
 	
-	static var scriptedClasses:Map<String, Bool> = [];
+	static var scriptableClasses:Array<String> = [];
 	static var generated:Int = 0;
 	
-	static var _name:String = 'insanity.backend.macro.ScriptedMacro';
-	
 	#if macro
-	@:access(insanity.backend.macro.Patcher)
-	public static macro function buildScriptable(evil:Bool = false, superEvil:Bool = false):Array<Field> {
+	/**
+	 * Injects the HscriptInsanity interpreter into a class and its fields to make it extendable in Hscript.
+	 * If used, this build macro should be added to every class and not filtered with `Compiler.addGlobalMetadata`, using the function's `exclude` and `unless` parameters instead
+	 * to prevent compilation failure.
+	 * 
+	 * @param	exclude		Classes with paths starting with the specified prefixes, and all of their subclasses, will be ignored
+	 * @param	unless		Classes with paths starting with the specified prefixes will be unexcluded, if you need to cherry pick (This won't work in subclasses of ignored classes!)
+	 * @param	evil		Whether to allow scripted classes to override inlined fields or not.
+	 * @param	superEvil	Whether to allow scripted classes to extend private classes or not.
+	 * 
+	 * @return	Context fields
+	 */
+	@:access(insanity.macro.Patcher)
+	public static macro function buildScriptable(?exclude:Array<String>, ?unless:Array<String>, evil:Bool = false, superEvil:Bool = false):Array<Field> {
 		if (Context.defined('display')) return Context.getBuildFields();
 		
 		if (Context.defined('insanity.noScriptableTypes')) {
-			Insanity.beginLog('${Insanity.ansiEsc}49;31mScriptedMacro.buildScriptable${Insanity.ansiEsc}0m Scriptable types were disabled in this project! Won\'t inject any classes', Insanity.blobError);
+			Insanity.beginLog('${Insanity.ansiEsc}49;31mScriptableMacro.buildScriptable${Insanity.ansiEsc}0m Scriptable types were disabled in this project! Won\'t inject any classes', Insanity.blobError);
 			return Context.getBuildFields();
 		}
 		
-		Insanity.beginLog('Applying ScriptedMacro.buildScriptable');
-		Insanity.finishLog['ScriptedMacro.buildScriptable'] ??= () -> {
+		Insanity.beginLog('Applying ScriptableMacro.buildScriptable');
+		Insanity.finishLog['ScriptableMacro.buildScriptable'] ??= () -> {
 			var str:String = 'Injected $generated classes';
 			
-			if (Insanity.isVerbose()) str += ' (omitted ${Patcher.omitted} | excluded ${Patcher.excluded})';
-			
-			if ((generated + Patcher.omitted + Patcher.excluded) == 0) str += '. Did you run Patcher.buildHscript?';
+			if (Insanity.isVerbose()) str += ' (omitted ${omitted} | excluded ${excluded})';
 			
 			str;
 		};
 		
-		var pos = Context.currentPos();
-		var cls = Context.getLocalClass()?.get();
-		var fields:Array<Field> = Context.getBuildFields();
+		var fields:Array<Field> = buildHscript(exclude ?? [], unless ?? []);
+		if (fields == null) return Context.getBuildFields();
 		
-		inline function isPrivate(cls:ClassType):Bool {
-			return (cls.pack.length > 0 && cls.pack[cls.pack.length - 1].charAt(0) == '_');
-		}
+		var cls = Context.getLocalClass()?.get();
+		var pos = Context.currentPos();
+		
 		function isEligible(cls:ClassType):Bool { // about time (nvm i didnt even use it anywher else)
 			if (cls == null || !cls.meta.has(':insanityScriptable')) return false;
 			
-			if (!superEvil && isPrivate(cls)) {
-				Patcher.omitted ++;
+			if (!superEvil && Insanity.classIsPrivate(cls)) {
+				omitted ++;
 				
 				if (Insanity.isVerbose()) {
 					var path:Array<String> = cls.pack.copy(); path.push(cls.name);
 					
-					haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mScriptedMacro.buildScriptable${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (private class)', null);
+					haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mScriptableMacro.buildScriptable${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (private class)', null);
 				}
 				
 				// trace('private ${cls.pack.join('.') + '.' + cls.name}');
@@ -70,12 +77,12 @@ class ScriptedMacro {
 			
 			switch (cls.kind) {
 				case KGeneric:
-					Patcher.omitted ++;
+					omitted ++;
 					
 					if (Insanity.isVerbose()) {
 						var path:Array<String> = cls.pack.copy(); path.push(cls.name);
 						
-						haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mScriptedMacro.buildScriptable${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (generic class)', null);
+						haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mScriptableMacro.buildScriptable${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (generic class)', null);
 					}
 					
 					return false;
@@ -108,13 +115,13 @@ class ScriptedMacro {
 		while (true) {
 			if (su == null) break;
 			
-			if (!superEvil && isPrivate(su)) {
-				Patcher.omitted ++;
+			if (!superEvil && Insanity.classIsPrivate(su)) {
+				omitted ++;
 				
 				if (Insanity.isVerbose()) {
 					var path:Array<String> = cls.pack.copy(); path.push(cls.name);
 					
-					haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mScriptedMacro.buildScriptable${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (extends private class)', null);
+					haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mScriptableMacro.buildScriptable${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (extends private class)', null);
 				}
 				
 				return fields;
@@ -187,7 +194,7 @@ class ScriptedMacro {
 		
 		var path:Array<String> = cls.pack.copy(); path.push(cls.name);
 		
-		if (Insanity.isVerbose()) haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mScriptedMacro.buildScriptable${Insanity.ansiEsc}0m ${path.join('.')}', null);
+		if (Insanity.isVerbose()) haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mScriptableMacro.buildScriptable${Insanity.ansiEsc}0m ${path.join('.')}', null);
 		
 		if (!hasToString) {
 			fields.push({
@@ -233,7 +240,7 @@ class ScriptedMacro {
 				var superLocals:Map<String, insanity.backend.Interp.Variable> = __interp.duplicate(__interp.locals);
 				
 				for (field in instanceFields.keys()) {
-					if (insanity.backend.macro.ScriptedMacro.ignoreFields.exists(field)) continue;
+					if (insanity.macro.ScriptableMacro.ignoreFields.exists(field)) continue;
 					
 					if (!__interp.variables.exists(field)) __interp.variables.set(field, insanity.backend.Expr.Mirror.MProperty(this, field));
 					
@@ -273,7 +280,7 @@ class ScriptedMacro {
 				var instanceFields:Map<String, Bool> = t.extending?.instanceFields;
 				if (instanceFields != null) {
 					for (field in instanceFields.keys()) {
-						if (insanity.backend.macro.ScriptedMacro.ignoreFields.exists(field)) continue;
+						if (insanity.macro.ScriptableMacro.ignoreFields.exists(field)) continue;
 						
 						if (!__interp.variables.exists(field)) __interp.variables.set(field, insanity.backend.Expr.Mirror.MProperty(this, field));
 						
@@ -389,7 +396,7 @@ class ScriptedMacro {
 				kind: FFun({
 					args: [{name: 'field', type: macro:String}],
 					expr: macro {
-						if (insanity.backend.macro.ScriptedMacro.ignoreFields.exists(field)) return false;
+						if (insanity.macro.ScriptableMacro.ignoreFields.exists(field)) return false;
 						return (__instanceFields.exists(field) || Reflect.hasField(this, field) || __vars.exists(field));
 					},
 					ret: macro:Bool
@@ -399,7 +406,7 @@ class ScriptedMacro {
 				kind: FFun({
 					args: [{name: 'field', type: macro:String}],
 					expr: macro {
-						if (insanity.backend.macro.ScriptedMacro.ignoreFields.exists(field)) return null;
+						if (insanity.macro.ScriptableMacro.ignoreFields.exists(field)) return null;
 						if (__instanceFields.exists(field) || Reflect.hasField(this, field)) {
 							return Reflect.field(this, field);
 						} else if (__vars.exists(field)) {
@@ -414,7 +421,7 @@ class ScriptedMacro {
 				kind: FFun({
 					args: [{name: 'field', type: macro:String}, {name: 'value', type: macro:Dynamic}],
 					expr: macro {
-						if (insanity.backend.macro.ScriptedMacro.ignoreFields.exists(field)) return null;
+						if (insanity.macro.ScriptableMacro.ignoreFields.exists(field)) return null;
 						if (__instanceFields.exists(field) || Reflect.hasField(this, field)) {
 							Reflect.setField(this, field, value);
 							return Reflect.field(this, field);
@@ -430,7 +437,7 @@ class ScriptedMacro {
 				kind: FFun({
 					args: [{name: 'property', type: macro:String}],
 					expr: macro {
-						if (insanity.backend.macro.ScriptedMacro.ignoreFields.exists(property)) return null;
+						if (insanity.macro.ScriptableMacro.ignoreFields.exists(property)) return null;
 						if (__instanceFields.exists(property) || Reflect.hasField(this, property)) {
 							return Reflect.getProperty(this, property);
 						} else if (__vars.exists(property)) {
@@ -445,7 +452,7 @@ class ScriptedMacro {
 				kind: FFun({
 					args: [{name: 'property', type: macro:String}, {name: 'value', type: macro:Dynamic}],
 					expr: macro {
-						if (insanity.backend.macro.ScriptedMacro.ignoreFields.exists(property)) return null;
+						if (insanity.macro.ScriptableMacro.ignoreFields.exists(property)) return null;
 						if (__instanceFields.exists(property) || Reflect.hasField(this, property)) {
 							Reflect.setProperty(this, property, value);
 							return Reflect.field(this, property);
@@ -461,8 +468,8 @@ class ScriptedMacro {
 				kind: FFun({
 					args: [],
 					expr: macro {
-						var fields:Array<String> = [for (f in Reflect.fields(this)) if (!insanity.backend.macro.ScriptedMacro.ignoreFields.exists(f)) f];
-						for (f in __vars.keys()) { if (!insanity.backend.macro.ScriptedMacro.ignoreFields.exists(f) && !fields.contains(f)) fields.push(f); }
+						var fields:Array<String> = [for (f in Reflect.fields(this)) if (!insanity.macro.ScriptableMacro.ignoreFields.exists(f)) f];
+						for (f in __vars.keys()) { if (!insanity.macro.ScriptableMacro.ignoreFields.exists(f) && !fields.contains(f)) fields.push(f); }
 						return fields;
 					},
 					ret: macro:Array<String>
@@ -479,7 +486,7 @@ class ScriptedMacro {
 		
 		// trace('make ${cls.pack.join('.')}.${cls.name} scriptable');
 		
-		scriptedClasses.set(path.join('.'), true);
+		scriptableClasses.push(path.join('.'));
 		generated ++;
 		
 		return fields;
@@ -509,11 +516,264 @@ class ScriptedMacro {
 			} else $oldExpr;
 		}
 	}
+	
+	static var omitted:Int = 0;
+	static var excluded:Int = 0;
+	static function buildHscript(exclude:Array<String>, unless:Array<String>):Array<Field> {
+		if (Context.defined('display')) return Context.getBuildFields();
+		
+		var fields:Array<Field> = Context.getBuildFields();
+		var cls:ClassType = Context.getLocalClass()?.get();
+		var pos = Context.currentPos();
+		
+		if (cls == null || cls.meta.has(':coreApi') || cls.meta.has(':extern') || cls.meta.has(':hlNative') || cls.meta.has(':native') ||
+			cls.isInterface || cls.isExtern || cls.name.contains('_Fields_')) {
+			omitted ++;
+			
+			if (Insanity.isVerbose() && cls != null && !cls.isInterface && !cls.name.contains('_Fields_')) {
+				var path:Array<String> = cls.pack.copy(); path.push(cls.name);
+				
+				haxe.Log.trace('${Insanity.blobWarn} ${Insanity.ansiEsc}49;33mScriptableMacro.buildHScript${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (${switch (cls) {
+					case _ if (cls.meta.has(':coreApi')): 'coreApi';
+					case _ if (cls.meta.has(':extern') || cls.isExtern): 'extern class';
+					case _ if (cls.meta.has(':hlNative')): 'hlNative';
+					case _ if (cls.meta.has(':native')): 'native';
+					default: '???';
+				}})', null);
+			}
+			
+			return null;
+		}
+		if (cls.meta.has(':insanityScriptable')) return null;
+		switch (cls.pack[0]) {
+			case 'haxe' | 'hl' | 'cpp' | 'neko' | 'js' | 'cs' | 'lua' | 'php' | 'macro' | 'java' | 'flash' | 'python':
+				omitted ++;
+				
+				if (Insanity.isVerbose()) {
+					var path:Array<String> = cls.pack.copy(); path.push(cls.name);
+					
+					haxe.Log.trace('${Insanity.blobWarn} ${Insanity.ansiEsc}49;33mScriptableMacro.buildHscript${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (internal)', null);
+				}
+				
+				return null;
+				
+			case 'insanity' if (cls.name != 'InsanityDummyClass'):
+				omitted ++;
+				
+				if (Insanity.isVerbose()) {
+					var path:Array<String> = cls.pack.copy(); path.push(cls.name);
+					
+					haxe.Log.trace('${Insanity.blobWarn} ${Insanity.ansiEsc}49;33mScriptableMacro.buildHscript${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (internal)', null);
+				}
+				
+				return null;
+				
+			default:
+		}
+		switch (cls.kind) {
+			case KAbstractImpl(_): return null;
+			default:
+		}
+		for (ex in exclude) {
+			if (cls.module.indexOf(ex) == 0) {
+				for (un in unless) {
+					if (cls.module.indexOf(un) == 0)
+						break;
+				}
+				
+				excluded ++;
+				
+				return fields;
+			}
+		}
+		
+		function classHasConstructor(ccls:ClassType):Bool {
+			var constr:ClassField = ccls?.constructor?.get();
+			
+			if (constr == null) return false;
+			
+			/* i fgiured out a class without a constructor FOR ITSELF actualy just uses the same pos as the entire class . kinda dirty but it gets the job done
+			(checking for .constructor isnt enough since haxe fills it in automatically?) */
+			return (Std.string(ccls.pos) != Std.string(constr.pos));
+		}
+		
+		var lastClassWithConstr:Null<ClassType> = (classHasConstructor(cls) ? cls : null);
+		var hasConstructor:Bool = false;
+		
+		var superClass = cls.superClass?.t.get();
+		var su = superClass;
+		
+		while (true) {
+			if (su == null) break;
+			if (su.isExtern || su.meta.has(':coreApi') || su.meta.has(':extern') || su.meta.has(':hlNative') || su.meta.has(':native')) {
+				if (Insanity.isVerbose()) {
+					var path:Array<String> = cls.pack.copy(); path.push(cls.name);
+					
+					haxe.Log.trace('${Insanity.blobWarn} ${Insanity.ansiEsc}49;33mScriptableMacro.buildHScript${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (extends ${switch (su) {
+						case _ if (su.meta.has(':coreApi')): 'coreApi';
+						case _ if (su.meta.has(':extern') || cls.isExtern): 'extern class';
+						case _ if (su.meta.has(':hlNative')): 'hlNative';
+						case _ if (su.meta.has(':native')): 'native';
+						default: '???';
+					}})', null);
+				}
+				
+				return null;
+			}
+			
+			switch (su.pack[0]) {
+				case 'haxe' | 'hl' | 'cpp' | 'neko' | 'js' | 'cs' | 'lua' | 'php' | 'macro' | 'java' | 'flash' | 'python' | 'insanity':
+					omitted ++;
+					
+					if (Insanity.isVerbose()) {
+						var path:Array<String> = cls.pack.copy(); path.push(cls.name);
+						
+						haxe.Log.trace('${Insanity.blobWarn} ${Insanity.ansiEsc}49;33mScriptableMacro.buildHscript${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (extends internal)', null);
+					}
+					
+					return null;
+					
+				default:
+			}
+			for (ex in exclude) {
+				if (su.module.indexOf(ex) == 0) {
+					for (un in unless) {
+						if (cls.module.indexOf(un) == 0)
+							break;
+					}
+					
+					omitted ++;
+					
+					if (Insanity.isVerbose()) {
+						var path:Array<String> = cls.pack.copy(); path.push(cls.name);
+						
+						haxe.Log.trace('${Insanity.blobWarn} ${Insanity.ansiEsc}49;33mScriptableMacro.buildHscript${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (extends exclusion)', null);
+					}
+					
+					return null;
+				}
+			}
+			
+			lastClassWithConstr ??= (classHasConstructor(su) ? su : null);
+			
+			su = su?.superClass?.t.get();
+		}
+		
+		var expr:Array<Expr> = [];
+		var constrArgs:Array<FunctionArg> = [];
+		var constrParams:Null<Array<TypeParamDecl>> = null;
+		
+		function getName(cls:ClassType):String {
+			switch (cls.kind) {
+				case KGenericInstance(cl, params):
+					cls = cl.get();
+					
+				default:
+			}
+			
+			var pack:Array<String> = cls.pack.copy(); pack.push(cls.name);
+			
+			return pack.join('_');
+		}
+		
+		function mapConstructor(expr:Expr):Expr {
+			if (expr == null) return null;
+			
+			return switch (expr.expr) {
+				case ECall({pos: p, expr: EConst(CIdent('super'))}, params):
+					{pos: expr.pos, expr: ECall({pos: p, expr: EConst(CIdent('insanitySuper${getName(lastClassWithConstr)}'))}, params)};
+				
+				default:
+					expr.map(mapConstructor);
+			}
+		}
+		
+		for (field in fields) {
+			switch (field.kind) {
+				default:
+				
+				case FVar(t, e) if (field.access?.contains(AFinal) && !field.access.contains(AInline)):
+					field.kind = FProp('default', 'null', t, e);
+					field.access.remove(AFinal);
+					
+				case FFun(fun) if (field.name == 'new'):
+					var constr = mapConstructor(fun.expr);
+					switch (constr.expr) {
+						case EBlock(a): for (e in a) expr.push(e);
+						default: expr.push(constr);
+					};
+					constrParams = fun.params;
+					constrArgs = fun.args;
+					hasConstructor = true;
+					lastClassWithConstr = cls;
+			}
+		}
+		
+		for (field in fields) {
+			final f:String = field.name;
+			
+			for (meta in field.meta) {
+				if (meta.name != ':allow') continue;
+				
+				switch (meta.params[0].expr) {
+					case EField(e, f, a) if (f == 'new'):
+						field.meta.push({
+							pos: meta.pos,
+							name: ':allow',
+							params: [{
+								pos: meta.pos,
+								expr: EField(e, 'insanitySuper${e.toString().replace('.', '_')}', a) //gay
+							}]
+						});
+						
+					default:
+				}
+			}
+			
+			if (field?.access.contains(AStatic) || field?.access.contains(AInline)) continue;
+			if (field.meta?.exists((meta) -> meta.name == ':deprecated')) continue;
+			
+			switch (field.kind) {
+				default:
+				
+				case FProp(get, set, _, e) if (e != null && (set == 'set' || set == 'dynamic')):
+					expr.unshift(macro Reflect.setField(this, $v {f}, $e));
+				
+				case FProp(get, set, _, e) if (e != null && set != 'set' && set != 'never'):
+					expr.unshift(macro $i {f} = $e);
+				
+				case FVar(_, e) if (e != null):
+					// trace(field.name + ' = ' + e.toString());
+					expr.unshift(macro $i {f} = $e);
+			}
+		}
+		
+		if (hasConstructor || lastClassWithConstr == null) {
+			if (!hasConstructor) expr = [macro throw $v {'${cls.pack.join('.') + (cls.pack.length > 0 ? '.' : '') + cls.name} does not have a constructor'}];
+			
+			fields.push({
+				pos: pos,
+				name: 'insanitySuper${getName(cls)}',
+				
+				kind: FFun({
+					ret: macro:Void,
+					expr: macro $b {expr},
+					args: constrArgs,
+					params: constrParams
+				})
+			});
+		}
+		
+		cls.meta.add(':insanityScriptable', [macro false], pos);
+		cls.meta.add(':insanitySuperName', [macro $v {'insanitySuper${getName(hasConstructor ? cls : lastClassWithConstr ?? cls)}'}], pos);
+		
+		return fields;
+	}
 	#end
 	
 	public static macro function listScriptableClasses():Expr {
-		if (Lambda.empty(scriptedClasses)) return macro [];
+		if (Lambda.empty(scriptableClasses)) return macro [];
 		
-		return macro [for (cls in $v {scriptedClasses}.keys()) cls => Type.resolveClass(cls)];
+		return macro [for (cls in $v {scriptableClasses}) cls => Type.resolveClass(cls)];
 	}
 }

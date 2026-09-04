@@ -1,4 +1,4 @@
-package insanity.backend.macro;
+package insanity.macro;
 
 #if macro
 import haxe.macro.Compiler;
@@ -7,7 +7,8 @@ import haxe.macro.Context;
 class Insanity {
 	public static macro function init():Void {
 		if (!Context.defined('insanity.noScriptableTypes')) Compiler.define('insanity.scriptableTypes');
-		if (Context.defined('hl')) Compiler.addGlobalMetadata('', '@:build(insanity.backend.macro.Patcher.fixHLLongMethods())');
+		
+		if (Context.defined('hl')) Compiler.addGlobalMetadata('', '@:build(insanity.macro.Patcher.fixHLLongMethods())');
 	}
 	
 	public static var ansiEsc:String = '\x1B[';
@@ -32,9 +33,9 @@ class Insanity {
 		haxe.Log.trace('${blob ?? Insanity.blob} $tag', null);
 	}
 	
-	@:access(insanity.backend.macro.ScriptedMacro)
-	@:access(insanity.backend.macro.AbstractMacro)
-	@:access(insanity.backend.macro.Patcher)
+	@:access(insanity.macro.ScriptedMacro)
+	@:access(insanity.macro.AbstractMacro)
+	@:access(insanity.macro.Patcher)
 	public static function finish():Void {
 		if (!isVerbose(false)) return;
 		
@@ -49,6 +50,10 @@ class Insanity {
 		final compilerVerbose:Bool = (haxe.macro.Compiler.getConfiguration()?.verbose ?? false);
 		
 		return (compilerVerbose || Context.defined('insanity.verboseFull') || (!fullOnly && Context.defined('insanity.verbose')));
+	}
+	
+	public static inline function classIsPrivate(cls:haxe.macro.Type.ClassType):Bool {
+		return (cls.pack.length > 0 && cls.pack[cls.pack.length - 1].charAt(0) == '_');
 	}
 }
 #end
