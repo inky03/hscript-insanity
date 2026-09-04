@@ -23,6 +23,18 @@ class ScriptableMacro {
 	static var generated:Int = 0;
 	
 	#if macro
+	/**
+	 * Injects the HscriptInsanity interpreter into a class and its fields to make it extendable in Hscript.
+	 * If used, this build macro should be added to every class and not filtered with `Compiler.addGlobalMetadata`, using the function's `exclude` and `unless` parameters instead
+	 * to prevent compilation failure.
+	 * 
+	 * @param	exclude		Classes with paths starting with the specified prefixes, and all of their subclasses, will be ignored
+	 * @param	unless		Classes with paths starting with the specified prefixes will be unexcluded, if you need to cherry pick (This won't work in subclasses of ignored classes!)
+	 * @param	evil		Whether to allow scripted classes to override inlined fields or not.
+	 * @param	superEvil	Whether to allow scripted classes to extend private classes or not.
+	 * 
+	 * @return	Context fields
+	 */
 	@:access(insanity.backend.macro.Patcher)
 	public static macro function buildScriptable(?exclude:Array<String>, ?unless:Array<String>, evil:Bool = false, superEvil:Bool = false):Array<Field> {
 		if (Context.defined('display')) return Context.getBuildFields();
