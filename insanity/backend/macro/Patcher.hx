@@ -248,6 +248,7 @@ class Patcher {
 		var cls:ClassType = Context.getLocalClass()?.get();
 		var pos = Context.currentPos();
 		
+		if (Context.defined('display')) return fields;
 		if (cls == null || cls.meta.has(':coreApi') || cls.meta.has(':extern') || cls.meta.has(':hlNative') || cls.meta.has(':native') ||
 			cls.isInterface || cls.isExtern || cls.name.contains('_Fields_'))
 			return fields;

@@ -93,6 +93,8 @@ class AbstractMacro {
 		var type = Context.getLocalType();
 		var fields = Context.getBuildFields();
 		
+		if (Context.defined('display')) return fields;
+		
 		var c:ClassType;
 		var ab:AbstractType;
 		

@@ -19,18 +19,36 @@ class ScriptedMacro {
 		'__isScripted', '__scriptedBase', '__interpSafe', '__interp', '__func', '__fields', '__vars', '__instanceFields','instanceFields', 'inlinedFields', 'new', 'super'
 	]) f => true];
 	
+	static var scriptedClasses:Map<String, Bool> = [];
+	
 	static var _name:String = 'insanity.backend.macro.ScriptedMacro';
 	
-	public static macro function buildScriptable(evil:Bool = false):Array<Field> {
+	#if macro
+	public static macro function buildScriptable(evil:Bool = false, superEvil:Bool = false):Array<Field> {
 		var pos = Context.currentPos();
 		var cls = Context.getLocalClass()?.get();
 		var fields:Array<Field> = Context.getBuildFields();
 		
-		if (cls == null || !cls.meta.has(':insanityScriptable')) return fields;
-		switch (cls.kind) {
-			case KGeneric: return fields;
-			default:
+		function isPrivate(cls:ClassType):Bool {
+			return (cls.pack.length > 0 && cls.pack[cls.pack.length - 1].charAt(0) == '_');
 		}
+		function isEligible(cls:ClassType):Bool { // about time
+			if (cls == null || !cls.meta.has(':insanityScriptable')) return false;
+			
+			if (!superEvil && isPrivate(cls)) {
+				// trace('private ${cls.pack.join('.') + '.' + cls.name}');
+				return false;
+			}
+			
+			switch (cls.kind) {
+				case KGeneric: return false;
+				default:
+			}
+			
+			return true;
+		}
+		
+		if (!isEligible(cls)) return fields;
 		
 		var hasToString:Bool = false;
 		var knownFields:Map<String, Bool> = [];
@@ -51,6 +69,8 @@ class ScriptedMacro {
 		
 		while (true) {
 			if (su == null) break;
+			
+			if (!superEvil && isPrivate(su)) return fields;
 			
 			for (field in su.statics.get()) {
 				if (field.name == 'toString') hasToString = true;
@@ -118,6 +138,7 @@ class ScriptedMacro {
 		}
 		
 		var path:Array<String> = cls.pack.copy(); path.push(cls.name);
+		scriptedClasses.set(path.join('.'), true);
 		
 		if (!hasToString) {
 			fields.push({
@@ -407,7 +428,6 @@ class ScriptedMacro {
 		return fields;
 	}
 	
-	#if macro
 	static inline function scriptableExpr(oldExpr:Expr, field:String, argsArray:Array<Expr>, isVoid:Bool = false):Expr {
 		return macro {
 			final fname:String = $v {field};
@@ -435,4 +455,8 @@ class ScriptedMacro {
 		}
 	}
 	#end
+	
+	public static macro function listScriptableClasses():Expr {
+		return macro [for (cls in $v {scriptedClasses}.keys()) cls => Type.resolveClass(cls)];
+	}
 }

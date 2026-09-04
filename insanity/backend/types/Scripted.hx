@@ -16,19 +16,18 @@ using insanity.tools.Tools;
 using insanity.backend.TypeCollection;
 
 class ScriptedTools {
-	public static var scriptedClasses(default, never):Map<String, Class<IInsanityScripted>> = [];//insanity.backend.macro.ScriptedMacro.listScriptedClasses();
+	public static var scriptedClasses(default, never):Map<String, Class<Dynamic>> = insanity.backend.macro.ScriptedMacro.listScriptableClasses();
 	
 	public static function resolve(t:Dynamic):Dynamic {
 		if (t is InsanityScriptedClass)
 			return cast t;
 		
-		return t;
-		/*var cls:String = Type.getClassName(t);
+		var cls:String = Type.getClassName(t);
 		if (scriptedClasses.exists(cls))
 			return scriptedClasses.get(cls);
 		
 		throw 'Class $cls can\'t be extended for scripting';
-		return null;*/
+		return null;
 	}
 }
 
