@@ -12,17 +12,15 @@ using haxe.macro.ExprTools;
 using haxe.macro.ComplexTypeTools;
 #end
 
-class ScriptedMacro {
+class ScriptableMacro {
 	public static var ignoreFields:Map<String, Bool> = [for (f in [
 		'reflectHasField', 'reflectGetField', 'reflectSetField', 'reflectListFields', 'reflectGetProperty', 'reflectSetProperty',
 		'typeCreateInstance', 'typeGetClass', 'typeGetClassFields', 'typeCreateEmptyInstance', 'typeGetInstanceFields',
 		'__isScripted', '__scriptedBase', '__interpSafe', '__interp', '__func', '__fields', '__vars', '__instanceFields','instanceFields', 'inlinedFields', 'new', 'super'
 	]) f => true];
 	
-	static var scriptedClasses:Map<String, Bool> = [];
+	static var scriptableClasses:Map<String, Bool> = [];
 	static var generated:Int = 0;
-	
-	static var _name:String = 'insanity.backend.macro.ScriptedMacro';
 	
 	#if macro
 	@:access(insanity.backend.macro.Patcher)
@@ -30,12 +28,12 @@ class ScriptedMacro {
 		if (Context.defined('display')) return Context.getBuildFields();
 		
 		if (Context.defined('insanity.noScriptableTypes')) {
-			Insanity.beginLog('${Insanity.ansiEsc}49;31mScriptedMacro.buildScriptable${Insanity.ansiEsc}0m Scriptable types were disabled in this project! Won\'t inject any classes', Insanity.blobError);
+			Insanity.beginLog('${Insanity.ansiEsc}49;31mScriptableMacro.buildScriptable${Insanity.ansiEsc}0m Scriptable types were disabled in this project! Won\'t inject any classes', Insanity.blobError);
 			return Context.getBuildFields();
 		}
 		
-		Insanity.beginLog('Applying ScriptedMacro.buildScriptable');
-		Insanity.finishLog['ScriptedMacro.buildScriptable'] ??= () -> {
+		Insanity.beginLog('Applying ScriptableMacro.buildScriptable');
+		Insanity.finishLog['ScriptableMacro.buildScriptable'] ??= () -> {
 			var str:String = 'Injected $generated classes';
 			
 			if (Insanity.isVerbose()) str += ' (omitted ${Patcher.omitted} | excluded ${Patcher.excluded})';
@@ -61,7 +59,7 @@ class ScriptedMacro {
 				if (Insanity.isVerbose()) {
 					var path:Array<String> = cls.pack.copy(); path.push(cls.name);
 					
-					haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mScriptedMacro.buildScriptable${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (private class)', null);
+					haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mScriptableMacro.buildScriptable${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (private class)', null);
 				}
 				
 				// trace('private ${cls.pack.join('.') + '.' + cls.name}');
@@ -75,7 +73,7 @@ class ScriptedMacro {
 					if (Insanity.isVerbose()) {
 						var path:Array<String> = cls.pack.copy(); path.push(cls.name);
 						
-						haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mScriptedMacro.buildScriptable${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (generic class)', null);
+						haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mScriptableMacro.buildScriptable${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (generic class)', null);
 					}
 					
 					return false;
@@ -114,7 +112,7 @@ class ScriptedMacro {
 				if (Insanity.isVerbose()) {
 					var path:Array<String> = cls.pack.copy(); path.push(cls.name);
 					
-					haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mScriptedMacro.buildScriptable${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (extends private class)', null);
+					haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mScriptableMacro.buildScriptable${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (extends private class)', null);
 				}
 				
 				return fields;
@@ -187,7 +185,7 @@ class ScriptedMacro {
 		
 		var path:Array<String> = cls.pack.copy(); path.push(cls.name);
 		
-		if (Insanity.isVerbose()) haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mScriptedMacro.buildScriptable${Insanity.ansiEsc}0m ${path.join('.')}', null);
+		if (Insanity.isVerbose()) haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mScriptableMacro.buildScriptable${Insanity.ansiEsc}0m ${path.join('.')}', null);
 		
 		if (!hasToString) {
 			fields.push({
@@ -233,7 +231,7 @@ class ScriptedMacro {
 				var superLocals:Map<String, insanity.backend.Interp.Variable> = __interp.duplicate(__interp.locals);
 				
 				for (field in instanceFields.keys()) {
-					if (insanity.backend.macro.ScriptedMacro.ignoreFields.exists(field)) continue;
+					if (insanity.backend.macro.ScriptableMacro.ignoreFields.exists(field)) continue;
 					
 					if (!__interp.variables.exists(field)) __interp.variables.set(field, insanity.backend.Expr.Mirror.MProperty(this, field));
 					
@@ -273,7 +271,7 @@ class ScriptedMacro {
 				var instanceFields:Map<String, Bool> = t.extending?.instanceFields;
 				if (instanceFields != null) {
 					for (field in instanceFields.keys()) {
-						if (insanity.backend.macro.ScriptedMacro.ignoreFields.exists(field)) continue;
+						if (insanity.backend.macro.ScriptableMacro.ignoreFields.exists(field)) continue;
 						
 						if (!__interp.variables.exists(field)) __interp.variables.set(field, insanity.backend.Expr.Mirror.MProperty(this, field));
 						
@@ -389,7 +387,7 @@ class ScriptedMacro {
 				kind: FFun({
 					args: [{name: 'field', type: macro:String}],
 					expr: macro {
-						if (insanity.backend.macro.ScriptedMacro.ignoreFields.exists(field)) return false;
+						if (insanity.backend.macro.ScriptableMacro.ignoreFields.exists(field)) return false;
 						return (__instanceFields.exists(field) || Reflect.hasField(this, field) || __vars.exists(field));
 					},
 					ret: macro:Bool
@@ -399,7 +397,7 @@ class ScriptedMacro {
 				kind: FFun({
 					args: [{name: 'field', type: macro:String}],
 					expr: macro {
-						if (insanity.backend.macro.ScriptedMacro.ignoreFields.exists(field)) return null;
+						if (insanity.backend.macro.ScriptableMacro.ignoreFields.exists(field)) return null;
 						if (__instanceFields.exists(field) || Reflect.hasField(this, field)) {
 							return Reflect.field(this, field);
 						} else if (__vars.exists(field)) {
@@ -414,7 +412,7 @@ class ScriptedMacro {
 				kind: FFun({
 					args: [{name: 'field', type: macro:String}, {name: 'value', type: macro:Dynamic}],
 					expr: macro {
-						if (insanity.backend.macro.ScriptedMacro.ignoreFields.exists(field)) return null;
+						if (insanity.backend.macro.ScriptableMacro.ignoreFields.exists(field)) return null;
 						if (__instanceFields.exists(field) || Reflect.hasField(this, field)) {
 							Reflect.setField(this, field, value);
 							return Reflect.field(this, field);
@@ -430,7 +428,7 @@ class ScriptedMacro {
 				kind: FFun({
 					args: [{name: 'property', type: macro:String}],
 					expr: macro {
-						if (insanity.backend.macro.ScriptedMacro.ignoreFields.exists(property)) return null;
+						if (insanity.backend.macro.ScriptableMacro.ignoreFields.exists(property)) return null;
 						if (__instanceFields.exists(property) || Reflect.hasField(this, property)) {
 							return Reflect.getProperty(this, property);
 						} else if (__vars.exists(property)) {
@@ -445,7 +443,7 @@ class ScriptedMacro {
 				kind: FFun({
 					args: [{name: 'property', type: macro:String}, {name: 'value', type: macro:Dynamic}],
 					expr: macro {
-						if (insanity.backend.macro.ScriptedMacro.ignoreFields.exists(property)) return null;
+						if (insanity.backend.macro.ScriptableMacro.ignoreFields.exists(property)) return null;
 						if (__instanceFields.exists(property) || Reflect.hasField(this, property)) {
 							Reflect.setProperty(this, property, value);
 							return Reflect.field(this, property);
@@ -461,8 +459,8 @@ class ScriptedMacro {
 				kind: FFun({
 					args: [],
 					expr: macro {
-						var fields:Array<String> = [for (f in Reflect.fields(this)) if (!insanity.backend.macro.ScriptedMacro.ignoreFields.exists(f)) f];
-						for (f in __vars.keys()) { if (!insanity.backend.macro.ScriptedMacro.ignoreFields.exists(f) && !fields.contains(f)) fields.push(f); }
+						var fields:Array<String> = [for (f in Reflect.fields(this)) if (!insanity.backend.macro.ScriptableMacro.ignoreFields.exists(f)) f];
+						for (f in __vars.keys()) { if (!insanity.backend.macro.ScriptableMacro.ignoreFields.exists(f) && !fields.contains(f)) fields.push(f); }
 						return fields;
 					},
 					ret: macro:Array<String>
@@ -479,7 +477,7 @@ class ScriptedMacro {
 		
 		// trace('make ${cls.pack.join('.')}.${cls.name} scriptable');
 		
-		scriptedClasses.set(path.join('.'), true);
+		scriptableClasses.set(path.join('.'), true);
 		generated ++;
 		
 		return fields;
@@ -512,8 +510,8 @@ class ScriptedMacro {
 	#end
 	
 	public static macro function listScriptableClasses():Expr {
-		if (Lambda.empty(scriptedClasses)) return macro [];
+		if (Lambda.empty(scriptableClasses)) return macro [];
 		
-		return macro [for (cls in $v {scriptedClasses}.keys()) cls => Type.resolveClass(cls)];
+		return macro [for (cls in $v {scriptableClasses}.keys()) cls => Type.resolveClass(cls)];
 	}
 }
