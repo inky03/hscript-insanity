@@ -32,10 +32,10 @@ import haxe.Constraints.IMap;
 import Type as HaxeType;
 import Reflect as HaxeReflect;
 
-import insanity.custom.InsanityType.ICustomEnumValueType;
+#if (insanity.scriptableTypes) import insanity.custom.InsanityType.ICustomEnumValueType; #end
 import insanity.custom.InsanityReflect as Reflect;
 import insanity.custom.InsanityType as Type;
-import insanity.custom.InsanityStd as Std;
+#if (insanity.scriptableTypes) import insanity.custom.InsanityStd as Std; #end
 
 using StringTools;
 using insanity.tools.Tools;
@@ -95,7 +95,7 @@ class Interp {
 	public var defineGlobals:Bool = false;
 	@:noCompletion public var superConstructorAllowed:Bool = false;
 	
-	static var localsPool : Array<Map<String, Variable>> = [];
+	var localsPool : Array<Map<String, Variable>> = [];
 	
 	/**
 	 * The interpreter's call stack.
@@ -123,6 +123,7 @@ class Interp {
 	var captures : Map<String, Dynamic>;
 	var declared : Array<RestoreVariable>;
 	var returnValue : Dynamic;
+	static var otherTry : Bool = false;
 	
 	static var void(default, never):Dynamic = {};
 	static var accessingInterp:Interp = null;
@@ -298,8 +299,8 @@ class Interp {
 		if (iv != null) {
 			if (iv is Mirror) {
 				switch (iv) {
-					case MScriptAbstract(a):
-						return a.__a = v;
+					#if (insanity.scriptableTypes) case MScriptAbstract(a):
+						return a.__a = v; #end
 					case MProperty(t, f):
 						if (curAccess == f) { return Reflect.setField(t, f, v); }
 						else { return Reflect.setProperty(t, f, v); }
@@ -315,8 +316,8 @@ class Interp {
 			var vv = variables.get(name);
 			if (vv is Mirror) {
 				switch (vv) {
-					case MScriptAbstract(a):
-						return a.__a = v;
+					#if (insanity.scriptableTypes) case MScriptAbstract(a):
+						return a.__a = v; #end
 					case MProperty(t, f):
 						if (curAccess == f) { return Reflect.setField(t, f, v); }
 						else { return Reflect.setProperty(t, f, v); }
@@ -651,18 +652,18 @@ class Interp {
 	}
 	
 	function pushStack(?item:StackItem, ?locals:Map<String, Variable>):Void {
-		var last:Stack = stack.shift();
-		
-		if (last != null) {
-			stack.unshift({locals: last.locals, item: switch (last.item) {
+		if (stack.length > 0) {
+			final last:Stack = stack.last();
+			
+			last.item = switch (last.item) {
 				case SFilePos(item, _, _): SFilePos(item, position.origin, position.line, position.column);
-				default: SFilePos(last.item, position.origin, position.line, position.column);
-			}});
+				case item: SFilePos(item, position.origin, position.line, position.column);
+			};
 		}
 		
 		if (item != null) {
-			final newLocals = (locals ?? duplicate(stack.first()?.locals));
-			stack.unshift({locals: newLocals, item: item});
+			final newLocals:Map<String, Variable> = (locals ?? duplicate(stack.last()?.locals));
+			stack.push({locals: newLocals, item: item});
 			this.locals = newLocals;
 			
 			if (stack.length > callStackDepth)
@@ -670,11 +671,11 @@ class Interp {
 		}
 	}
 	inline function shiftStack(put:Bool = true):Stack {
-		var item:Stack = stack.shift();
+		var item:Stack = stack.pop();
 		
 		if (put) localsPool.push(item.locals);
 		
-		locals = stack.first()?.locals;
+		locals = stack.last()?.locals;
 		
 		return item;
 	}
@@ -738,8 +739,8 @@ class Interp {
 			switch (v) {
 				default:
 					return v;
-				case MScriptAbstract(a):
-					return a.__a;
+				#if (insanity.scriptableTypes) case MScriptAbstract(a):
+					return a.__a; #end
 				case MProperty(t, f):
 					if (curAccess == f) { return Reflect.field(t, f); }
 					else { return Reflect.getProperty(t, f); }
@@ -793,6 +794,7 @@ class Interp {
 		if (canInit && t is IInsanityType && t.module != null && !t.initializing && !t.initialized && !t.failed)
 			t.module.startType(environment, t);
 		
+		#if (insanity.scriptableTypes)
 		if (t is InsanityScriptedTypedef) {
 			var alias:Dynamic = cast(t, InsanityScriptedTypedef).alias;
 			
@@ -805,7 +807,9 @@ class Interp {
 				importEnumValues(t);
 		} else if (t is IInsanityType) {
 			imports.set(name, t);
-		} else if (t is Class) {
+		} else 
+		#end
+		if (t is Class) {
 			imports.set(name, t);
 		} else if (t is Enum) {
 			imports.set(name, t);
@@ -885,7 +889,7 @@ class Interp {
 							}
 						}
 						
-						if (t is Class || t is InsanityScriptedClass || t is InsanityAbstract) {
+						if (t is Class #if (insanity.scriptableTypes) || t is InsanityScriptedClass #end || t is InsanityAbstract) {
 							if (!Type.getClassFields(t).contains(field))
 								error(ECustom('Module ${path[i]} does not define field $field'));
 							
@@ -893,7 +897,7 @@ class Interp {
 								case IAsName(alias): return imports.set(alias, MProperty(t, field));
 								default: return imports.set(field, MProperty(t, field));
 							}
-						} else if (t is Enum || t is InsanityScriptedEnum) {
+						} else if (t is Enum #if (insanity.scriptableTypes) || t is InsanityScriptedEnum #end) {
 							var i:Int = Type.getEnumConstructs(t).indexOf(field);
 							
 							if (i >= 0) {
@@ -983,6 +987,7 @@ class Interp {
 		error(EUnknownType(path.join('.')));
 	}
 	
+	#if (insanity.scriptableTypes)
 	public function startDecl(decl:ModuleDecl):Void {
 		position = decl.pos;
 		
@@ -1041,6 +1046,7 @@ class Interp {
 			imports.set(cls.name, cls);
 		}
 	}
+	#end
 	
 	var _rest:Array<Dynamic> = [];
 	/**
@@ -1070,9 +1076,6 @@ class Interp {
 		final f = Reflect.makeVarArgs(function(args:Array<Dynamic>) {
 			superConstructorAllowed = su;
 			
-			final old:Int = declared.length;
-			pushStack(item, functionLocals ?? duplicate(capturedLocals));
-			
 			if (args.length < minParams) {
 				var expect:Argument = params[args.length];
 				for (i in args.length ... params.length) {
@@ -1086,6 +1089,9 @@ class Interp {
 			} else if (!hasRest && !argumentOverflow && args.length > params.length) {
 				error(ECustom('Too many arguments'));
 			}
+			
+			final old:Int = declared.length;
+			pushStack(item, functionLocals ?? duplicate(capturedLocals));
 			
 			var pos:Int = 0;
 			for (param in params) {
@@ -1111,13 +1117,18 @@ class Interp {
 			}
 			
 			var r:Dynamic = null;
-			if (inTry) {
+			if (inTry || otherTry) {
+				final oldTry:Bool = otherTry;
+				otherTry = true;
+				
 				try {
 					r = tryCast(exprReturn(fexpr), ret, true);
-				} catch( e : Dynamic ) {
+				} catch (e) {
 					shiftStack(functionLocals == null);
 					rethrow(e);
 				}
+				
+				otherTry = oldTry;
 			} else {
 				r = tryCast(exprReturn(fexpr), ret, true);
 			}
@@ -1182,7 +1193,7 @@ class Interp {
 		
 		switch( e.e ) {
 		case EDecl(decl):
-			startDecl(decl);
+			#if (insanity.scriptableTypes) startDecl(decl); #end
 		case EUsing(path):
 			usingType(path);
 		case EImport(path, mode):
@@ -1462,7 +1473,7 @@ class Interp {
 										var type:TypeInfo = null;
 										var r = (Tools.resolve(fullPath, environment) ?? imports.get(fullPath));
 										if (r is Class) {
-											type = TypeCollection.main.fromCompilePath(Type.getClassName(r))[0];
+											type = TypeCollection.main.fromCompilePath(HaxeType.getClassName(r))[0];
 										} else if (r == null) {
 											error(EUnknownType(fullPath));
 										}
@@ -1482,7 +1493,7 @@ class Interp {
 							var t:Dynamic = resolve(fullPath); // alias stuff
 							
 							if (t is haxe.ds.IntMap || t is haxe.ds.StringMap || t is haxe.ds.ObjectMap || t is haxe.ds.EnumValueMap)
-								return Type.createInstance(t, []);
+								return HaxeType.createInstance(t, []);
 						}
 					default:
 				}
@@ -1542,9 +1553,9 @@ class Interp {
 						
 						if (cls is Class) {
 							structInitFields = TypeCollection.main.fromCompilePath(path)[0].structInitFields;
-						} else if (cls is InsanityScriptedClass) {
+						} #if (insanity.scriptableTypes) else if (cls is InsanityScriptedClass) {
 							structInitFields = cls.structInitFields;
-						}
+						} #end
 						
 						if (structInitFields != null) return structInitClass(path, structInitFields, fl);
 				}
@@ -1756,9 +1767,9 @@ class Interp {
 			return true;
 		} else if (v is InsanityAbstractValue) {
 			return (v.__a == (with is InsanityAbstractValue ? with.__a : with));
-		} else if (v is ICustomEnumValueType && with is ICustomEnumValueType) {
+		} #if (insanity.scriptableTypes) else if (v is ICustomEnumValueType && with is ICustomEnumValueType) {
 			return cast(v, ICustomEnumValueType).eq(with);
-		} else if (Reflect.isEnumValue(v) && Type.getEnum(v) != null && Type.getEnum(with) != null) {
+		} #end else if (Reflect.isEnumValue(v) && Type.getEnum(v) != null && Type.getEnum(with) != null) {
 			return Type.enumEq(v, with);
 		}
 		
@@ -1790,9 +1801,9 @@ class Interp {
 					} else {
 						if (t is Class) {
 							structInitFields = TypeCollection.main.fromCompilePath(path)[0].structInitFields;
-						} else if (t is InsanityScriptedClass) {
+						} #if (insanity.scriptableTypes) else if (t is InsanityScriptedClass) {
 							structInitFields = t.structInitFields;
-						}
+						} #end
 						
 						structInitIndex.set(path, structInitFields);
 					}
@@ -2008,11 +2019,14 @@ class Interp {
 	#end
 
 	function get( o : Dynamic, f : String ) : Dynamic {
+		#if (insanity.scriptableTypes)
 		if (canDefer && o is IInsanityType && !o.initialized)
 			throw DDefer;
+		#end
 		
 		if ( o == null ) error(EInvalidAccess(f));
 		
+		#if (insanity.scriptableTypes)
 		if (o is Mirror) {
 			switch (cast(o, Mirror)) {
 				case MSuper(locals, _):
@@ -2023,9 +2037,11 @@ class Interp {
 					} else {
 						error(EUnknownVariable(f));
 					}
+				
 				default:
 			}
 		}
+		#end
 		
 		var bypassAccessor:Bool = (getMeta(':bypassAccessor') != null);
 		var prop = (
@@ -2033,7 +2049,7 @@ class Interp {
 				Reflect.field(o, f);
 			} else {
 				#if hl
-				if (!(o is IInsanityScripted || o is IInsanityType)) {
+				if (#if (insanity.noScriptableTypes) true #else !(o is IInsanityScripted || o is IInsanityType) #end) {
 					final v:Dynamic = Reflect.field(o, 'insanityhl$f');
 					
 					if (v != null) { // maybe should index this to avoid slowdown...
@@ -2050,7 +2066,7 @@ class Interp {
 		);
 		
 		if (prop == null && hasField(o, f) == false) {
-			var fields = getFieldsClass((o is Class || o is InsanityScriptedClass) ? Type.getClassName(o) : Type.getEnumName(o));
+			var fields = getFieldsClass((o is Class #if (insanity.scriptableTypes) || o is InsanityScriptedClass #end) ? Type.getClassName(o) : Type.getEnumName(o));
 			if (fields != null) return (bypassAccessor ? Reflect.field(fields, f) : Reflect.getProperty(fields, f));
 		}
 		
@@ -2060,8 +2076,10 @@ class Interp {
 	function set( o : Dynamic, f : String, v : Dynamic ) : Dynamic {
 		if (o == null) error(EInvalidAccess(f));
 		
+		#if (insanity.scriptableTypes)
 		if (canDefer && o is IInsanityType && !o.initialized)
 			throw DDefer;
+		#end
 		
 		if (AbstractTools.isAbstract(v))
 			v = v.__a;
@@ -2072,7 +2090,7 @@ class Interp {
 		if (field is InsanityAbstractValue) return #if cpp Reflect.setProperty(field, '__a', v) #else field.__a = v #end ;
 		
 		if (field == null && hasField(o, f) == false) {
-			var fields = getFieldsClass((o is Class || o is InsanityScriptedClass) ? Type.getClassName(o) : Type.getEnumName(o));
+			var fields = getFieldsClass((o is Class #if (insanity.scriptableTypes) || o is InsanityScriptedClass #end) ? Type.getClassName(o) : Type.getEnumName(o));
 			if (fields != null) return (bypassAccessor ? Reflect.setField(fields, f, v) : Reflect.setProperty(fields, f, v));
 		} else if (bypassAccessor) {
 			return Reflect.setField(o, f, v);
@@ -2084,9 +2102,9 @@ class Interp {
 	}
 	
 	inline function hasField(o:Dynamic, f:String):Null<Bool> {
-		if (o is Class || o is InsanityScriptedClass) {
+		if (o is Class #if (insanity.scriptableTypes) || o is InsanityScriptedClass #end) {
 			return Type.getClassFields(o).contains(f);
-		} else if (o is Enum || o is InsanityScriptedEnum) {
+		} else if (o is Enum #if (insanity.scriptableTypes) || o is InsanityScriptedEnum #end) {
 			return Type.getEnumConstructs(o).contains(f);
 		} else {
 			return null;
@@ -2130,6 +2148,7 @@ class Interp {
 	}
 
 	function call( o : Dynamic, f : Dynamic, args : Array<Dynamic> ) : Dynamic {
+		#if (insanity.scriptableTypes)
 		if (f is Mirror) {
 			switch (cast(f, Mirror)) {
 				case MSuper(locals, constructor):
@@ -2143,6 +2162,7 @@ class Interp {
 				default:
 			}
 		}
+		#end
 		
 		if (f != Std.string) {
 			for (i => arg in args) {
@@ -2162,8 +2182,10 @@ class Interp {
 		
 		if (!_constructCache.exists(cl)) _constructCache.set(cl, c);
 		
+		#if (insanity.scriptableTypes)
 		if (canDefer && c is IInsanityType && !c.initialized)
 			throw DDefer;
+		#end
 		
 		#if hl if (c is Class && c.insanityhlnew != null) return c.insanityhlnew(args); else #end
 		

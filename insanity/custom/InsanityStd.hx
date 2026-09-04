@@ -1,5 +1,6 @@
 package insanity.custom;
 
+#if (insanity.scriptableTypes)
 import insanity.backend.types.Scripted.InsanityScriptedClass;
 
 /**
@@ -69,3 +70,4 @@ class InsanityStd {
 		return Std.random(x);
 	}
 }
+#end

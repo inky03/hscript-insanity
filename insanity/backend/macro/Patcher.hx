@@ -7,12 +7,19 @@ import haxe.macro.Type;
 
 using haxe.macro.ExprTools;
 using haxe.macro.TypeTools;
+using StringTools;
 using Lambda;
 
 /**
  * Utility macro functions that patch classes to boost their use with Hscript.
  */
 class Patcher {
+	static var patched:Int = 0;
+	static var patchedHL:Int = 0;
+	static var patchedExtreme:Int = 0;
+	static var omitted:Int = 0;
+	static var excluded:Int = 0;
+	
 	/**
 	 * Patches classes that use `Reflect` and `Type` to use HscriptInsanity's implementations.
 	 * Use this with `Compiler.addMetadata` or `Compiler.addGlobalMetadata`!
@@ -25,6 +32,16 @@ class Patcher {
 	 * @return	Context fields
 	 */
 	public static macro function patch(extreme:Bool = false):Array<Field> {
+		if (Context.defined('display')) return Context.getBuildFields();
+		
+		if (Context.defined('insanity.noScriptableTypes')) {
+			Insanity.beginLog('${Insanity.ansiEsc}49;31mPatcher.patch${Insanity.ansiEsc}0m Scriptable types were disabled in this project! Won\'t patch any classes', Insanity.blobError);
+			return Context.getBuildFields();
+		}
+		
+		Insanity.beginLog('Applying Patcher.patch');
+		Insanity.finishLog['Patcher.patch'] ??= () -> 'Patched $patched expressions ($patchedExtreme extreme)';
+		
 		var fields:Array<Field> = Context.getBuildFields();
 		var cls:ClassType = Context.getLocalClass()?.get();
 		
@@ -35,6 +52,7 @@ class Patcher {
 			default:
 		}
 		
+		// IDK how to evn begin thinking about full verbos log of this one s o i wont
 		function mapPatch(expr:Expr):Expr {
 			return switch(expr.expr) {
 				case EIs(expr, type):
@@ -46,10 +64,12 @@ class Patcher {
 							pack = p.pack.copy();
 							pack.push(p.name);
 					}
+					patched ++;
 					macro insanity.custom.InsanityStd.isOfType($expr, $p{pack});
-				case EField({pos: _, expr: EConst(CIdent('Std'))}, 'isOfType', Normal): macro insanity.custom.InsanityStd.isOfType;
-				case EConst(CIdent('Reflect')): macro insanity.custom.InsanityReflect;
-				case EConst(CIdent('Type')): macro insanity.custom.InsanityUnsafeType;
+					
+				case EField({pos: _, expr: EConst(CIdent('Std'))}, 'isOfType', Normal): patched ++; macro insanity.custom.InsanityStd.isOfType;
+				case EConst(CIdent('Reflect')): patched ++; macro insanity.custom.InsanityReflect;
+				case EConst(CIdent('Type')): patched ++; macro insanity.custom.InsanityUnsafeType;
 				/* case EConst(CIdent('Std')): macro insanity.custom.InsanityStd;
 				bad performance issues ineed to resolve ? (either way not much point of using this one outside scripts ig)*/
 				default: expr.map(mapPatch);
@@ -60,8 +80,16 @@ class Patcher {
 			if (t == null) return null;
 			
 			var t = switch (t) {
-				case TPath(p) if (p.name == 'Class'): TPath({sub: 'InsanityClass', name: 'Patcher', pack: ['insanity', 'backend', 'macro'], params: p.params});
-				case TPath(p) if (p.name == 'Enum'): TPath({sub: 'InsanityEnum', name: 'Patcher', pack: ['insanity', 'backend', 'macro'], params: p.params});
+				case TPath(p) if (p.name == 'Class'):
+					patched ++;
+					patchedExtreme ++;
+					TPath({sub: 'InsanityClass', name: 'Patcher', pack: ['insanity', 'backend', 'macro'], params: p.params});
+					
+				case TPath(p) if (p.name == 'Enum'):
+					patched ++;
+					patchedExtreme ++;
+					TPath({sub: 'InsanityEnum', name: 'Patcher', pack: ['insanity', 'backend', 'macro'], params: p.params});
+					
 				default: t;
 			}
 			
@@ -184,6 +212,11 @@ class Patcher {
 	 * @return	Context fields
 	 */
 	public static macro function fixHLLongMethods():Array<Field> {
+		if (Context.defined('display')) return Context.getBuildFields();
+		
+		Insanity.beginLog('Applying Patcher.fixHLLongMethods');
+		Insanity.finishLog['Patcher.fixHLLongMethods'] ??= () -> 'Patched $patchedHL methods';
+		
 		var fields:Array<Field> = Context.getBuildFields();
 		
 		if (!Context.defined('hl')) return fields;
@@ -210,7 +243,13 @@ class Patcher {
 			switch (field.kind) {
 				default:
 				case FFun(fun) if (fun.args.length >= 9):
+					if (Insanity.isVerbose()) {
+						var path:Array<String> = cls.pack.copy(); path.push(cls.name);
+						
+						haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mPatcher.fixHLLongMethods${Insanity.ansiEsc}0m ${path.join('.')}.${field.name}', null);
+					}
 					// trace('fix ${cls.module+'.'+cls.name}.${field.name}');
+					patchedHL ++;
 					
 					final funName:String = 'insanityhl${field.name}';
 					final access:Array<Access> = (field.access?.copy() ?? []);
@@ -235,6 +274,231 @@ class Patcher {
 					if (field.name == 'new') access.push(AStatic);
 			}
 		}
+		
+		return fields;
+	}
+	
+	/**
+	 * 
+	 */
+	public static macro function buildHscript(exclude:Array<String>):Array<Field> {
+		if (Context.defined('display')) return Context.getBuildFields();
+		
+		if (Context.defined('insanity.noScriptableTypes')) {
+			Insanity.beginLog('${Insanity.ansiEsc}49;31mPatcher.buildHscript${Insanity.ansiEsc}0m Scriptable types were disabled in this project! Won\'t inject any classes', Insanity.blobError);
+			return Context.getBuildFields();
+		}
+		
+		Insanity.beginLog('Applying Patcher.buildHscript');
+		
+		var fields:Array<Field> = Context.getBuildFields();
+		var cls:ClassType = Context.getLocalClass()?.get();
+		var pos = Context.currentPos();
+		
+		if (cls == null || cls.meta.has(':coreApi') || cls.meta.has(':extern') || cls.meta.has(':hlNative') || cls.meta.has(':native') ||
+			cls.isInterface || cls.isExtern || cls.name.contains('_Fields_')) {
+			omitted ++;
+			
+			if (Insanity.isVerbose() && cls != null && !cls.isInterface && !cls.name.contains('_Fields_')) {
+				var path:Array<String> = cls.pack.copy(); path.push(cls.name);
+				
+				haxe.Log.trace('${Insanity.blobWarn} ${Insanity.ansiEsc}49;33mPatcher.buildHScript${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (${switch (cls) {
+					case _ if (cls.meta.has(':coreApi')): 'coreApi';
+					case _ if (cls.meta.has(':extern') || cls.isExtern): 'extern class';
+					case _ if (cls.meta.has(':hlNative')): 'hlNative';
+					case _ if (cls.meta.has(':native')): 'native';
+					default: '???';
+				}})', null);
+			}
+			
+			return fields;
+		}
+		switch (cls.pack[0]) {
+			case 'haxe' | 'hl' | 'cpp' | 'neko' | 'js' | 'cs' | 'lua' | 'php' | 'macro' | 'java' | 'flash' | 'python':
+				if (Insanity.isVerbose()) {
+					var path:Array<String> = cls.pack.copy(); path.push(cls.name);
+					
+					haxe.Log.trace('${Insanity.blobWarn} ${Insanity.ansiEsc}49;33mPatcher.buildHscript${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (internal)', null);
+				}
+				
+				return fields;
+				
+			case 'insanity' if (cls.name != 'InsanityDummyClass'):
+				if (Insanity.isVerbose()) {
+					var path:Array<String> = cls.pack.copy(); path.push(cls.name);
+					
+					haxe.Log.trace('${Insanity.blobWarn} ${Insanity.ansiEsc}49;33mPatcher.buildHscript${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (internal)', null);
+				}
+				
+				return fields;
+				
+			default:
+		}
+		switch (cls.kind) {
+			case KAbstractImpl(_): return fields;
+			default:
+		}
+		for (ex in exclude) {
+			if (cls.module.indexOf(ex) == 0) {
+				excluded ++;
+				
+				/*if (Insanity.isVerbose()) { thisones too obvious
+					var path:Array<String> = cls.pack.copy(); path.push(cls.name);
+					
+					haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mPatcher.buildHScript${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (exclusion $ex)', null);
+				}*/
+				
+				return fields;
+			}
+		}
+		
+		function classHasConstructor(ccls:ClassType):Bool {
+			var constr:ClassField = ccls?.constructor?.get();
+			
+			if (constr == null) return false;
+			
+			/* i fgiured out a class without a constructor FOR ITSELF actualy just uses the same pos as the entire class . kinda dirty but it gets the job done
+			(checking for .constructor isnt enough since haxe fills it in automatically?) */
+			return (Std.string(ccls.pos) != Std.string(constr.pos));
+		}
+		
+		var lastClassWithConstr:Null<ClassType> = (classHasConstructor(cls) ? cls : null);
+		var hasConstructor:Bool = false;
+		
+		var superClass = cls.superClass?.t.get();
+		var su = superClass;
+		
+		while (true) {
+			if (su == null) break;
+			if (su.isExtern || su.meta.has(':coreApi') || su.meta.has(':extern') || su.meta.has(':hlNative') || su.meta.has(':native')) return fields;
+			
+			switch (su.pack[0]) {
+				case 'haxe' | 'hl' | 'cpp' | 'neko' | 'js' | 'cs' | 'lua' | 'php' | 'macro' | 'java' | 'flash' | 'python' | 'insanity': return fields;
+				default:
+			}
+			for (ex in exclude) {
+				if (su.module.indexOf(ex) == 0)
+					return fields;
+			}
+			
+			lastClassWithConstr ??= (classHasConstructor(su) ? su : null);
+			
+			su = su?.superClass?.t.get();
+		}
+		
+		var expr:Array<Expr> = [];
+		var constrArgs:Array<FunctionArg> = [];
+		var constrParams:Null<Array<TypeParamDecl>> = null;
+		
+		function getName(cls:ClassType):String {
+			switch (cls.kind) {
+				case KGenericInstance(cl, params):
+					cls = cl.get();
+					
+				default:
+			}
+			
+			var pack:Array<String> = cls.pack.copy(); pack.push(cls.name);
+			
+			return pack.join('_');
+		}
+		
+		/*if (Insanity.isVerbose()) {
+			var path:Array<String> = cls.pack.copy(); path.push(cls.name);
+			
+			haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mPatcher.buildHscript${Insanity.ansiEsc}0m ${path.join('.')}', null);
+		}*/
+		
+		function mapConstructor(expr:Expr):Expr {
+			if (expr == null) return null;
+			
+			return switch (expr.expr) {
+				case ECall({pos: p, expr: EConst(CIdent('super'))}, params):
+					{pos: expr.pos, expr: ECall({pos: p, expr: EConst(CIdent('insanitySuper${getName(lastClassWithConstr)}'))}, params)};
+				
+				default:
+					expr.map(mapConstructor);
+			}
+		}
+		
+		for (field in fields) {
+			switch (field.kind) {
+				default:
+				
+				case FVar(t, e) if (field.access?.contains(AFinal) && !field.access.contains(AInline)):
+					field.kind = FProp('default', 'null', t, e);
+					field.access.remove(AFinal);
+					
+				case FFun(fun) if (field.name == 'new'):
+					var constr = mapConstructor(fun.expr);
+					switch (constr.expr) {
+						case EBlock(a): for (e in a) expr.push(e);
+						default: expr.push(constr);
+					};
+					constrParams = fun.params;
+					constrArgs = fun.args;
+					hasConstructor = true;
+					lastClassWithConstr = cls;
+			}
+		}
+		
+		for (field in fields) {
+			final f:String = field.name;
+			
+			for (meta in field.meta) {
+				if (meta.name != ':allow') continue;
+				
+				switch (meta.params[0].expr) {
+					case EField(e, f, a) if (f == 'new'):
+						field.meta.push({
+							pos: meta.pos,
+							name: ':allow',
+							params: [{
+								pos: meta.pos,
+								expr: EField(e, 'insanitySuper${e.toString().replace('.', '_')}', a) //gay
+							}]
+						});
+						
+					default:
+				}
+			}
+			
+			if (field?.access.contains(AStatic) || field?.access.contains(AInline)) continue;
+			if (field.meta?.exists((meta) -> meta.name == ':deprecated')) continue;
+			
+			switch (field.kind) {
+				default:
+				
+				case FProp(get, set, _, e) if (e != null && (set == 'set' || set == 'dynamic')):
+					expr.unshift(macro Reflect.setField(this, $v {f}, $e));
+				
+				case FProp(get, set, _, e) if (e != null && set != 'set' && set != 'never'):
+					expr.unshift(macro $i {f} = $e);
+				
+				case FVar(_, e) if (e != null):
+					// trace(field.name + ' = ' + e.toString());
+					expr.unshift(macro $i {f} = $e);
+			}
+		}
+		
+		if (hasConstructor || lastClassWithConstr == null) {
+			if (!hasConstructor) expr = [macro throw $v {'${cls.pack.join('.') + (cls.pack.length > 0 ? '.' : '') + cls.name} does not have a constructor'}];
+			
+			fields.push({
+				pos: pos,
+				name: 'insanitySuper${getName(cls)}',
+				
+				kind: FFun({
+					ret: macro:Void,
+					expr: macro $b {expr},
+					args: constrArgs,
+					params: constrParams
+				})
+			});
+		}
+		
+		cls.meta.add(':insanityScriptable', [macro false], pos);
+		cls.meta.add(':insanitySuperName', [macro $v {'insanitySuper${getName(hasConstructor ? cls : lastClassWithConstr ?? cls)}'}], pos);
 		
 		return fields;
 	}

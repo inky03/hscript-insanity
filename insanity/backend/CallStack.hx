@@ -7,9 +7,9 @@ import insanity.backend.Interp;
 	public var item:StackItem;
 }
 
-@:forward(length, shift, unshift)
+@:forward(length, push, pop)
 abstract CallStack(Array<Stack>) from Array<Stack> {
-	public inline function last() { return this[this.length - 1]; }
+	public inline function last() { return (this.length > 0 ? this[this.length - 1] : null); }
 	public inline function first() { return this[0]; }
 	
 	public function toString():String {
@@ -21,11 +21,11 @@ abstract CallStack(Array<Stack>) from Array<Stack> {
 		return b.toString();
 	}
 	
-	public function new() {
+	public inline function new() {
 		this = [];
 	}
 	
-	public function subtract(stack:CallStack):CallStack {
+	/*public function subtract(stack:CallStack):CallStack {
 		var startIndex = -1;
 		var i = -1;
 		while (++i < this.length) {
@@ -42,7 +42,7 @@ abstract CallStack(Array<Stack>) from Array<Stack> {
 			if (startIndex >= 0) break;
 		}
 		return (startIndex >= 0 ? this.slice(0, startIndex) : this);
-	}
+	}*/
 	
 	public inline function copy():CallStack {
 		return this.copy();

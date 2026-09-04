@@ -67,6 +67,9 @@ enum AbstractTypeCast {
 }
 
 class AbstractMacro {
+	static var generated:Int = 0;
+	static var omitted:Int = 0;
+	
 	static inline function typeName(t:Dynamic):String {
 		var path = t.pack.copy();
 		path.push(t.name);
@@ -89,6 +92,17 @@ class AbstractMacro {
 	}
 	
 	public static macro function build():Array<Field> {
+		if (Context.defined('display')) return Context.getBuildFields();
+		
+		Insanity.beginLog('Applying AbstractMacro.build');
+		Insanity.finishLog['AbstractMacro.build'] ??= () -> {
+			var str:String = 'Injected $generated abstracts';
+			
+			if (Insanity.isVerbose()) str += ' ($omitted omitted)';
+			
+			str;
+		}
+		
 		var pos = Context.currentPos();
 		var type = Context.getLocalType();
 		var fields = Context.getBuildFields();
@@ -102,22 +116,39 @@ class AbstractMacro {
 				
 				if (c.module == 'UInt') return fields; // akward
 				
-				switch (c.pack[0]) {
-					case 'haxe' | 'hl' | 'cpp' | 'neko' | 'js' | 'cs' | 'lua' | 'php' | 'macro' | 'java' | 'flash' | 'python':
-						return fields;
-						
-					default:
-				}
-				
 				switch (c.kind) {
 					case KAbstractImpl(a):
 						ab = a.get();
 						
-						if (ab.meta.has(':coreType'))
+						if (ab.meta.has(':coreType')) {
+							omitted ++;
+							
+							if (Insanity.isVerbose()) {
+								var path:Array<String> = ab.pack.copy(); path.push(ab.name);
+								
+								haxe.Log.trace('${Insanity.blobWarn} ${Insanity.ansiEsc}49;33mAbstractMacro.build${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (coreType)', null);
+							}
+							
 							return fields;
+						}
 						
 					default:
 						return fields;
+				}
+				
+				switch (c.pack[0]) {
+					case 'haxe' | 'hl' | 'cpp' | 'neko' | 'js' | 'cs' | 'lua' | 'php' | 'macro' | 'java' | 'flash' | 'python':
+						omitted ++;
+						
+						if (Insanity.isVerbose()) {
+							var path:Array<String> = ab.pack.copy(); path.push(ab.name);
+							
+							haxe.Log.trace('${Insanity.blobWarn} ${Insanity.ansiEsc}49;33mAbstractMacro.build${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (internal)', null);
+						}
+						
+						return fields;
+						
+					default:
 				}
 				
 			default:
@@ -126,6 +157,8 @@ class AbstractMacro {
 		
 		var path:Array<String> = ab.pack.copy();
 		path.push(ab.name);
+		
+		if (Insanity.isVerbose()) haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mAbstractMacro.build${Insanity.ansiEsc}0m ${path.join('.')}', null);
 		
 		var implPath:Array<String> = ab.module.split('.');
 		if (implPath.length > 0) implPath[implPath.length - 1] = '_${implPath[implPath.length - 1]}';
@@ -372,6 +405,7 @@ class AbstractMacro {
 		}
 		
 		c.meta.add(':insanityAbstractInfo', [macro $v {path.join('.')}, macro $v {haxe.Serializer.run(info)}], pos);
+		generated ++;
 		
 		return fields;
 	}

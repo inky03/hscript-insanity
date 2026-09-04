@@ -16,6 +16,8 @@ class TypeCollectionMacro {
 	static var _name:String = 'insanity.backend.macro.TypeCollectionMacro';
 	
 	public static macro function build() {
+		if (Context.defined('display')) return macro [];
+		
 		Context.onAfterTyping(function(types) {
 			var self = TypeTools.getClass(Context.getType(_name));
 			if (self.meta.has('typed')) return;
@@ -104,6 +106,8 @@ class TypeCollectionMacro {
 			
 			for (type in types)
 				map.push(getTypeInfo(type));
+			
+			if (Insanity.isVerbose()) Insanity.finishLog['TypeCollectionMacro.build'] = () -> 'Indexed ${map.length} type infos';
 			
 			self.meta.add('typed', [macro $v {haxe.Serializer.run(map)}], self.pos);
 			// Context.info('types registered !!', Context.currentPos());

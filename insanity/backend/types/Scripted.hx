@@ -16,9 +16,10 @@ using insanity.tools.Tools;
 using insanity.backend.TypeCollection;
 
 class ScriptedTools {
-	public static var scriptedClasses(default, never):Map<String, Class<IInsanityScripted>> = insanity.backend.macro.ScriptedMacro.listScriptedClasses();
+	public static var scriptedClasses(default, never):Map<String, Class<Dynamic>> = insanity.backend.macro.ScriptedMacro.listScriptableClasses();
 	
 	public static function resolve(t:Dynamic):Dynamic {
+		#if (insanity.scriptableTypes)
 		if (t is InsanityScriptedClass)
 			return cast t;
 		
@@ -27,10 +28,13 @@ class ScriptedTools {
 			return scriptedClasses.get(cls);
 		
 		throw 'Class $cls can\'t be extended for scripting';
+		#end
+		
 		return null;
 	}
 }
 
+#if (insanity.scriptableTypes)
 @:access(insanity.backend.Interp)
 @:access(insanity.backend.types.IInsanityScripted)
 class InsanityScriptedClass implements IInsanityType implements IInsanityInterp implements ICustomReflection implements ICustomClassType {
@@ -144,7 +148,7 @@ class InsanityScriptedClass implements IInsanityType implements IInsanityInterp 
 			
 			if (f == 'new') continue;
 			
-			if (insanity.backend.macro.ScriptedMacro.ignoreFields.contains(f)) {
+			if (insanity.backend.macro.ScriptedMacro.ignoreFields.exists(f)) {
 				throw 'Field $f reserved for internal use!!! - HScriptInsanity';
 			} else if (knownFields.contains(f)) {
 				throw 'Duplicate class field declaration: $name.$f';
@@ -250,16 +254,17 @@ class InsanityScriptedClass implements IInsanityType implements IInsanityInterp 
 				var cls = instanceClass;
 				if (cls == null) return;
 				
-				var instanceFields:Array<String> = (cls.instanceFields ?? Type.getInstanceFields(cast cls));
-				var inlinedFields:Array<String> = cls.inlinedFields;
-				var unexposedFields:Array<String> = cls.unexposedFields;
+				var instanceFields:Array<String> = (cls.instanceFields != null ? {
+					var map:Map<String, Bool> = cast cls.instanceFields;
+					[for (f in map.keys()) f];
+				} : Type.getInstanceFields(cast cls));
+				var inlinedFields:Map<String, Bool> = cls.inlinedFields;
 				
 				for (field in instanceFields) {
-					if (insanity.backend.macro.ScriptedMacro.ignoreFields.contains(field)) continue;
+					if (insanity.backend.macro.ScriptedMacro.ignoreFields.exists(field)) continue;
 					
 					if (overridingFields.contains(field)) {
-						if (inlinedFields?.contains(field)) { throw 'Field $field is inlined and cannot be overridden'; }
-						else if (unexposedFields?.contains(field)) { throw 'Field $field is unexposed and cannot be overridden'; }
+						if (inlinedFields?.exists(field)) { throw 'Field $field is inlined and cannot be overridden'; }
 						
 						if (!foundOverridingFields.contains(field))
 							foundOverridingFields.push(field);
@@ -492,8 +497,9 @@ class InsanityScriptedClass implements IInsanityType implements IInsanityInterp 
 	public function typeCreateInstance(arguments:Array<Dynamic>):Dynamic {
 		if (!initialized) throw 'Type $path is not initialized';
 		
-		var inst:IInsanityScripted = Type.createEmptyInstance(instanceClass);
-		inst.__construct(this, arguments);
+		var inst:Dynamic = Type.createEmptyInstance(instanceClass);
+		inst.insanityNew(this, arguments);
+		
 		return inst;
 	}
 	public function typeCreateEmptyInstance():Dynamic {
@@ -528,7 +534,7 @@ class InsanityScriptedClass implements IInsanityType implements IInsanityInterp 
 				}
 			} else if (c is Class) {
 				for (f in Type.getInstanceFields(c)) {
-					if (!fields.contains(f) && !insanity.backend.macro.ScriptedMacro.ignoreFields.contains(f))
+					if (!fields.contains(f) && !insanity.backend.macro.ScriptedMacro.ignoreFields.exists(f))
 						fields.push(f);
 				}
 			}
@@ -561,7 +567,7 @@ class InsanityScriptedClass implements IInsanityType implements IInsanityInterp 
 	public dynamic function onExpressionError(error:Dynamic, field:String, ?expr:Expr):Void {
 		trace('Error on field $field of $path: $error');
 	}
-	public dynamic function onInstanceError(error:Dynamic, fun:String, ?instance:IInsanityScripted):Void {
+	public dynamic function onInstanceError(error:Dynamic, fun:String, ?instance:Dynamic):Void {
 		trace('Error on function $fun of $path: $error');
 	}
 }
@@ -887,7 +893,7 @@ class InsanityScriptedInterface implements IInsanityType implements IInsanityInt
 				throw 'You can only declare static fields in extern interfaces';
 			} else if (field.access.contains(AOverride)) {
 				throw 'Invalid modifier: override on field of class that has no parent';
-			} else if (insanity.backend.macro.ScriptedMacro.ignoreFields.contains(f)) {
+			} else if (insanity.backend.macro.ScriptedMacro.ignoreFields.exists(f)) {
 				throw 'Field $f reserved for internal use!!! - HScriptInsanity';
 			} else if (knownFields.contains(f)) {
 				throw 'Duplicate class field declaration: $name.$f';
@@ -936,7 +942,7 @@ class InsanityScriptedInterface implements IInsanityType implements IInsanityInt
 				}
 			} else if (c is Class) {
 				for (f in Type.getInstanceFields(c)) {
-					if (!fields.contains(f) && !insanity.backend.macro.ScriptedMacro.ignoreFields.contains(f))
+					if (!fields.contains(f) && !insanity.backend.macro.ScriptedMacro.ignoreFields.exists(f))
 						fields.push(f);
 				}
 			}
@@ -969,7 +975,7 @@ class InsanityScriptedInterface implements IInsanityType implements IInsanityInt
 	public dynamic function onExpressionError(error:Dynamic, field:String, ?expr:Expr):Void {
 		trace('Error on field $field of $path: $error');
 	}
-	public dynamic function onInstanceError(error:Dynamic, fun:String, ?instance:IInsanityScripted):Void {
+	public dynamic function onInstanceError(error:Dynamic, fun:String, ?instance:Dynamic):Void {
 		trace('Error on function $fun of $path: $error');
 	}
 	
@@ -1106,7 +1112,7 @@ class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityInte
 		for (field in decl.fields) {
 			final f:String = field.name;
 			
-			if (f != 'new' && insanity.backend.macro.ScriptedMacro.ignoreFields.contains(f)) {
+			if (f != 'new' && insanity.backend.macro.ScriptedMacro.ignoreFields.exists(f)) {
 				throw 'Field $f reserved for internal use!!! - HScriptInsanity';
 			} else if (knownFields.contains(f)) {
 				throw 'Duplicate abstract field declaration: $name.$f';
@@ -1349,7 +1355,7 @@ class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityInte
 	public dynamic function onExpressionError(error:Dynamic, field:String, ?expr:Expr):Void {
 		trace('Error on field $field of $path: $error');
 	}
-	public dynamic function onInstanceError(error:Dynamic, fun:String, ?instance:IInsanityScripted):Void {
+	public dynamic function onInstanceError(error:Dynamic, fun:String, ?instance:Dynamic):Void {
 		trace('Error on function $fun of $path: $error');
 	}
 }
@@ -1433,13 +1439,27 @@ class InsanityScriptedAbstractValue extends InsanityAbstractValue {
 	}
 }
 
-class InsanityDummyClass implements IInsanityScripted {
-	public function new() {}
-}
+class InsanityDummyClass {}
 
 interface IInsanityInterp {
 	public var interp:Interp;
 }
+
+@:autoBuild(insanity.backend.macro.ScriptedMacro.build())
+interface IInsanityScripted extends ICustomReflection extends ICustomClassType {
+	private var __scriptedBase:InsanityScriptedClass;
+	private var __interp:insanity.backend.Interp;
+	private var __interpSafe:Bool;
+	// private var __vars:Map<String, insanity.backend.Interp.Variable>;
+	
+	private var __func:String;
+	private var __fields:Array<String>;
+}
+
+enum Defer {
+	DDefer;
+}
+#end
 
 interface IInsanityType {
 	public var name:String;
@@ -1453,21 +1473,4 @@ interface IInsanityType {
 	
 	public function init(?env:Environment, ?baseInterp:Interp, restore:Bool = true):Void;
 	public function snapshot():Void;
-}
-
-@:autoBuild(insanity.backend.macro.ScriptedMacro.build())
-interface IInsanityScripted extends ICustomReflection extends ICustomClassType {
-	private var __base:InsanityScriptedClass;
-	private var __interp:insanity.backend.Interp;
-	private var __vars:Map<String, insanity.backend.Interp.Variable>;
-	
-	private var __safe:Bool;
-	private var __func:String;
-	private var __fields:Array<String>;
-	
-	private function __construct(base:InsanityScriptedClass, arguments:Array<Dynamic>):Void;
-}
-
-enum Defer {
-	DDefer;
 }
