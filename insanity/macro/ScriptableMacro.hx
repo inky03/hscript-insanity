@@ -590,7 +590,11 @@ class ScriptableMacro {
 		if (filter != null) {
 			var path:Array<String> = cls.pack.copy(); path.push(cls.name);
 			
-			if (!filter(path.join('.'))) return null;
+			if (!filter(path.join('.'))) {
+				excluded ++;
+				
+				return null;
+			}
 		}
 		
 		function classHasConstructor(ccls:ClassType):Bool {
