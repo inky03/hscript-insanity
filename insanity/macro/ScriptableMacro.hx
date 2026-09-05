@@ -30,13 +30,14 @@ class ScriptableMacro {
 	 * 
 	 * @param	exclude		Classes with paths starting with the specified prefixes, and all of their subclasses, will be ignored
 	 * @param	unless		Classes with paths starting with the specified prefixes will be unexcluded, if you need to cherry pick (This won't work in subclasses of ignored classes!)
+	 * @param	filter		Function to filter classes, if you need to cherry pick. The compile path of the class will be passed to this function. Returning `false` will exclude the class
 	 * @param	evil		Whether to allow scripted classes to override inlined fields or not.
 	 * @param	superEvil	Whether to allow scripted classes to extend private classes or not.
 	 * 
 	 * @return	Context fields
 	 */
 	@:access(insanity.macro.Patcher)
-	public static macro function buildScriptable(?exclude:Array<String>, ?unless:Array<String>, evil:Bool = false, superEvil:Bool = false):Array<Field> {
+	public static macro function buildScriptable(?exclude:Array<String>, ?unless:Array<String>, ?filter:String -> Bool, evil:Bool = false, superEvil:Bool = false):Array<Field> {
 		if (Context.defined('display')) return Context.getBuildFields();
 		
 		if (Context.defined('insanity.noScriptableTypes')) {
@@ -53,7 +54,7 @@ class ScriptableMacro {
 			str;
 		};
 		
-		var fields:Array<Field> = buildHscript(exclude ?? [], unless ?? []);
+		var fields:Array<Field> = buildHscript(exclude ?? [], unless ?? [], filter);
 		if (fields == null) return Context.getBuildFields();
 		
 		var cls = Context.getLocalClass()?.get();
@@ -519,7 +520,7 @@ class ScriptableMacro {
 	
 	static var omitted:Int = 0;
 	static var excluded:Int = 0;
-	static function buildHscript(exclude:Array<String>, unless:Array<String>):Array<Field> {
+	static function buildHscript(exclude:Array<String>, unless:Array<String>, ?filter:String -> Bool):Array<Field> {
 		if (Context.defined('display')) return Context.getBuildFields();
 		
 		var fields:Array<Field> = Context.getBuildFields();
@@ -583,8 +584,13 @@ class ScriptableMacro {
 				
 				excluded ++;
 				
-				return fields;
+				return null;
 			}
+		}
+		if (filter != null) {
+			var path:Array<String> = cls.pack.copy(); path.push(cls.name);
+			
+			if (!filter(path.join('.'))) return null;
 		}
 		
 		function classHasConstructor(ccls:ClassType):Bool {
