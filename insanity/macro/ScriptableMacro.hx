@@ -527,11 +527,24 @@ class ScriptableMacro {
 		var cls:ClassType = Context.getLocalClass()?.get();
 		var pos = Context.currentPos();
 		
-		if (cls == null || cls.meta.has(':coreApi') || cls.meta.has(':extern') || cls.meta.has(':hlNative') || cls.meta.has(':native') ||
-			cls.isInterface || cls.isExtern || cls.name.contains('_Fields_')) {
+		if (cls == null || cls.isInterface || cls.meta.has(':insanityScriptable')) return null;
+		switch (cls.kind) {
+			case KAbstractImpl(_): return null;
+			default:
+		}
+		if (filter != null) {
+			var path:Array<String> = cls.pack.copy(); path.push(cls.name);
+			
+			if (!filter(path.join('.'))) {
+				excluded ++;
+				
+				return null;
+			}
+		}
+		if (cls.meta.has(':coreApi') || cls.meta.has(':extern') || cls.meta.has(':hlNative') || cls.meta.has(':native') || cls.isExtern || cls.name.contains('_Fields_')) {
 			omitted ++;
 			
-			if (Insanity.isVerbose() && cls != null && !cls.isInterface && !cls.name.contains('_Fields_')) {
+			if (Insanity.isVerbose() && !cls.name.contains('_Fields_')) {
 				var path:Array<String> = cls.pack.copy(); path.push(cls.name);
 				
 				haxe.Log.trace('${Insanity.blobWarn} ${Insanity.ansiEsc}49;33mScriptableMacro.buildHScript${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (${switch (cls) {
@@ -545,7 +558,18 @@ class ScriptableMacro {
 			
 			return null;
 		}
-		if (cls.meta.has(':insanityScriptable')) return null;
+		for (ex in exclude) {
+			if (cls.module.indexOf(ex) == 0) {
+				for (un in unless) {
+					if (cls.module.indexOf(un) == 0)
+						break;
+				}
+				
+				excluded ++;
+				
+				return null;
+			}
+		}
 		switch (cls.pack[0]) {
 			case 'haxe' | 'hl' | 'cpp' | 'neko' | 'js' | 'cs' | 'lua' | 'php' | 'macro' | 'java' | 'flash' | 'python':
 				omitted ++;
@@ -570,31 +594,6 @@ class ScriptableMacro {
 				return null;
 				
 			default:
-		}
-		switch (cls.kind) {
-			case KAbstractImpl(_): return null;
-			default:
-		}
-		for (ex in exclude) {
-			if (cls.module.indexOf(ex) == 0) {
-				for (un in unless) {
-					if (cls.module.indexOf(un) == 0)
-						break;
-				}
-				
-				excluded ++;
-				
-				return null;
-			}
-		}
-		if (filter != null) {
-			var path:Array<String> = cls.pack.copy(); path.push(cls.name);
-			
-			if (!filter(path.join('.'))) {
-				excluded ++;
-				
-				return null;
-			}
 		}
 		
 		function classHasConstructor(ccls:ClassType):Bool {
@@ -631,19 +630,16 @@ class ScriptableMacro {
 				return null;
 			}
 			
-			switch (su.pack[0]) {
-				case 'haxe' | 'hl' | 'cpp' | 'neko' | 'js' | 'cs' | 'lua' | 'php' | 'macro' | 'java' | 'flash' | 'python' | 'insanity':
-					omitted ++;
-					
-					if (Insanity.isVerbose()) {
-						var path:Array<String> = cls.pack.copy(); path.push(cls.name);
-						
-						haxe.Log.trace('${Insanity.blobWarn} ${Insanity.ansiEsc}49;33mScriptableMacro.buildHscript${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (extends internal)', null);
-					}
-					
-					return null;
-					
-				default:
+			var supath:Array<String> = su.pack.copy(); supath.push(su.name);
+			
+			if (filter != null && !filter(supath.join('.'))) {
+				omitted ++;
+				
+				var path:Array<String> = cls.pack.copy(); path.push(cls.name);
+				
+				haxe.Log.trace('${Insanity.blobWarn} ${Insanity.ansiEsc}49;33mScriptableMacro.buildHscript${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (extends exclusion ${supath.join('.')})', null);
+				
+				return null;
 			}
 			for (ex in exclude) {
 				if (su.module.indexOf(ex) == 0) {
@@ -657,11 +653,25 @@ class ScriptableMacro {
 					if (Insanity.isVerbose()) {
 						var path:Array<String> = cls.pack.copy(); path.push(cls.name);
 						
-						haxe.Log.trace('${Insanity.blobWarn} ${Insanity.ansiEsc}49;33mScriptableMacro.buildHscript${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (extends exclusion)', null);
+						haxe.Log.trace('${Insanity.blobWarn} ${Insanity.ansiEsc}49;33mScriptableMacro.buildHscript${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (extends exclusion ${supath.join('.')})', null);
 					}
 					
 					return null;
 				}
+			}
+			switch (su.pack[0]) {
+				case 'haxe' | 'hl' | 'cpp' | 'neko' | 'js' | 'cs' | 'lua' | 'php' | 'macro' | 'java' | 'flash' | 'python' | 'insanity':
+					omitted ++;
+					
+					if (Insanity.isVerbose()) {
+						var path:Array<String> = cls.pack.copy(); path.push(cls.name);
+						
+						haxe.Log.trace('${Insanity.blobWarn} ${Insanity.ansiEsc}49;33mScriptableMacro.buildHscript${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (extends internal)', null);
+					}
+					
+					return null;
+					
+				default:
 			}
 			
 			lastClassWithConstr ??= (classHasConstructor(su) ? su : null);

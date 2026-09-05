@@ -35,9 +35,9 @@ class InsanityStd {
 	
 	public static inline function isOfType(v:Dynamic, t:Dynamic):Bool {
 		if (t is InsanityScriptedClass) {
-			return (v is IScripted ? __scriptedIsScripted(v.__base, t) : false);
+			return (v is insanity.backend.types.Scripted.IInsanityScripted ? __scriptedIsScripted(v.__base, t) : false);
 		} else {
-			return (v is IScripted ? __scriptedIs(v.__base, t) : Std.isOfType(v, t));
+			return (v is insanity.backend.types.Scripted.IInsanityScripted ? __scriptedIs(v.__base, t) : Std.isOfType(v, t));
 		}
 	}
 	
