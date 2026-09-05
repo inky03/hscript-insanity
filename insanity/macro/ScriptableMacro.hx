@@ -69,7 +69,7 @@ class ScriptableMacro {
 				if (Insanity.isVerbose()) {
 					var path:Array<String> = cls.pack.copy(); path.push(cls.name);
 					
-					haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mScriptableMacro.buildScriptable${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (private class)', null);
+					haxe.Log.trace('${Insanity.blobWarn} ${Insanity.ansiEsc}49;33mScriptableMacro.buildScriptable${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (private class)', null);
 				}
 				
 				// trace('private ${cls.pack.join('.') + '.' + cls.name}');
@@ -83,7 +83,7 @@ class ScriptableMacro {
 					if (Insanity.isVerbose()) {
 						var path:Array<String> = cls.pack.copy(); path.push(cls.name);
 						
-						haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mScriptableMacro.buildScriptable${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (generic class)', null);
+						haxe.Log.trace('${Insanity.blobWarn} ${Insanity.ansiEsc}49;33mScriptableMacro.buildScriptable${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (generic class)', null);
 					}
 					
 					return false;
@@ -122,7 +122,7 @@ class ScriptableMacro {
 				if (Insanity.isVerbose()) {
 					var path:Array<String> = cls.pack.copy(); path.push(cls.name);
 					
-					haxe.Log.trace('${Insanity.blob} ${Insanity.ansiEsc}49;32mScriptableMacro.buildScriptable${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (extends private class)', null);
+					haxe.Log.trace('${Insanity.blobWarn} ${Insanity.ansiEsc}49;33mScriptableMacro.buildScriptable${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (extends private class)', null);
 				}
 				
 				return fields;
@@ -167,7 +167,11 @@ class ScriptableMacro {
 			switch (field.kind) {
 				default:
 				case FFun(fun) if (!isStatic):
-					// trace(f + ' - ' + field.access);
+					for (meta in field.meta) {
+						if (meta.name == ':nullSafety')
+							field.meta.remove(meta);
+					}
+					
 					var isVoid:Bool = (fun.ret == null || fun.ret.match(TPath({name: 'Void', pack: _})));
 					
 					if (isVoid) {
@@ -498,7 +502,7 @@ class ScriptableMacro {
 			final fname:String = $v {field};
 			
 			if (__isScripted && __func != fname && __interp.locals.exists(fname)) {
-				final prevFunc:String = __func;
+				final prevFunc:Null<String> = __func;
 				__func = fname; // prevent loop
 				
 				var r:Dynamic = null;
@@ -784,6 +788,7 @@ class ScriptableMacro {
 			});
 		}
 		
+		cls.meta.remove(':nullSafety');
 		cls.meta.add(':insanityScriptable', [macro false], pos);
 		cls.meta.add(':insanitySuperName', [macro $v {'insanitySuper${getName(hasConstructor ? cls : lastClassWithConstr ?? cls)}'}], pos);
 		
