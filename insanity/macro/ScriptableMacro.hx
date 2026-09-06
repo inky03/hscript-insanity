@@ -16,7 +16,8 @@ class ScriptableMacro {
 	public static var ignoreFields:Map<String, Bool> = [for (f in [
 		'reflectHasField', 'reflectGetField', 'reflectSetField', 'reflectListFields', 'reflectGetProperty', 'reflectSetProperty',
 		'typeCreateInstance', 'typeGetClass', 'typeGetClassFields', 'typeCreateEmptyInstance', 'typeGetInstanceFields',
-		'__isScripted', '__scriptedBase', '__interpSafe', '__interp', '__func', '__fields', '__vars', '__instanceFields','instanceFields', 'inlinedFields', 'new', 'super'
+		'__isScripted', '__scriptedBase', '__interpSafe', '__interp', '__func', '__fields', '__vars', '__instanceFields', 'instanceFields', 'inlinedFields',
+		'new', 'super', 'insanityInitFields', 'insanityFieldsInit'
 	]) f => true];
 	
 	static var scriptableClasses:Array<String> = [];
@@ -726,12 +727,20 @@ class ScriptableMacro {
 						case EBlock(a): for (e in a) expr.push(e);
 						default: expr.push(constr);
 					};
+					expr.unshift(
+						macro if (!insanityFieldsInit) {
+							insanityInitFields();
+							insanityFieldsInit = true;
+						}
+					);
 					constrParams = fun.params;
 					constrArgs = fun.args;
 					hasConstructor = true;
 					lastClassWithConstr = cls;
 			}
 		}
+		
+		var setters:Array<Expr> = [];
 		
 		for (field in fields) {
 			final f:String = field.name;
@@ -761,24 +770,41 @@ class ScriptableMacro {
 				default:
 				
 				case FProp(get, set, _, e) if (e != null && (set == 'set' || set == 'dynamic')):
-					expr.unshift(macro Reflect.setField(this, $v {f}, $e));
+					setters.push(macro Reflect.setField(this, $v {f}, $e));
 				
 				case FProp(get, set, _, e) if (e != null && set != 'set' && set != 'never'):
-					expr.unshift(macro $i {f} = $e);
+					setters.push(macro $i {f} = $e);
 				
 				case FVar(_, e) if (e != null):
 					// trace(field.name + ' = ' + e.toString());
-					expr.unshift(macro $i {f} = $e);
+					setters.push(macro $i {f} = $e);
 			}
 		}
+		
+		if (superClass != null) {
+			setters.push(macro super.insanityInitFields());
+		} else {
+			fields.push({
+				pos: pos, name:'insanityFieldsInit',
+				kind: FVar(macro:Bool, macro false)
+			});
+		}
+		
+		fields.push({
+			pos: pos, name: 'insanityInitFields',
+			access: (superClass == null ? [] : [AOverride]),
+			kind: FFun({
+				ret: macro:Void,
+				expr: macro $b {setters},
+				args: []
+			})
+		});
 		
 		if (hasConstructor || lastClassWithConstr == null) {
 			if (!hasConstructor) expr = [macro throw $v {'${cls.pack.join('.') + (cls.pack.length > 0 ? '.' : '') + cls.name} does not have a constructor'}];
 			
 			fields.push({
-				pos: pos,
-				name: 'insanitySuper${getName(cls)}',
-				
+				pos: pos, name: 'insanitySuper${getName(cls)}',
 				kind: FFun({
 					ret: macro:Void,
 					expr: macro $b {expr},
