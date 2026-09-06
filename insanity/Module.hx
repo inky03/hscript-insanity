@@ -206,8 +206,9 @@ class Module {
 	 * @param	environment		The `Environment` to use for this module.
 	 */
 	public function init(?environment:Environment):Void { // forgot why i separated init and start actually... merge?
-		interp.environment = environment;
+		interp.environment = null;
 		setDefaults();
+		interp.environment = environment;
 		
 		if (environment != null) {
 			for (k => v in environment.variables)
