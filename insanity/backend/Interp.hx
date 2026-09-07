@@ -1185,8 +1185,9 @@ class Interp {
 	 * This function is called when a function created by the interpreter encounters an exception (when `safeFunctions` is on).
 	 * Can be overridden to execute custom behavior.
 	 * 
-	 * @param	exception		The exception that caused the parsing to halt.
-	 * @param	functionName	The name of the function where 
+	 * @param	exception		The exception that occurred during the function.
+	 * @param	functionName	The name of the function where the exception occurred (if any).
+	 * @param	functionId		The numerical ID of the function where the exception occurred.
 	 */
 	public dynamic function onFunctionError(exception:haxe.Exception, functionName:Null<String>, functionId:Int):Void {
 		trace('Error in function ${functionName ?? '#$functionId'}: $exception');
