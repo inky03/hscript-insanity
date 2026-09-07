@@ -120,7 +120,7 @@ class AbstractMacro {
 					case KAbstractImpl(a):
 						ab = a.get();
 						
-						if (ab.meta.has(':coreType')) {
+						if (ab.meta.has(':coreType') || ab.meta.has(':coreApi')) {
 							omitted ++;
 							
 							if (Insanity.isVerbose()) {
@@ -134,21 +134,6 @@ class AbstractMacro {
 						
 					default:
 						return fields;
-				}
-				
-				switch (c.pack[0]) {
-					case 'haxe' | 'hl' | 'cpp' | 'neko' | 'js' | 'cs' | 'lua' | 'php' | 'macro' | 'java' | 'flash' | 'python':
-						omitted ++;
-						
-						if (Insanity.isVerbose()) {
-							var path:Array<String> = ab.pack.copy(); path.push(ab.name);
-							
-							haxe.Log.trace('${Insanity.blobWarn} ${Insanity.ansiEsc}49;33mAbstractMacro.build${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (internal)', null);
-						}
-						
-						return fields;
-						
-					default:
 				}
 				
 			default:
@@ -326,7 +311,12 @@ class AbstractMacro {
 								
 								switch (meta.params[0].expr) {
 									case EBinop(binop, _, _):
-										op = ABinop(printer.printBinop(binop), typeToAbstractTypeCast(fun.args[isStatic ? 1 : 0].type.toType()));
+										var t = try {
+											fun.args[isStatic ? 1 : 0].type.toType();
+										} catch (e) {
+											(macro:Dynamic).toType();
+										}
+										op = ABinop(printer.printBinop(binop), typeToAbstractTypeCast(t));
 									
 									case EUnop(unop, postFix, _):
 										op = AUnop(printer.printUnop(unop), postFix);
