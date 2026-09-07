@@ -119,6 +119,13 @@ class Interp {
 	 * If not, "Too many arguments" exceptions will be able to thrown.
 	 */
 	public var argumentOverflow:Bool = Config.argumentOverflow;
+	/**
+	 * Whether functions created by this interpreter can throw exceptions or not.
+	 * If not, `onFunctionError` will be called everytime a function encounters one.
+	 * 
+	 * This may be useful to prevent program crashes when passing functions of this interpreter.
+	 */
+	public var safeFunctions:Bool = false;
 	
 	var inTry : Bool;
 	var metas : Metadata = [];
@@ -709,13 +716,17 @@ class Interp {
 		}
 	}
 
-	function error(e:Error, rethrow:Bool = false):Dynamic {
+	function error(e:Error, rethrow:Bool = false, doThrow:Bool = true):Dynamic {
 		pushStack();
 		
 		var exception:InterpException = new InterpException(stack, Printer.errorToString(e));
-		if (rethrow) this.rethrow(exception) else throw exception;
+		if (rethrow) {
+			this.rethrow(exception);
+		} else if (doThrow) {
+			throw exception;
+		}
 		
-		return null;
+		return exception;
 	}
 
 	inline function rethrow( e : Dynamic ) {
@@ -1058,6 +1069,7 @@ class Interp {
 	 * @param	params			The arguments of this function.
 	 * @param	fexpr			The function's expression.
 	 * @param	ret				The function's return type. This is used for abstract type casting.
+	 * @param	id				The function's numerical ID.
 	 * @param	functionLocals	For internal use
 	 * @param	su				For internal use
 	 * @return	The generated function.
@@ -1087,9 +1099,9 @@ class Interp {
 					break;
 				}
 				
-				error(ECustom('Not enough arguments, expected ${expect.name}' + (expect.t == null ? '' : ':${new Printer().typeToString(expect.t)}')));
+				error(ECustom('Not enough arguments, expected ${expect.name}' + (expect.t == null ? '' : ':${new Printer().typeToString(expect.t)}')), false, !safeFunctions);
 			} else if (!hasRest && !argumentOverflow && args.length > params.length) {
-				error(ECustom('Too many arguments'));
+				error(ECustom('Too many arguments'), false, !safeFunctions);
 			}
 			
 			final old:Int = declared.length;
@@ -1119,15 +1131,24 @@ class Interp {
 			}
 			
 			var r:Dynamic = null;
-			if (inTry || otherTry) {
+			if (inTry || otherTry || safeFunctions) {
 				final oldTry:Bool = otherTry;
 				otherTry = true;
 				
 				try {
 					r = tryCast(exprReturn(fexpr), ret, true);
 				} catch (e) {
+					if (functionLocals != null) restore(old);
 					shiftStack(functionLocals == null);
-					rethrow(e);
+					
+					superConstructorAllowed = false;
+					
+					if (safeFunctions) {
+						onFunctionError(e, name, id);
+						return null;
+					} else {
+						rethrow(e);
+					}
 				}
 				
 				otherTry = oldTry;
@@ -1158,6 +1179,17 @@ class Interp {
 		}
 		
 		return f;
+	}
+	
+	/**
+	 * This function is called when a function created by the interpreter encounters an exception (when `safeFunctions` is on).
+	 * Can be overridden to execute custom behavior.
+	 * 
+	 * @param	exception		The exception that caused the parsing to halt.
+	 * @param	functionName	The name of the function where 
+	 */
+	public dynamic function onFunctionError(exception:haxe.Exception, functionName:Null<String>, functionId:Int):Void {
+		trace('Error in function ${functionName ?? '#$functionId'}: $exception');
 	}
 	
 	var _advancedResolve:Array<Expr> = [];
@@ -1519,7 +1551,15 @@ class Interp {
 		case ENew(cl,params):
 			return cnew(cl, [for (e in params) expr(e)]);
 		case EThrow(e):
-			throw expr(e);
+			var r = expr(e);
+			
+			if (r is haxe.Exception) {
+				throw r;
+			} else {
+				pushStack();
+				
+				throw new InterpException(stack, Std.string(r));
+			}
 		case ETry(e,n,_,ecatch):
 			var old = declared.length;
 			var oldTry = inTry;

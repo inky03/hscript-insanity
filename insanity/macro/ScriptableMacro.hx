@@ -366,6 +366,9 @@ class ScriptableMacro {
 		}, {
 			pos: pos, access: [AStatic, APublic], name: 'inlinedFields',
 			kind: FVar(macro:Map<String, Bool>, macro $v {inlinedFields})
+		}, {
+			pos: pos, access: [AStatic], name: '__baseClassString',
+			kind: FVar(macro:String, macro $v {path.join('.')})
 		}]);
 		
 		if (addFields) {

@@ -212,13 +212,13 @@ class InsanityScriptedClass implements IInsanityType implements IInsanityInterp 
 						signal.push(function(_) {
 							try {
 								interp.locals.get(f).r = interp.exprReturn(v.expr, v.type);
-							} catch (e:haxe.Exception) {
+							} catch (e) {
 								onExpressionError(e, f, v.expr);
 							}
 							
 							return false;
 						});
-					} catch (e:haxe.Exception) {
+					} catch (e) {
 						onExpressionError(e, f, v.expr);
 					}
 			}
@@ -270,7 +270,7 @@ class InsanityScriptedClass implements IInsanityType implements IInsanityInterp 
 						if (!foundOverridingFields.contains(field))
 							foundOverridingFields.push(field);
 					} else if (knownFields.contains(field)) {
-						throw 'Field $field should be declared with \'override\' since it is inherited from superclass ${cls.getBaseClass()}';
+						throw 'Field $field should be declared with \'override\' since it is inherited from superclass ${cls.__baseClassString}';
 					}
 				}
 			}
@@ -565,11 +565,11 @@ class InsanityScriptedClass implements IInsanityType implements IInsanityInterp 
 		return [for (field in __vars.keys()) field];
 	}
 	
-	public dynamic function onExpressionError(error:Dynamic, field:String, ?expr:Expr):Void {
-		trace('Error on field $field of $path: $error');
+	public dynamic function onExpressionError(exception:haxe.Exception, field:String, ?expr:Expr):Void {
+		trace('Error on field $field of $path: $exception');
 	}
-	public dynamic function onInstanceError(error:Dynamic, fun:String, ?instance:Dynamic):Void {
-		trace('Error on function $fun of $path: $error');
+	public dynamic function onInstanceError(exception:haxe.Exception, fun:String, ?instance:Dynamic):Void {
+		trace('Error on function $fun of $path: $exception');
 	}
 }
 
@@ -973,13 +973,6 @@ class InsanityScriptedInterface implements IInsanityType implements IInsanityInt
 		return [];
 	}
 	
-	public dynamic function onExpressionError(error:Dynamic, field:String, ?expr:Expr):Void {
-		trace('Error on field $field of $path: $error');
-	}
-	public dynamic function onInstanceError(error:Dynamic, fun:String, ?instance:Dynamic):Void {
-		trace('Error on function $fun of $path: $error');
-	}
-	
 	public function snapshot():Void {}
 }
 
@@ -1353,11 +1346,11 @@ class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityInte
 		return ab;
 	}
 	
-	public dynamic function onExpressionError(error:Dynamic, field:String, ?expr:Expr):Void {
-		trace('Error on field $field of $path: $error');
+	public dynamic function onExpressionError(exception:Dynamic, field:String, ?expr:Expr):Void {
+		trace('Error on field $field of $path: $exception');
 	}
-	public dynamic function onInstanceError(error:Dynamic, fun:String, ?instance:Dynamic):Void {
-		trace('Error on function $fun of $path: $error');
+	public dynamic function onInstanceError(exception:Dynamic, fun:String, ?instance:Dynamic):Void {
+		trace('Error on function $fun of $path: $exception');
 	}
 }
 
