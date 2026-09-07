@@ -245,10 +245,10 @@ class Printer {
 				add("break");
 			case EContinue:
 				add("continue");
-			case EFunction(params, e, name, ret):
+			case EFunction(params, e, name, ret, _, tParams):
 				add("function");
-				if( name != null )
-					add(" " + name);
+				if (name != null) add(' $name');
+				if (tParams != null) typeParams(tParams);
 				add("(");
 				var first = true;
 				for( a in params ) {

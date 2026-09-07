@@ -811,7 +811,7 @@ class Parser {
 			default: push(tk);
 			}
 			var inf = parseFunctionDecl();
-			mk(EFunction(inf.args, inf.body, name, inf.ret, (name == null ? ++ fid : null)),p1,pmax(inf.body));
+			mk(EFunction(inf.args, inf.body, name, inf.ret, (name == null ? ++ fid : null), inf.params),p1,pmax(inf.body));
 		case "return":
 			var tk = token();
 			push(tk);
@@ -1103,7 +1103,7 @@ class Parser {
 			body = parseExpr();
 		}
 		
-		return { args : args, ret : ret, body : body, params : parseParams() };
+		return { args : args, ret : ret, body : body, params : params };
 	}
 
 	function parsePath() {
@@ -1187,13 +1187,19 @@ class Parser {
 				switch( t ) {
 				case TBrClose: break;
 				case TId("var"), TId("final"):
+					var maybe = maybe(TQuestion);
 					var name = getIdent();
 					ensure(TDoubleDot);
 					if( t.match(TId("final")) ) {
-						if( meta == null ) meta = [];
+						meta ??= [];
 						meta.push({ name : ":final", params : [] });
 					}
-					fields.push( { name : name, t : parseType(), meta : meta } );
+					var t = parseType();
+					if (maybe) {
+						meta ??= [];
+						meta.push({ name : ":optional", params : [] });
+					}
+					fields.push( { name : name, t : t, meta : meta } );
 					meta = null;
 					ensure(TSemicolon);
 				case TId(name):
