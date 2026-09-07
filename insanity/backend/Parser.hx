@@ -98,8 +98,8 @@ class Parser {
 	var currentPos(get,never) : Int;
 
 	var char : Int;
-	var ops : Array<Bool>;
-	var idents : Array<Bool>;
+	var ops : Map<Int, Bool>;
+	var idents : Map<Int, Bool>;
 	var fid : Int = 0;
 	var uid : Int = 0;
 	
@@ -179,8 +179,8 @@ class Parser {
 		tokens = new List();
 		offset = pos;
 		char = -1;
-		ops = new Array();
-		idents = new Array();
+		ops = new Map();
+		idents = new Map();
 		fid = uid = 0;
 		for( i in 0...opChars.length )
 			ops[opChars.charCodeAt(i)] = true;
@@ -2033,10 +2033,9 @@ class Parser {
 					this.columnOffset = colOffset;
 					return TDot;
 				}
-			case "~".code:
-				char = readChar();
-				if (char == "/".code) return parseRegex();
-				invalidChar(char);
+			case "~".code if (StringTools.fastCodeAt(input, readPos) == '/'.code):
+				readPos ++;
+				return parseRegex();
 			case "{".code: return TBrOpen;
 			case "}".code: return TBrClose;
 			case "[".code: return TBkOpen;
