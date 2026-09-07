@@ -50,7 +50,18 @@ class Printer {
 	}
 
 	inline function add<T>(s:T) buf.add(s);
-
+	
+	function typeParams(params:Null<Array<CType>>):Void {
+		if (params == null) return;
+		
+		add("<");
+		var first = true;
+		for( p in params ) {
+			if( first ) first = false else add(", ");
+			type(p);
+		}
+		add(">");
+	}
 	function type( t : CType ) {
 		switch( t ) {
 		case CTOpt(t):
@@ -58,15 +69,7 @@ class Printer {
 			type(t);
 		case CTPath(path, params):
 			add(path.join("."));
-			if( params != null ) {
-				add("<");
-				var first = true;
-				for( p in params ) {
-					if( first ) first = false else add(", ");
-					type(p);
-				}
-				add(">");
-			}
+			typeParams(params);
 		case CTNamed(name, t):
 			add(name);
 			add(':');
@@ -282,8 +285,10 @@ class Printer {
 					expr(e);
 				}
 				add("]");
-			case ENew(cl, args):
-				add("new " + cl + "(");
+			case ENew(cl, args, tParams):
+				add('new $cl');
+				typeParams(tParams);
+				add('(');
 				var first = true;
 				for( e in args ) {
 					if( first ) first = false else add(", ");

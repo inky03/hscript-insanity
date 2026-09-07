@@ -1549,7 +1549,7 @@ class Interp {
 				return arr.op(AArray(false, AbstractTools.getAbstractTypeCast(index), null), null, index);
 			
 			return arr[index];
-		case ENew(cl,params):
+		case ENew(cl,params,_):
 			return cnew(cl, [for (e in params) expr(e)]);
 		case EThrow(e):
 			var r = expr(e);

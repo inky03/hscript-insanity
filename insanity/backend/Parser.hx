@@ -818,10 +818,16 @@ class Parser {
 			var e = if( tk == TSemicolon ) null else parseExpr();
 			mk(EReturn(e),p1,if( e == null ) tokenMax else pmax(e));
 		case "new":
+			var typeParams:Null<Array<CType>> = null;
 			var a = new Array();
 			a.push(getIdent());
+			
+			var tk = token();
+			push(tk);
+			if (tk.match(TOp('<'))) typeParams = parseParams();
+			
 			while( true ) {
-				var tk = token();
+				tk = token();
 				switch( tk ) {
 				case TDot:
 					a.push(getIdent());
@@ -833,7 +839,7 @@ class Parser {
 				}
 			}
 			var args = parseExprList(TPClose);
-			mk(ENew(a.join("."),args),p1);
+			mk(ENew(a.join("."),args,typeParams),p1);
 		case "throw":
 			var e = parseExpr();
 			mk(EThrow(e),p1,pmax(e));
@@ -1121,13 +1127,8 @@ class Parser {
 			var path = parsePath();
 			var params = null;
 			t = token();
-			switch( t ) {
-			case TOp(op):
-				push(t);
-				if( op == "<" ) params = parseParams();
-			default:
-				push(t);
-			}
+			push(t);
+			if (t.match(TOp('<'))) params = parseParams();
 			return parseTypeNext(CTPath(path, params));
 		case TPOpen:
 			var a = token();
@@ -1337,11 +1338,13 @@ class Parser {
 			t = token();
 			
 			if (t == TDoubleDot && allowConstraints) {
-				switch (param) {
+				parseParams(false, true);
+				
+				/* switch (param) {
 					default:
 					case CTPath(p, _):
 						param = CTPath(p, parseParams(false, true));
-				}
+				} */
 				
 				t = token();
 			}
@@ -1605,13 +1608,7 @@ class Parser {
 			ensureToken(TOp("="));
 			
 			var t = parseType();
-			switch (t) {
-				case CTPath(_, _):
-					ensure(TSemicolon);
-				
-				default:
-					maybe(TSemicolon);
-			}
+			maybe(TSemicolon);
 			
 			return mkd(DTypedef({
 				name : name,
