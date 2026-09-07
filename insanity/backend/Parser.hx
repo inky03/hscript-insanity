@@ -145,8 +145,8 @@ class Parser {
 			opPriority.set(x, x == "++" || x == "--" ? -1 : -2);
 		
 		preprocessorBinops = [
-			'&&' => function(a:Dynamic, b:Dynamic) return (a && b),
-			'||' => function(a:Dynamic, b:Dynamic) return (a || b),
+			'&&' => function(a:Dynamic, b:Dynamic) return ((a != null && a != false) && (b != null && b != false)),
+			'||' => function(a:Dynamic, b:Dynamic) return ((a != null && a != false) || (b != null && b != false)),
 			'==' => function(a:Dynamic, b:Dynamic) return (a == b),
 			'!=' => function(a:Dynamic, b:Dynamic) return (a != b),
 			'>=' => function(a:Dynamic, b:Dynamic) return (a >= b),
@@ -1184,10 +1184,19 @@ class Parser {
 			
 			while( true ) {
 				t = token();
+				
+				var maybe:Bool = (t == TQuestion);
+				if (maybe) {
+					meta ??= [];
+					meta.push({ name : ":final", params : [] });
+					t = token();
+				}
+				
 				switch( t ) {
-				case TBrClose: break;
-				case TId("var"), TId("final"):
-					var maybe = maybe(TQuestion);
+				case TBrClose if (!maybe): break;
+				case TId("var") | TId("final") if (!maybe):
+					maybe = this.maybe(TQuestion);
+					
 					var name = getIdent();
 					ensure(TDoubleDot);
 					if( t.match(TId("final")) ) {
@@ -1211,7 +1220,7 @@ class Parser {
 					case TBrClose: break;
 					default: unexpected(t);
 					}
-				case TMeta(name):
+				case TMeta(name) if (!maybe):
 					if( meta == null ) meta = [];
 					meta.push({ name : name, params : parseMetaArgs() });
 				default:
