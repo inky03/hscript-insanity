@@ -57,7 +57,7 @@ enum ExprDef {
 	EFor( v : String, it : Expr, e : Expr );
 	EBreak;
 	EContinue;
-	EFunction( args : Array<Argument>, e : Expr, ?name : String, ?ret : CType, ?id : Int );
+	EFunction( args : Array<Argument>, e : Expr, ?name : String, ?ret : CType, ?id : Int, ?params : Array<CType> );
 	EReturn( ?e : Expr );
 	EArray( e : Expr, index : Expr );
 	EArrayDecl( e : Array<Expr> );
@@ -120,7 +120,7 @@ enum ModuleDeclDef {
 
 typedef ModuleType = {
 	var name : String;
-	var params : {}; // TODO : not yet parsed
+	var params : Array<CType>; // TODO : not yet parsed
 	var meta : Metadata;
 	var isPrivate : Bool;
 }

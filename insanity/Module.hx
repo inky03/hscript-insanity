@@ -175,7 +175,7 @@ class Module {
 				if (t == null) { // creates Dummy class for the module level fields
 					var fieldsModule:ClassDecl = {
 						name: '${name}_Fields_',
-						params: {},
+						params: [],
 						meta: [],
 						fields: [d],
 						isExtern: false,

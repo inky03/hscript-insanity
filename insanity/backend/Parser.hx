@@ -1072,6 +1072,8 @@ class Parser {
 	}
 
 	function parseFunctionDecl(isInterface:Bool = false) {
+		var params = parseParams(true);
+		
 		ensure(TPOpen);
 		var args = parseFunctionArgs();
 		var ret = null;
@@ -1095,7 +1097,7 @@ class Parser {
 			body = parseExpr();
 		}
 		
-		return { args : args, ret : ret, body : body };
+		return { args : args, ret : ret, body : body, params : parseParams() };
 	}
 
 	function parsePath() {
@@ -1121,32 +1123,8 @@ class Parser {
 			t = token();
 			switch( t ) {
 			case TOp(op):
-				if( op == "<" ) {
-					params = [];
-					while( true ) {
-						switch( token(false) ) {
-						case TConst(c):
-							params.push(CTExpr(mk(EConst(c))));
-						case tk:
-							push(tk);
-							params.push(parseType());
-						}
-						t = token();
-						switch( t ) {
-						case TComma: continue;
-						case TOp(op):
-							if( op == ">" ) break;
-							if( op.charCodeAt(0) == ">".code ) {
-								tokens.add({ t : TOp(op.substr(1)), min : tokenMax - op.length - 1, max : tokenMax });
-								break;
-							}
-						default:
-						}
-						unexpected(t);
-						break;
-					}
-				} else
-					push(t);
+				push(t);
+				if( op == "<" ) params = parseParams();
 			default:
 				push(t);
 			}
@@ -1340,10 +1318,61 @@ class Parser {
 		return meta;
 	}
 
-	function parseParams() {
-		if( maybe(TOp("<")) )
-			error(EInvalidOp("Unsupported class type parameters"), currentPos, currentPos);
-		return {};
+	function parseParams(allowConstraints:Bool = false, inConstraint:Bool = false):Array<CType> {
+		var params:Array<CType> = [];
+		
+		if (!inConstraint && !maybe(TOp("<"))) return params;
+		
+		var t:Token = null;
+		while (true) {
+			var param = switch (token(false)) {
+				case TConst(c):
+					CTExpr(mk(EConst(c)));
+					
+				case tk:
+					push(tk);
+					parseType();
+			}
+			
+			t = token();
+			
+			if (t == TDoubleDot && allowConstraints) {
+				switch (param) {
+					default:
+					case CTPath(p, _):
+						param = CTPath(p, parseParams(false, true));
+				}
+				
+				t = token();
+			}
+			
+			params.push(param);
+			
+			switch( t ) {
+				case TOp('&') if (inConstraint):
+					continue;
+				
+				case TComma:
+					if (inConstraint) break;
+					continue;
+				
+				case TOp(op):
+					if( op == ">" ) break;
+					if( op.charCodeAt(0) == ">".code ) {
+						tokens.add({ t : TOp(op.substr(1)), min : tokenMax - op.length - 1, max : tokenMax });
+						break;
+					}
+					
+				default:
+			}
+			
+			unexpected(t);
+			
+			break;
+		}
+		
+		if (inConstraint && t != null) push(t); // uhghhghgh h
+		return params;
 	}
 
 	function parseModuleDecl(?decls:Array<ModuleDecl>, importModule:Bool = false) : ModuleDecl {
@@ -1463,7 +1492,7 @@ class Parser {
 			if (!name.isTypeIdentifier())
 				error(ECustom('Type name should start with an uppercase letter'), tokenMin, tokenMax);
 			
-			var params = parseParams();
+			var params = parseParams(true);
 			var extend = [];
 
 			while (true) {
@@ -1499,7 +1528,7 @@ class Parser {
 			if (!name.isTypeIdentifier())
 				error(ECustom('Type name should start with an uppercase letter'), tokenMin, tokenMax);
 			
-			var params = parseParams();
+			var params = parseParams(true);
 			var extend = null;
 			var implement = [];
 
@@ -1542,7 +1571,7 @@ class Parser {
 			if (!name.isTypeIdentifier())
 				error(ECustom('Type name should start with an uppercase letter'), tokenMin, tokenMax);
 			
-			var params = parseParams();
+			var params = parseParams(true);
 			var names:Array<String> = [];
 			var constructs:Map<String, EnumFieldDecl> = [];
 			
@@ -1571,7 +1600,7 @@ class Parser {
 			if (!name.isTypeIdentifier())
 				error(ECustom('Type name should start with an uppercase letter'), tokenMin, tokenMax);
 			
-			var params = parseParams();
+			var params = parseParams(true);
 			
 			ensureToken(TOp("="));
 			
