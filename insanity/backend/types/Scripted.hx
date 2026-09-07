@@ -1433,7 +1433,7 @@ class InsanityScriptedAbstractValue extends InsanityAbstractValue {
 	}
 }
 
-@:autoBuild(insanity.macro.ScriptableMacro.buildScriptable())
+@:build(insanity.macro.ScriptableMacro.buildScriptable())
 class InsanityDummyClass {}
 
 interface IInsanityInterp {
