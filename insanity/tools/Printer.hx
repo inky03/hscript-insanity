@@ -495,6 +495,9 @@ class Printer {
 	function decl(d:ModuleDecl):Void {
 		switch (d.d) {
 			case DEnum(e):
+				for (m in e.meta) metaEntry(m);
+				if (e.isPrivate) add('private ');
+				
 				add('enum ${e.name}');
 				typeParams(e.params);
 				
@@ -518,6 +521,10 @@ class Printer {
 				add('}');
 			
 			case DClass(c):
+				for (m in c.meta) metaEntry(m);
+				if (c.isPrivate) add('private ');
+				if (c.isExtern) add('extern ');
+				
 				add('class ${c.name}');
 				typeParams(c.params);
 				
@@ -550,6 +557,9 @@ class Printer {
 				add('}');
 				
 			case DAbstract(c):
+				for (m in c.meta) metaEntry(m);
+				if (c.isPrivate) add('private ');
+				
 				add('${c.isEnum ? 'enum ' : ''}abstract ${c.name}(');
 				typeParams(c.params);
 				type(c.underlying);
@@ -582,6 +592,13 @@ class Printer {
 				level --;
 				
 				add('}');
+				
+			case DTypedef(t):
+				for (m in t.meta) metaEntry(m);
+				if (t.isPrivate) add('private ');
+				
+				add('typedef ${t.name} = ');
+				type(t.t);
 				
 			default:
 		}
