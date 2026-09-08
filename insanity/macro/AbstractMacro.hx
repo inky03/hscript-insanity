@@ -120,7 +120,27 @@ class AbstractMacro {
 					case KAbstractImpl(a):
 						ab = a.get();
 						
-						if (ab.meta.has(':coreType') || ab.meta.has(':coreApi')) {
+						if (c.isExtern) {
+							omitted ++;
+							
+							if (Insanity.isVerbose()) { // Still need to cleanup
+								var path:Array<String> = ab.pack.copy(); path.push(ab.name);
+								
+								haxe.Log.trace('${Insanity.blobWarn} ${Insanity.ansiEsc}49;33mAbstractMacro.build${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (extern)', null);
+							}
+							
+							return fields;
+						} else if (ab.pack[0] == 'haxe' && ab.pack[1] == 'display') { // cpp ragebait
+							omitted ++;
+							
+							if (Insanity.isVerbose()) {
+								var path:Array<String> = ab.pack.copy(); path.push(ab.name);
+								
+								haxe.Log.trace('${Insanity.blobWarn} ${Insanity.ansiEsc}49;33mAbstractMacro.build${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (internal)', null);
+							}
+							
+							return fields;
+						} else if (ab.meta.has(':coreType') || ab.meta.has(':coreApi')) {
 							omitted ++;
 							
 							if (Insanity.isVerbose()) {
@@ -311,23 +331,23 @@ class AbstractMacro {
 								
 								switch (meta.params[0].expr) {
 									case EBinop(binop, _, _):
-										var t = try {
-											fun.args[isStatic ? 1 : 0].type.toType();
-										} catch (e) {
-											(macro:Dynamic).toType();
-										}
-										op = ABinop(printer.printBinop(binop), typeToAbstractTypeCast(t));
+										var t = try { typeToAbstractTypeCast(fun.args[isStatic ? 1 : 0].type.toType()); } catch (e) { ATDynamic; }
+										op = ABinop(printer.printBinop(binop), t);
 									
 									case EUnop(unop, postFix, _):
 										op = AUnop(printer.printUnop(unop), postFix);
 									
 									case EField(_, _, _):
 										final write:Bool = (fun.args.length == 2);
-										op = AResolve(write, write ? typeToAbstractTypeCast(fun.args[1].type.toType()) : null);
+										var t = try { (write ? typeToAbstractTypeCast(fun.args[1].type.toType()) : null); } catch (e) { ATDynamic; }
+										op = AResolve(write, t);
 									
 									case EArrayDecl(_):
+										var t1 = try { typeToAbstractTypeCast(fun.args[0].type.toType()); } catch (e) { ATDynamic; }
+										var t2 = try { typeToAbstractTypeCast(fun.args[1].type.toType()); } catch (e) { ATDynamic; }
+										
 										final write:Bool = (fun.args.length == 2);
-										op = AArray(write, typeToAbstractTypeCast(fun.args[0].type.toType()), write ? typeToAbstractTypeCast(fun.args[1].type.toType()) : null);
+										op = AArray(write, t1, write ? t2 : null);
 										
 									default:
 										throw '??? (${meta.params[0].toString()})';
@@ -357,16 +377,16 @@ class AbstractMacro {
 						type: macro:String
 					}],
 					params: [],
-					ret: macro:Dynamic,
+					ret: macro:Null<Any>,
 					expr: {
 						pos: pos,
 						expr: EReturn({
 							pos: pos,
 							expr: ESwitch(
-								{pos: pos, expr: EConst(CIdent('field'))},
+								macro $i {'field'},
 								[for (name => field in info.properties) if (field.isStatic || (info.isEnum && field.isConstructor)) {
-									values: [{pos: pos, expr: EConst(CString(name))}],
-									expr: {pos: pos, expr: EConst(CIdent(name))}
+									values: [macro $v {name}],
+									expr: macro $i {name}
 								}],
 								macro null
 							)
