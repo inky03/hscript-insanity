@@ -92,7 +92,7 @@ Original code written by HaxeFoundation falls under [MIT License](LICENSE). Modi
 		- [X] multiple values (sorta)
 - `Printer` class
 	- [ ] fix printed expressions with escape characters
-	- [ ] module declaration to string ?
+	- [X] module declaration to string ?
 - `Checker` class
 	- [ ] needs urgent updates (lol)
 
