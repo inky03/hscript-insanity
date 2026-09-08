@@ -206,22 +206,14 @@ class Module {
 	 * @param	environment		The `Environment` to use for this module.
 	 */
 	public function init(?environment:Environment):Void { // forgot why i separated init and start actually... merge?
+		if (started) return;
+		
 		interp.environment = null;
 		setDefaults();
 		
 		if (environment != null) {
 			for (k => v in environment.variables)
 				if (!variables.exists(k)) variables.set(k, v);
-		}
-		
-		for (type in types)
-			interp.imports.set(type.name, type);
-		
-		for (module in subModules) {
-			if (module is ImportModule) continue;
-			
-			var mainType:IInsanityType = module.types.get(module.path);
-			if (mainType != null) interp.imports.set(mainType.name, mainType);
 		}
 	}
 	
@@ -232,6 +224,7 @@ class Module {
 	 * 
 	 * @param	environment		The `Environment` to use for this module.
 	 */
+	@:access(insanity.backend.Interp)
 	public function start(?environment:Environment):Void {
 		try {
 			#if (insanity.scriptableTypes)
@@ -239,12 +232,20 @@ class Module {
 			
 			starting = true;
 			
+			interp._constructCache.clear();
+			
+			for (type in types)
+				interp.imports.set(type.name, type);
+			
 			for (module in subModules) {
 				if (module is ImportModule) {
 					module.start(environment);
 					
 					for (u in module.interp.usings) interp.usings.push(u);
 					for (n => i in module.interp.imports) interp.imports.set(n, i);
+				} else {
+					var mainType:IInsanityType = module.types.get(module.path);
+					if (mainType != null) interp.imports.set(mainType.name, mainType);
 				}
 			}
 			
