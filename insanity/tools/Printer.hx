@@ -36,7 +36,7 @@ class Printer {
 	public function exprToString( e : Expr ) {
 		buf = new StringBuf();
 		tabs = "";
-		level = 0;
+		level = (e.e.match(EBlock(_)) ? 0 : 1);
 		expr(e);
 		return buf.toString();
 	}
@@ -52,7 +52,7 @@ class Printer {
 	public function moduleDeclsToString(d:Array<ModuleDecl>):String { // declsToString was taken .
 		buf = new StringBuf();
 		tabs = "";
-		level = 0;
+		level = 1;
 		for (d in d) {
 			decl(d);
 			
@@ -578,6 +578,38 @@ class Printer {
 				level --;
 				
 				add('}');
+			
+			case DInterface(c): // literaly just the class one but its ok
+				for (m in c.meta) metaEntry(m);
+				if (c.isPrivate) add('private ');
+				if (c.isExtern) add('extern ');
+				
+				add('class ${c.name}');
+				typeParams(c.params);
+				
+				for (extend in c.extend) {
+					add(' extends ');
+					type(extend);
+				}
+				
+				if (c.fields.length == 0) {
+					add(' {}');
+					return;
+				}
+				add(' {\n');
+				
+				level ++;
+				tabs += '\t';
+				
+				for (field in c.fields) {
+					fieldDecl(field);
+					add('\n');
+				}
+				
+				tabs = tabs.substr(1);
+				level --;
+				
+				add('}');
 				
 			case DAbstract(c):
 				for (m in c.meta) metaEntry(m);
@@ -622,6 +654,42 @@ class Printer {
 				
 				add('typedef ${t.name} = ');
 				type(t.t);
+				
+			case DField(f):
+				switch (f.kind) {
+					case KFunction(fun):
+						add('function ${f.name}');
+						typeParams(fun.params);
+						arguments(fun.args);
+						addType(fun.ret);
+						
+						if (fun.expr != null) {
+							add(' ');
+							expr(fun.expr);
+						} else {
+							add(';');
+						}
+						
+					case KVar(v):
+						add('var ${f.name}');
+						
+						if (v.get != null || v.set != null) {
+							add('(');
+							add(v.get ?? 'default');
+							add(', ');
+							add(v.set ?? 'default');
+							add(')');
+						}
+						
+						addType(v.type);
+						
+						if (v.expr != null) {
+							add(' = ');
+							expr(v.expr);
+						}
+						
+						add(';');
+				}
 				
 			default:
 		}
