@@ -193,6 +193,7 @@ typedef FunctionDecl = {
 	var args : Array<Argument>;
 	var expr : Null<Expr>;
 	var ret : Null<CType>;
+	var ?params : Array<CType>;
 }
 
 typedef VarDecl = {

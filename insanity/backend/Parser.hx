@@ -1746,6 +1746,7 @@ class Parser {
 					meta : meta,
 					access : access,
 					kind : KFunction({
+						params : inf.params,
 						args : inf.args,
 						expr : inf.body,
 						ret : inf.ret,

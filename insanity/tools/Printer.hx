@@ -52,7 +52,7 @@ class Printer {
 	inline function add<T>(s:T) buf.add(s);
 	
 	function typeParams(params:Null<Array<CType>>):Void {
-		if (params == null) return;
+		if (params == null || params.length == 0) return;
 		
 		add("<");
 		var first = true;
@@ -133,7 +133,7 @@ class Printer {
 			return;
 		}
 		switch( e.e ) {
-			case EDecl(d): add('decl'); // TODO
+			case EDecl(d): decl(d); // TODO
 			case EUsing(path): add('using ${path.join('.')}');
 			case EImport(path, INormal): add('import ${path.join('.')}');
 			case EImport(path, IAsName(alias)): add('import ${path.join('.')} as $alias');
@@ -143,11 +143,11 @@ class Printer {
 				add(v);
 			case EVar(n, t, e, get, set, isFinal):
 				add((isFinal ? 'final ' : 'var ') + n);
-				if (get != null) {
+				if (get != null || set != null) {
 					add('(');
-					add(get);
+					add(get ?? 'default');
 					add(', ');
-					add(set);
+					add(set ?? 'default');
 					add(')');
 				}
 				addType(t);
@@ -248,7 +248,7 @@ class Printer {
 			case EFunction(params, e, name, ret, _, tParams):
 				add("function");
 				if (name != null) add(' $name');
-				if (tParams != null) typeParams(tParams);
+				typeParams(tParams);
 				add("(");
 				var first = true;
 				for( a in params ) {
@@ -396,6 +396,110 @@ class Printer {
 					addType(t);
 					add(")");
 				}
+		}
+	}
+	
+	static var accessStrings:Map<FieldAccess, String> = [
+		APublic => 'private', APrivate => 'private', AInline => 'inline', ADynamic => 'dynamic',
+		AOverride => 'override', AStatic => 'static', AMacro => 'macro'
+	];
+	
+	function fieldDecl(f:FieldDecl) {
+		add(tabs);
+		for (a in f.access) add('${accessStrings.get(a)} ');
+		
+		switch (f.kind) {
+			case KVar(v):
+				add('var ${f.name}');
+				
+				if (v.get != null || v.set != null) {
+					add('(');
+					add(v.get ?? 'default');
+					add(', ');
+					add(v.set ?? 'default');
+					add(')');
+				}
+				
+				addType(v.type);
+				
+				if (v.expr != null) {
+					add(' = ');
+					expr(v.expr);
+				}
+				
+				add(';');
+				
+			case KFunction(fun):
+				add('function ${f.name}');
+				typeParams(fun.params);
+				
+				add('(');
+				var first:Bool = true;
+				for (a in fun.args) {
+					if (first) {
+						first = false;
+					} else {
+						add(', ');
+					}
+					
+					if (a.rest) add('...');
+					if (a.opt && a.value == null) add('?');
+					add(a.name);
+					addType(a.t);
+					
+					if (a.value != null) {
+						add(' = ');
+						expr(a.value);
+					}
+				}
+				add(')');
+				
+				addType(fun.ret);
+				
+				if (fun.expr != null) {
+					add(' ');
+					expr(fun.expr);
+				} else {
+					add(';');
+				}
+		}
+		
+		add('\n');
+	}
+	
+	function decl(d:ModuleDecl) {
+		switch (d.d) {
+			case DClass(c):
+				
+				
+			case DAbstract(c):
+				add('abstract ${c.name}(');
+				typeParams(c.params);
+				type(c.underlying);
+				add(')');
+				
+				for (from in c.from) {
+					add(' from ');
+					type(from);
+				}
+				for (to in c.to) {
+					add(' to ');
+					type(to);
+				}
+				
+				add(' {\n');
+				
+				level ++;
+				tabs += '\t';
+				
+				for (field in c.fields) fieldDecl(field);
+				
+				tabs = tabs.substr(1);
+				level --;
+				
+				add('}');
+				
+			default:
 		}
 	}
 
