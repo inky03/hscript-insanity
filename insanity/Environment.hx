@@ -91,18 +91,18 @@ class Environment {
 	public function start():Void {
 		var allTypes:Map<String, IInsanityType> = [];
 		
-		for (module in modules)
-			module.init(this);
-		
-		for (module in modules)
-			module.start(this);
-		
 		for (module in modules) {
-			module.startTypes(this);
+			module.init(this);
 			
 			for (n => t in module.types)
 				allTypes.set(n, t);
 		}
+		
+		for (module in modules)
+			module.start(this);
+		
+		for (module in modules)
+			module.startTypes(this);
 		
 		var i:Int = onInitialized.length;
 		while (-- i >= 0) {

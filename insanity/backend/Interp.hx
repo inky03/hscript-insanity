@@ -804,8 +804,9 @@ class Interp {
 	function importType(name:String, t:Dynamic, enumValueImport:Bool = true) {
 		if (t == null) return;
 		
-		if (canInit && t is IInsanityType && t.module != null && !t.initializing && !t.initialized && !t.failed)
-			t.module.startType(environment, t);
+		imports.set(name, t);
+		
+		if (canInit && t is IInsanityType && t.module != null && !t.initializing && !t.initialized && !t.failed) t.module.startType(environment, t);
 		
 		#if (insanity.scriptableTypes)
 		if (t is InsanityScriptedTypedef) {
@@ -814,24 +815,16 @@ class Interp {
 			if (alias != null)
 				imports.set(name, alias);
 		} else if (t is InsanityScriptedEnum) {
-			imports.set(name, t);
-			
 			if (enumValueImport)
 				importEnumValues(t);
-		} else if (t is IInsanityType) {
-			imports.set(name, t);
-		} else 
+		} else if (t is IInsanityType) {}
+		else 
 		#end
-		if (t is Class) {
-			imports.set(name, t);
-		} else if (t is Enum) {
-			imports.set(name, t);
-			
+		if (t is Class) {}
+		else if (t is Enum) {
 			if (enumValueImport)
 				importEnumValues(t);
 		} else if (t is InsanityAbstract) {
-			imports.set(name, t);
-			
 			final ab:InsanityAbstract = cast t;
 			
 			if (ab.isEnum && enumValueImport) {
@@ -2226,8 +2219,7 @@ class Interp {
 		if (!_constructCache.exists(cl)) _constructCache.set(cl, c);
 		
 		#if (insanity.scriptableTypes)
-		if (canDefer && c is IInsanityType && !c.initialized)
-			throw DDefer;
+		if (canDefer && c is IInsanityType && !c.initialized) throw DDefer;
 		#end
 		
 		#if hl if (c is Class && c.insanityhlnew != null) return c.insanityhlnew(args); else #end

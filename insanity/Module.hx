@@ -208,7 +208,6 @@ class Module {
 	public function init(?environment:Environment):Void { // forgot why i separated init and start actually... merge?
 		interp.environment = null;
 		setDefaults();
-		interp.environment = environment;
 		
 		if (environment != null) {
 			for (k => v in environment.variables)
@@ -217,6 +216,13 @@ class Module {
 		
 		for (type in types)
 			interp.imports.set(type.name, type);
+		
+		for (module in subModules) {
+			if (module is ImportModule) continue;
+			
+			var mainType:IInsanityType = module.types.get(module.path);
+			if (mainType != null) interp.imports.set(mainType.name, mainType);
+		}
 	}
 	
 	/**
@@ -239,15 +245,10 @@ class Module {
 					
 					for (u in module.interp.usings) interp.usings.push(u);
 					for (n => i in module.interp.imports) interp.imports.set(n, i);
-				} else {
-					#if (insanity.scriptableTypes)
-					var mainType:IInsanityType = module.types.get(module.path);
-					
-					if (mainType != null) module.interp.imports.set(mainType.name, mainType);
-					#end
 				}
 			}
 			
+			interp.environment = environment;
 			interp.canInit = true;
 			interp.executeModule(decls, path);
 			
