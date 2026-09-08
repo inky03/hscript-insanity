@@ -44,12 +44,6 @@ using insanity.tools.Tools;
 using insanity.backend.TypeCollection;
 using insanity.backend.types.Abstract;
 
-enum Stop {
-	SBreak;
-	SContinue;
-	SReturn;
-}
-
 @:structInit class Variable {
 	public var r:Dynamic;
 	public var a:Null<InsanityAbstractValue> = null;
@@ -127,11 +121,16 @@ class Interp {
 	 */
 	public var safeFunctions:Bool = false;
 	
+	var deferring:Bool = false;
+	var returnValue:Dynamic = null;
+	var continuing:Bool = false;
+	var returning:Bool = false;
+	var breaking:Bool = false;
+	
 	var inTry : Bool;
 	var metas : Metadata = [];
 	var captures : Map<String, Dynamic>;
 	var declared : Array<RestoreVariable>;
-	var returnValue : Dynamic;
 	static var otherTry : Bool = false;
 	
 	static var void(default, never):Dynamic = {};
@@ -642,22 +641,22 @@ class Interp {
 		return null;
 	}
 
-	function exprReturn(e, ?t:CType) : Dynamic {
-		try {
-			return expr(e, t);
-		} catch( e : Stop ) {
-			#if cpp if (!(e is Stop)) throw e; #end
-			
-			switch( e ) {
-			case SBreak: throw "Invalid break";
-			case SContinue: throw "Invalid continue";
-			case SReturn:
-				var v = returnValue;
-				returnValue = null;
-				return v;
-			}
+	inline function exprReturn(e, ?t:CType) : Dynamic {
+		deferring = false;
+		
+		returnValue = expr(e, t);
+		
+		if (returning) {
+			returning = false;
+		} else if (continuing) {
+			continuing = false;
+			error(ECustom('Invalid continue'));
+		} else if (breaking) {
+			breaking = false;
+			error(ECustom('Invalid break'));
 		}
-		return null;
+		
+		return returnValue;
 	}
 	
 	function pushStack(?item:StackItem, ?locals:Map<String, Variable>):Void {
@@ -1253,8 +1252,11 @@ class Interp {
 		case EBlock(exprs):
 			var old = declared.length;
 			var v = null;
-			for( e in exprs )
+			for( e in exprs ) {
 				v = expr(e, void, mapCompr);
+				
+				if (returning || deferring || continuing || breaking) break;
+			}
 			restore(old);
 			return v;
 		case EField(fe, f, maybe):
@@ -1376,12 +1378,13 @@ class Interp {
 			});
 			return null;
 		case EBreak:
-			throw SBreak;
+			breaking = true;
 		case EContinue:
-			throw SContinue;
+			continuing = true;
 		case EReturn(e):
-			returnValue = e == null ? null : expr(e, void, mapCompr);
-			throw SReturn;
+			returnValue = (e == null ? null : expr(e, void, mapCompr));
+			returning = true;
+			return returnValue;
 		case EFunction(params,fexpr,name,ret,id):
 			return buildFunction(name, params, fexpr, ret, id);
 		case EArrayDecl(arr):
@@ -1563,9 +1566,6 @@ class Interp {
 				restore(old);
 				inTry = oldTry;
 				return v;
-			} catch( err : Stop ) {
-				inTry = oldTry;
-				throw err;
 			} catch( err : Dynamic ) {
 				// restore vars
 				restore(old);
@@ -1936,6 +1936,7 @@ class Interp {
 				break;
 		}
 		
+		breaking = false;
 		restore(old);
 	}
 
@@ -1964,23 +1965,16 @@ class Interp {
 				break;
 		}
 		
+		breaking = false;
 		restore(old);
 	}
 
 	inline function loopRun( f : Void -> Void ) {
-		var cont = true;
-		try {
-			f();
-		} catch( err : Stop ) {
-			switch( err ) {
-			case SContinue:
-			case SBreak:
-				cont = false;
-			case SReturn:
-				throw err;
-			}
-		}
-		return cont;
+		f();
+		
+		continuing = false;
+		
+		return (!breaking && !deferring && !returning);
 	}
 
 	inline function isMap(o:Dynamic):Bool {
@@ -2056,8 +2050,10 @@ class Interp {
 
 	function get( o : Dynamic, f : String ) : Dynamic {
 		#if (insanity.scriptableTypes)
-		if (canDefer && o is IInsanityType && !o.initialized)
-			throw DDefer;
+		if (canDefer && o is IInsanityType && !o.initialized) {
+			deferring = true;
+			return null;
+		}
 		#end
 		
 		if ( o == null ) error(EInvalidAccess(f));
@@ -2113,8 +2109,10 @@ class Interp {
 		if (o == null) error(EInvalidAccess(f));
 		
 		#if (insanity.scriptableTypes)
-		if (canDefer && o is IInsanityType && !o.initialized)
-			throw DDefer;
+		if (canDefer && o is IInsanityType && !o.initialized) {
+			deferring = true;
+			return null;
+		}
 		#end
 		
 		if (AbstractTools.isAbstract(v))
@@ -2219,7 +2217,10 @@ class Interp {
 		if (!_constructCache.exists(cl)) _constructCache.set(cl, c);
 		
 		#if (insanity.scriptableTypes)
-		if (canDefer && c is IInsanityType && !c.initialized) throw DDefer;
+		if (canDefer && c is IInsanityType && !c.initialized) {
+			deferring = true;
+			return null;
+		}
 		#end
 		
 		#if hl if (c is Class && c.insanityhlnew != null) return c.insanityhlnew(args); else #end

@@ -206,20 +206,22 @@ class InsanityScriptedClass implements IInsanityType implements IInsanityInterp 
 					
 					try {
 						interp.locals.get(f).r = (v.expr == null ? null : interp.exprReturn(v.expr, v.type));
-					} catch (d:Defer) {
+					} catch (e:haxe.Exception) {
+						onExpressionError(e, f, v.expr);
+					}
+					
+					if (interp.deferring) {
 						var signal = (env?.onInitialized ?? module.onInitialized);
 						
 						signal.push(function(_) {
 							try {
-								interp.locals.get(f).r = interp.exprReturn(v.expr, v.type);
-							} catch (e) {
+								interp.locals.get(f).r = interp.exprReturn(v.expr);
+							} catch (e:haxe.Exception) {
 								onExpressionError(e, f, v.expr);
 							}
 							
 							return false;
 						});
-					} catch (e) {
-						onExpressionError(e, f, v.expr);
 					}
 			}
 			
@@ -1238,20 +1240,22 @@ class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityInte
 						interp.locals.get(f).r = value;
 						
 						if (isEnum && value != null) lastEnumValue = value;
-					} catch (d:Defer) {
+					} catch (e:haxe.Exception) {
+						onExpressionError(e, f, v.expr);
+					}
+					
+					if (interp.deferring) {
 						var signal = (env?.onInitialized ?? module.onInitialized);
 						
 						signal.push(function(_) {
 							try {
-								interp.locals.get(f).r = interp.exprReturn(v.expr/*, v.type*/);
+								interp.locals.get(f).r = interp.exprReturn(v.expr);
 							} catch (e:haxe.Exception) {
 								onExpressionError(e, f, v.expr);
 							}
 							
 							return false;
 						});
-					} catch (e:haxe.Exception) {
-						onExpressionError(e, f, v.expr);
 					}
 					
 					info.properties.set(f, {
@@ -1448,10 +1452,6 @@ interface IInsanityScripted extends ICustomReflection extends ICustomClassType {
 	
 	private var __func:String;
 	private var __fields:Array<String>;
-}
-
-enum Defer {
-	DDefer;
 }
 #end
 
