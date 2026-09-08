@@ -249,20 +249,7 @@ class Printer {
 				add("function");
 				if (name != null) add(' $name');
 				typeParams(tParams);
-				add("(");
-				var first = true;
-				for( a in params ) {
-					if( first ) first = false else add(", ");
-					if ( a.rest ) add('...');
-					if ( a.opt && a.value == null ) add("?");
-					add(a.name);
-					addType(a.t);
-					if ( a.value != null ) {
-						add(' = ');
-						expr(a.value);
-					}
-				}
-				add(")");
+				arguments(params);
 				addType(ret);
 				add(" ");
 				expr(e);
@@ -404,7 +391,7 @@ class Printer {
 		AOverride => 'override', AStatic => 'static', AMacro => 'macro'
 	];
 	
-	function metaEntry(meta:MetadataEntry) {
+	function metaEntry(meta:MetadataEntry):Void {
 		add("@");
 		add(meta.name);
 		
@@ -428,7 +415,32 @@ class Printer {
 		add(' ');
 	}
 	
-	function fieldDecl(f:FieldDecl) {
+	function arguments(?args:Array<Argument>):Void {
+		if (args == null) return;
+		
+		add('(');
+		var first:Bool = true;
+		for (a in args) {
+			if (first) {
+				first = false;
+			} else {
+				add(', ');
+			}
+			
+			if (a.rest) add('...');
+			if (a.opt && a.value == null) add('?');
+			add(a.name);
+			addType(a.t);
+			
+			if (a.value != null) {
+				add(' = ');
+				expr(a.value);
+			}
+		}
+		add(')');
+	}
+	
+	function fieldDecl(f:FieldDecl):Void {
 		add(tabs);
 		for (m in f.meta) metaEntry(m);
 		for (a in f.access) add('${accessStrings.get(a)} ');
@@ -457,28 +469,7 @@ class Printer {
 			case KFunction(fun):
 				add('function ${f.name}');
 				typeParams(fun.params);
-				
-				add('(');
-				var first:Bool = true;
-				for (a in fun.args) {
-					if (first) {
-						first = false;
-					} else {
-						add(', ');
-					}
-					
-					if (a.rest) add('...');
-					if (a.opt && a.value == null) add('?');
-					add(a.name);
-					addType(a.t);
-					
-					if (a.value != null) {
-						add(' = ');
-						expr(a.value);
-					}
-				}
-				add(')');
-				
+				arguments(fun.args);
 				addType(fun.ret);
 				
 				if (fun.expr != null) {
@@ -488,12 +479,44 @@ class Printer {
 					add(';');
 				}
 		}
-		
-		add('\n');
 	}
 	
-	function decl(d:ModuleDecl) {
+	function enumFieldDecl(f:EnumFieldDecl):Void {
+		add(tabs);
+		
+		add(f.name);
+		
+		if (f.arguments == null || f.arguments.length == 0) return add(';');
+		
+		arguments(f.arguments);
+		add(';');
+	}
+	
+	function decl(d:ModuleDecl):Void {
 		switch (d.d) {
+			case DEnum(e):
+				add('enum ${e.name}');
+				typeParams(e.params);
+				
+				if (e.names.length == 0) {
+					add(' {}');
+					return;
+				}
+				add(' {\n');
+				
+				level ++;
+				tabs += '\t';
+				
+				for (constr in e.names) {
+					enumFieldDecl(e.constructs.get(constr));
+					add('\n');
+				}
+				
+				tabs = tabs.substr(1);
+				level --;
+				
+				add('}');
+			
 			case DClass(c):
 				add('class ${c.name}');
 				typeParams(c.params);
@@ -516,7 +539,10 @@ class Printer {
 				level ++;
 				tabs += '\t';
 				
-				for (field in c.fields) fieldDecl(field);
+				for (field in c.fields) {
+					fieldDecl(field);
+					add('\n');
+				}
 				
 				tabs = tabs.substr(1);
 				level --;
@@ -547,7 +573,10 @@ class Printer {
 				level ++;
 				tabs += '\t';
 				
-				for (field in c.fields) fieldDecl(field);
+				for (field in c.fields) {
+					fieldDecl(field);
+					add('\n');
+				}
 				
 				tabs = tabs.substr(1);
 				level --;
