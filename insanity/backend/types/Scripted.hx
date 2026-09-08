@@ -576,7 +576,7 @@ class InsanityScriptedClass implements IInsanityType implements IInsanityInterp 
 }
 
 @:access(insanity.backend.Interp)
-class InsanityScriptedTypedef implements IInsanityType {
+class InsanityScriptedTypedef implements IInsanityType implements ICustomReflection implements ICustomClassType implements ICustomEnumType {
 	public var name:String;
 	public var module:Module;
 	public var pack:Array<String>;
@@ -653,6 +653,27 @@ class InsanityScriptedTypedef implements IInsanityType {
 	}
 	
 	public function snapshot():Void {}
+	
+	public function toString():String { return (alias != null ? Std.string(alias) : 'InsanityScriptedTypedef<$name>'); }
+	
+	public function typeCreateInstance(arguments:Array<Dynamic>):Dynamic { return InsanityType.createInstance(alias, arguments); }
+	public function typeCreateEmptyInstance():Dynamic { return InsanityType.createEmptyInstance(alias); }
+	public function typeGetClass():Dynamic { return InsanityType.getClass(alias); }
+	public function typeGetClassFields():Array<String> { return InsanityType.getClassFields(alias); }
+	public function typeGetInstanceFields():Array<String> { return InsanityType.getInstanceFields(alias); }
+	
+	public function typeGetEnumName():String { return InsanityType.getEnumName(alias); }
+	public function typeCreateEnum(constr:String, ?arguments:Array<Dynamic>):Dynamic { return InsanityType.createEnum(alias, constr, arguments); }
+	public function typeCreateEnumIndex(index:Int, ?arguments:Array<Dynamic>):Dynamic { return InsanityType.createEnumIndex(alias, index, arguments); }
+	public function typeGetEnumConstructs():Array<String> { return InsanityType.getEnumConstructs(alias); }
+	public function typeAllEnums():Array<Dynamic> { return InsanityType.allEnums(alias); }
+	
+	public function reflectHasField(field:String):Bool { return InsanityReflect.hasField(alias, field); }
+	public function reflectGetField(field:String):Dynamic { return InsanityReflect.field(alias, field); }
+	public function reflectSetField(field:String, value:Dynamic):Dynamic { return InsanityReflect.setField(alias, field, value); }
+	public function reflectGetProperty(property:String):Dynamic { return InsanityReflect.getProperty(alias, property); }
+	public function reflectSetProperty(property:String, value:Dynamic):Dynamic { return InsanityReflect.setProperty(alias, property, value); }
+	public function reflectListFields():Array<String> { return InsanityReflect.fields(alias); }
 }
 
 @:access(insanity.Module)

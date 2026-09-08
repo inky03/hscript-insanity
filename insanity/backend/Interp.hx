@@ -783,8 +783,12 @@ class Interp {
 			return resolveMirror(v);
 		}
 		
-		if (!variables.exists(id))
+		if (!variables.exists(id)) {
+			var t = Tools.resolve(id, environment);
+			if (t != null) return t;
+			
 			error(EUnknownVariable(id));
+		}
 		
 		return resolveMirror(variables.get(id));
 	}
@@ -797,7 +801,7 @@ class Interp {
 	 * @return	Whether the variable identifier exists or not.
 	 */
 	public function isResolvable(id:String):Bool {
-		return (imports.exists(id) || variables.exists(id));
+		return (imports.exists(id) || variables.exists(id) || Tools.resolve(id, environment) != null);
 	}
 	
 	function importType(name:String, t:Dynamic, enumValueImport:Bool = true) {
@@ -1016,7 +1020,7 @@ class Interp {
 				m.meta = metas;
 				final cls = new InsanityScriptedTypedef(m);
 				
-				if (cls.alias != null) return imports.set(m.name, cls.alias);
+				
 				cls;
 			
 			case DInterface(m):
@@ -1285,6 +1289,7 @@ class Interp {
 							obj = getLocal(id);
 						} else if (isResolvable(id)) {
 							obj = resolve(id);
+							path = id;
 						} else {
 							fail = path = id;
 						}
@@ -1295,15 +1300,19 @@ class Interp {
 						obj = get(obj, f);
 						
 					case EField(_, f, maybe):
+						if (fail == null) {
+							if (maybe && obj == null) return null;
+							
+							obj = get(obj, f);
+							
+							if (obj != null) continue;
+						}
+						
 						final info = (TypeCollection.main.fromPath(path += '.$f') ?? environment?.types.fromPath(path));
 						
 						if (info != null) {
 							fail = null;
 							obj = info[0].resolve(environment);
-						} else if (fail == null) {
-							if (maybe && obj == null) return null;
-							
-							obj = get(obj, f);
 						}
 				}
 			}

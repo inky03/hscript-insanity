@@ -160,26 +160,7 @@ class Tools {
 		
 		if (typeInfos == null) return null;
 		
-		var mainAttraction:Dynamic = (collection.fromPath(path) ?? collection.fromCompilePath(path));
-		var types:Dynamic = [];
-		for (type in typeInfos) {
-			if (type.kind == 'class' || type.kind == 'enum' || type.kind == 'abstract') {
-				types.push(type);
-			} else if (mainAttraction != null && type == mainAttraction[0] && !canIgnoreWarnings) {
-				if (type.kind == 'typedef') {
-					if (type.typedefType != null) {
-						types.push(type);
-					} else {
-						trace('(${type.fullPath()}) this typedef\'s target type is unsupported');
-					}
-					continue;
-				}
-				
-				trace('(${type.fullPath()}) ${type.isInterface ? 'interface' : type.kind} import is currently unsupported');
-			}
-		}
-		
-		return types;
+		return [for (type in typeInfos) type];
 	}
 	
 	public static inline function listTypesEx(path:String, fromPack:Bool = false, canIgnoreWarnings:Bool = false, collections:Array<TypeCollection>):Array<TypeInfo> {
