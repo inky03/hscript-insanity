@@ -49,13 +49,17 @@ class Printer {
 		return buf.toString();
 	}
 	
-	public function decls(d:Array<ModuleDecl>):String {
+	public function moduleDeclsToString(d:Array<ModuleDecl>):String { // declsToString was taken .
 		buf = new StringBuf();
 		tabs = "";
 		level = 0;
 		for (d in d) {
 			decl(d);
-			add('\n');
+			
+			switch (d.d) {
+				case DPackage(_) | DUsing(_) | DImport(_, _): add(';\n');
+				default: add('\n');
+			}
 		}
 		return buf.toString();
 	}
@@ -505,6 +509,14 @@ class Printer {
 	
 	function decl(d:ModuleDecl):Void {
 		switch (d.d) {
+			case DPackage(p): add('package ${p.join('.')}');
+			
+			case DUsing(p): add('using ${p.join('.')}');
+			
+			case DImport(p, IAll): add('import ${p.join('.')}.*');
+			case DImport(p, INormal): add('import ${p.join('.')}');
+			case DImport(p, IAsName(alias)): add('import ${p.join('.')} as $alias');
+			
 			case DEnum(e):
 				for (m in e.meta) metaEntry(m);
 				if (e.isPrivate) add('private ');
@@ -616,7 +628,7 @@ class Printer {
 	}
 	
 	public static function declsToString(d:Array<ModuleDecl>) {
-		return new Printer().decls(d);
+		return new Printer().moduleDeclsToString(d);
 	}
 
 	public static function toString(e:Expr) {
