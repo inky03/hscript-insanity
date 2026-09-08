@@ -402,7 +402,7 @@ class Printer {
 	}
 	
 	static var accessStrings:Map<FieldAccess, String> = [
-		APublic => 'private', APrivate => 'private', AInline => 'inline', ADynamic => 'dynamic',
+		APublic => 'public', APrivate => 'private', AInline => 'inline', ADynamic => 'dynamic',
 		AOverride => 'override', AStatic => 'static', AMacro => 'macro'
 	];
 	
