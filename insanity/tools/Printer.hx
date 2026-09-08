@@ -404,8 +404,33 @@ class Printer {
 		AOverride => 'override', AStatic => 'static', AMacro => 'macro'
 	];
 	
+	function metaEntry(meta:MetadataEntry) {
+		add("@");
+		add(meta.name);
+		
+		if (meta.params != null && meta.params.length > 0) {
+			add('(');
+			
+			var first:Bool = true;
+			for (e in meta.params) {
+				if (first) {
+					first = false;
+				} else {
+					add(', ');
+				}
+				
+				expr(e);
+			}
+			
+			add(')');
+		}
+		
+		add(' ');
+	}
+	
 	function fieldDecl(f:FieldDecl) {
 		add(tabs);
+		for (m in f.meta) metaEntry(m);
 		for (a in f.access) add('${accessStrings.get(a)} ');
 		
 		switch (f.kind) {
@@ -470,10 +495,36 @@ class Printer {
 	function decl(d:ModuleDecl) {
 		switch (d.d) {
 			case DClass(c):
+				add('class ${c.name}');
+				typeParams(c.params);
 				
+				if (c.extend != null) {
+					add(' extends ');
+					type(c.extend);
+				}
+				for (implement in c.implement) {
+					add(' implements ');
+					type(implement);
+				}
+				
+				if (c.fields.length == 0) {
+					add(' {}');
+					return;
+				}
+				add(' {\n');
+				
+				level ++;
+				tabs += '\t';
+				
+				for (field in c.fields) fieldDecl(field);
+				
+				tabs = tabs.substr(1);
+				level --;
+				
+				add('}');
 				
 			case DAbstract(c):
-				add('abstract ${c.name}(');
+				add('${c.isEnum ? 'enum ' : ''}abstract ${c.name}(');
 				typeParams(c.params);
 				type(c.underlying);
 				add(')');
@@ -487,6 +538,10 @@ class Printer {
 					type(to);
 				}
 				
+				if (c.fields.length == 0) {
+					add(' {}');
+					return;
+				}
 				add(' {\n');
 				
 				level ++;
