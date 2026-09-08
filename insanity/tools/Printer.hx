@@ -48,6 +48,17 @@ class Printer {
 		type(t);
 		return buf.toString();
 	}
+	
+	public function decls(d:Array<ModuleDecl>):String {
+		buf = new StringBuf();
+		tabs = "";
+		level = 0;
+		for (d in d) {
+			decl(d);
+			add('\n');
+		}
+		return buf.toString();
+	}
 
 	inline function add<T>(s:T) buf.add(s);
 	
@@ -603,8 +614,12 @@ class Printer {
 			default:
 		}
 	}
+	
+	public static function declsToString(d:Array<ModuleDecl>) {
+		return new Printer().decls(d);
+	}
 
-	public static function toString( e : Expr ) {
+	public static function toString(e:Expr) {
 		return new Printer().exprToString(e);
 	}
 
