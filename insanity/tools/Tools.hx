@@ -28,8 +28,23 @@ using insanity.backend.TypeCollection;
 using insanity.backend.types.Abstract;
 using insanity.Environment;
 
+/**
+ * Utility to work with Hscript expressions and classes.
+ */
 class Tools {
-	public static function iter( e : Expr, f : Expr -> Void ) {
+	/**
+	 * Calls function `f` on each sub-expression of `e`.
+	 * 
+	 * If `e` has no sub-expressions, this operation has no effect.
+	 * 
+	 * Otherwise `f` is called once per sub-expression of `e`, with the sub-expression as argument. These calls are done in order of the sub-expression declarations.
+	 * 
+	 * This method does not call itself recursively. It should instead be used in a recursive function which handles the expression nodes of interest.
+	 * 
+	 * @param	e	The expression to iterate.
+	 * @param	f	The iterator function.
+	 */
+	public static function iter( e : Expr, f : Expr -> Void ) { // thats just the haxe api descrption isnt that funny
 		switch( expr(e) ) {
 		case EConst(_), EIdent(_), EImport(_, _), EUsing(_), EDecl(_):
 		case EVar(_, _, e): if( e != null ) f(e);
@@ -66,7 +81,18 @@ class Tools {
 		case ECast(e,_): f(e);
 		}
 	}
-
+	
+	/**
+	 * Transforms the sub-expressions of `e` by calling `f` on each of them.
+	 * 
+	 * Otherwise `f` is called once per sub-expression of `e`, with the sub-expression as argument. These calls are done in order of the sub-expression declarations.
+	 * 
+	 * This method does not call itself recursively. It should instead be used in a recursive function which handles the expression nodes of interest.
+	 * 
+	 * @param	e	The expression to transform.
+	 * @param	f	The transformer function.
+	 * @return	`e` transformed. If `e` has no sub-expressions, this operation returns `e` unchanged.
+	 */
 	public static function map( e : Expr, f : Expr -> Expr ) {
 		var edef = switch( expr(e) ) {
 		case EConst(_), EIdent(_), EBreak, EContinue, EImport(_, _), EUsing(_), EDecl(_): expr(e);
@@ -98,15 +124,31 @@ class Tools {
 		}
 		return mk(edef, e.pos);
 	}
-
+	
+	/**
+	 * Gets the `ExprDef` of `e`.
+	 * 
+	 * @param	e	The expression.
+	 * @return	The definition of `e`.
+	 */
 	public static inline function expr( e : Expr ) : ExprDef {
 		return e.e;
 	}
-
+	
+	/**
+	 * Quickly builds an expression from an `ExprDef` and `Position`.
+	 * 
+	 * @param	e	The definition.
+	 * @param	pos	The position.
+	 * @return	The new expression.
+	 */
 	public static inline function mk( e : ExprDef, pos : Position ) : Expr {
 		return { e : e, pos: { pmin : pos.pmin, pmax : pos.pmax, origin : pos.origin, line : pos.line, column : pos.column } };
 	}
-
+	
+	/**
+	 * Generates a key/value iterator from an expression.
+	 */
 	public static inline function getKeyIterator<T>( e : Expr, callb : String -> String -> Expr -> T ) {
 		var key = null, value = null, it = e;
 		switch( expr(it) ) {
@@ -127,15 +169,36 @@ class Tools {
 		return callb(key,value,it);
 	}
 	
+	/**
+	 * Converts a class path to a string.
+	 * 
+	 * @param	name	The name of the class.
+	 * @param	pack	The class' packages.
+	 * @return	The resulting string.
+	 */
 	public static inline function pathToString(name:String, ?pack:Array<String>):String {
 		var pack:String = (pack?.join('.') ?? '');
 		return (pack.length > 0 ? '$pack.$name' : name);
 	}
 	
+	/**
+	 * Checks if an identifier is a valid type identifier.
+	 * 
+	 * @param	id	The identifier.
+	 * @return	Whether the identifier is valid or not.
+	 */
 	public static inline function isTypeIdentifier(id:String):Bool {
 		return (id.charAt(0) == id.charAt(0).toUpperCase());
 	}
 	
+	/**
+	 * Resolves a type from a path.
+	 * 
+	 * Unlike `Type` or `InsanityType`, this should also resolve abstract implementations if they're available.
+	 * 
+	 * @param	path	The path to the type.
+	 * @return	The type, if available.
+	 */
 	public static inline function resolve(path:String, ?env:Environment):Dynamic {
 		var info = (TypeCollection.main.fromPath(path) ?? env?.types.fromPath(path));
 		if (info != null) path = TypeCollection.compilePath(info[0]);
@@ -148,6 +211,15 @@ class Tools {
 		return type;
 	}
 	
+	/**
+	 * Indexes types inside a path (as `TypeInfo`).
+	 * 
+	 * @param	path				The path to search.
+	 * @param	fromPack			Whether to index all types from a package or not (from a module).
+	 * @param 	canIgnoreWarnings	Deprecated
+	 * @param	collection			The `TypeCollection` to search.
+	 * @return	The found types, or null if the path doesn't exist.
+	 */
 	public static inline function listTypes(path:String, fromPack:Bool = false, canIgnoreWarnings:Bool = false, ?collection:TypeCollection):Array<TypeInfo> {
 		var typeInfos:Array<TypeInfo> = [];
 		
@@ -163,6 +235,15 @@ class Tools {
 		return [for (type in typeInfos) type];
 	}
 	
+	/**
+	 * Indexes types inside a path (as `TypeInfo`) across multiple `TypeCollection`s.
+	 * 
+	 * @param	path				The path to search.
+	 * @param	fromPack			Whether to index all types from a package or not (from a module).
+	 * @param 	canIgnoreWarnings	Deprecated
+	 * @param	collections			The `TypeCollection`s to search.
+	 * @return	The found types, or null if the path doesn't exist.
+	 */
 	public static inline function listTypesEx(path:String, fromPack:Bool = false, canIgnoreWarnings:Bool = false, collections:Array<TypeCollection>):Array<TypeInfo> {
 		var types:Array<TypeInfo> = null;
 		
@@ -178,7 +259,15 @@ class Tools {
 		return types;
 	}
 	
-	public static function fieldDeclToErrorString(field:FieldDecl):String {
+	/**
+	 * Converts the type of a field declaration, into a String representation.
+	 * 
+	 * Only used for interface exceptions.
+	 * 
+	 * @param	field	The field declaration.
+	 * @return	The resulting string.
+	 */
+	public static function fieldDeclToErrorString(field:FieldDecl):String { // i forgot why i put this one here
 		switch (field.kind) {
 			case KVar(v):
 				if (v.isFinal) return 'final'; // haxe errors with (default,ctor) but i say thats mid

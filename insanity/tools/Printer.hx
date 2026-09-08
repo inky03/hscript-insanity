@@ -24,6 +24,9 @@ package insanity.tools;
 import insanity.backend.Expr;
 import insanity.backend.Exception;
 
+/**
+ * Utility to print expressions and modules into human readable strings.
+ */
 class Printer {
 
 	var buf : StringBuf;
@@ -32,7 +35,14 @@ class Printer {
 
 	public function new() {
 	}
-
+	
+	/**
+	 * Prints an array of module declarations (ex. `[Module].decls`) into a human readable string.
+	 * Equivalent of the static `toString` method but doesn't allocate a new `Printer`.
+	 * 
+	 * @param	e	The expression to print.
+	 * @return	The resulting string.
+	 */
 	public function exprToString( e : Expr ) {
 		buf = new StringBuf();
 		tabs = "";
@@ -40,7 +50,13 @@ class Printer {
 		expr(e);
 		return buf.toString();
 	}
-
+	
+	/**
+	 * Prints a type into a human readable string.
+	 * 
+	 * @param	t	The type to print.
+	 * @return	The resulting string.
+	 */
 	public function typeToString( t : CType ) {
 		buf = new StringBuf();
 		tabs = "";
@@ -49,6 +65,13 @@ class Printer {
 		return buf.toString();
 	}
 	
+	/**
+	 * Prints an array of module declarations (ex. `[Module].decls`) into a human readable string.
+	 * Equivalent of the static `declsToString` method but doesn't allocate a new `Printer`.
+	 * 
+	 * @param	d	The array of module declarations to print.
+	 * @return	The resulting string.
+	 */
 	public function moduleDeclsToString(d:Array<ModuleDecl>):String { // declsToString was taken .
 		buf = new StringBuf();
 		tabs = "";
@@ -695,14 +718,37 @@ class Printer {
 		}
 	}
 	
-	public static function declsToString(d:Array<ModuleDecl>) {
+	/**
+	 * Converts an array of module declarations `d` to a human-readable String representation. (ex. you can get module declarations from `[Module].decls`)
+	 * 
+	 * The result is guaranteed to be valid Hscript code, but there may be differences from the original lexical syntax.
+	 * 
+	 * @param	d	The array of module declarations to print.
+	 * @return	The resulting string.
+	 */
+	public static function declsToString(d:Array<ModuleDecl>):String {
 		return new Printer().moduleDeclsToString(d);
 	}
-
-	public static function toString(e:Expr) {
+	
+	/**
+	 * Converts expression `e` to a human-readable String representation. (ex. you can get an expression from `[Script].program`)
+	 * 
+	 * The result is guaranteed to be valid Hscript code, but there may be differences from the original lexical syntax.
+	 * 
+	 * @param	e	The expression to print.
+	 * @return	The resulting string.
+	 */
+	public static function toString(e:Expr):String {
 		return new Printer().exprToString(e);
 	}
-
+	
+	/**
+	 * Converts exception `e` into a human-readable String representation.
+	 * 
+	 * @param	e	The exception to print.
+	 * @param	p	
+	 * @return	The resulting string.
+	 */
 	public static function errorToString( e : Error, ?p:ParserException ) {
 		var message = switch( e ) {
 			case EImportHx: 'Only import and using is allowed in import.hx files';
@@ -722,10 +768,19 @@ class Printer {
 			case EInvalidAccess(f): "Invalid access to field " + f;
 			case ECustom(msg): msg;
 		};
-		if (p != null) return (p.origin + ":" + p.line + ": " + message);
+		if (p != null) return (p.origin + ":" + p.line + ": " + message); // this is stupid actually i think ill get rid of it
 		return message;
 	}
 	
+	/**
+	 * Converts the type of a variable, according to property accessors, into a String representation.
+	 * 
+	 * Only used for interface exceptions.
+	 * 
+	 * @param	get		"get" accessor
+	 * @param	set		"set" accessor
+	 * @return	The resulting string.
+	 */
 	public inline static function varAccessToString(?get:String, ?set:String):String {
 		if ((get == null || get == 'default') && (set == null || set == 'default')) {
 			return 'var';
