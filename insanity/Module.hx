@@ -7,6 +7,9 @@ import insanity.backend.Interp;
 import insanity.backend.Expr;
 import insanity.tools.Tools;
 
+/**
+ * Used to load and execute module code.
+ */
 class Module {
 	/**
 	 * A map storing the state of all static variables using the `@:snapshot` metadata.

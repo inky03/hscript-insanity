@@ -1,5 +1,8 @@
 package insanity;
 
+/**
+ * Like `Module`, but to load [import modules](https://haxe.org/manual/type-system-import-defaults.html).
+ */
 class ImportModule extends Module {
 	var attempted:Bool = false;
 	

@@ -5,6 +5,9 @@ import insanity.backend.Parser;
 import insanity.backend.Interp;
 import insanity.backend.Expr;
 
+/**
+ * Used to load and execute script code.
+ */
 @:access(insanity.backend.Interp)
 class Script {
 	/**

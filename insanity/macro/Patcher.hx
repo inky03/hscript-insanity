@@ -11,7 +11,7 @@ using StringTools;
 using Lambda;
 
 /**
- * Utility macro functions that patch classes to boost their use with Hscript.
+ * Macro used to patch classes to boost their use with Hscript.
  */
 class Patcher {
 	static var patched:Int = 0;

@@ -2,11 +2,17 @@ package insanity.backend;
 
 import insanity.backend.Interp;
 
+/**
+ * Stack frame for the `CallStack`.
+ */
 @:structInit class Stack {
 	public var locals:Map<String, Variable>;
 	public var item:StackItem;
 }
 
+/**
+ * Call stack for the `Interp`.
+ */
 @:forward(length, push, pop)
 abstract CallStack(Array<Stack>) from Array<Stack> {
 	public inline function last() { return (this.length > 0 ? this[this.length - 1] : null); }

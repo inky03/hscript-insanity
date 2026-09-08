@@ -8,7 +8,7 @@ import insanity.custom.*;
 /**
  * Configuration settings for HscriptInsanity.
  * 
- * You can change some behaviors for all scripts with this class.
+ * You can change certain behaviors for all scripts with this class.
  */
 class Config { #if (!macro)
 	/**

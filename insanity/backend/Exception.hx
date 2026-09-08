@@ -5,6 +5,9 @@ import haxe.Exception;
 import insanity.backend.Expr;
 import insanity.backend.CallStack;
 
+/**
+ * Exception caused by an `Interp`.
+ */
 class InterpException extends Exception {
 	var customStack:CallStack;
 	
@@ -44,6 +47,9 @@ class InterpException extends Exception {
 	}
 }
 
+/**
+ * Exception caused by a `Parser`.
+ */
 class ParserException extends haxe.Exception {
 	public var e:Error;
 	public var pmin:Int;
@@ -66,6 +72,9 @@ class ParserException extends haxe.Exception {
 	}
 }
 
+/**
+ * Hscript exception type.
+ */
 enum Error {
 	EImportHx;
 	EHasNoSuper;

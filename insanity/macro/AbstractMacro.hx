@@ -10,6 +10,7 @@ using haxe.macro.TypeTools;
 using haxe.macro.ComplexTypeTools;
 #end
 
+// i need to move this . ..
 typedef AbstractInfo = {
 	var isEnum:Bool;
 	
@@ -66,6 +67,9 @@ enum AbstractTypeCast {
 	ATStruct;
 }
 
+/**
+ * Macro used to index abstracts and make them scriptable.
+ */
 class AbstractMacro {
 	static var generated:Int = 0;
 	static var omitted:Int = 0;
@@ -91,6 +95,11 @@ class AbstractMacro {
 		}
 	}
 	
+	/**
+	 * Indexes an abstract for use in Hscript.
+	 * 
+	 * @return	Context fields
+	 */
 	public static macro function build():Array<Field> {
 		if (Context.defined('display')) return Context.getBuildFields();
 		
@@ -396,7 +405,7 @@ class AbstractMacro {
 			});
 		} else {
 			/*
-			keeps the abstract impl from being killed ??? cpp is a bit more relaxed apparently so im not running this there
+			keeps the abstract impl from being killed ???
 			this is stupid
 			*/
 			

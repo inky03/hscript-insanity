@@ -12,9 +12,17 @@ import haxe.macro.TypedExprTools;
 
 import insanity.backend.TypeCollection;
 
+/**
+ * Macro used to index types at compilation.
+ * 
+ * For internal use
+ */
 class TypeCollectionMacro {
 	static var _name:String = 'insanity.macro.TypeCollectionMacro';
 	
+	/**
+	 * Builds the type collection map.
+	 */
 	public static macro function build() {
 		if (Context.defined('display')) return macro [];
 		

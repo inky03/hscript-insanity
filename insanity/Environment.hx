@@ -3,6 +3,9 @@ package insanity;
 import insanity.backend.types.Scripted;
 import insanity.backend.TypeCollection;
 
+/**
+ * Base that allows all modules and scripts within it to know and be able to import each other!
+ */
 class Environment {
 	/**
 	 * A map storing all modules defined for this environment, by path.

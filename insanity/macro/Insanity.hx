@@ -4,6 +4,11 @@ package insanity.macro;
 import haxe.macro.Compiler;
 import haxe.macro.Context;
 
+/**
+ * Initializes some library stuff.
+ * 
+ * For internal use
+ */
 class Insanity {
 	public static macro function init():Void {
 		if (!Context.defined('insanity.noScriptableTypes')) Compiler.define('insanity.scriptableTypes');

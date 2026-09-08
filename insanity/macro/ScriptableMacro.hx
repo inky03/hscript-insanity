@@ -12,6 +12,9 @@ using haxe.macro.ExprTools;
 using haxe.macro.ComplexTypeTools;
 #end
 
+/**
+ * Macro used to make classes scriptable.
+ */
 class ScriptableMacro {
 	public static var ignoreFields:Map<String, Bool> = [for (f in [
 		'reflectHasField', 'reflectGetField', 'reflectSetField', 'reflectListFields', 'reflectGetProperty', 'reflectSetProperty',
