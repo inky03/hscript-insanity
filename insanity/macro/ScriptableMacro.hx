@@ -646,9 +646,11 @@ class ScriptableMacro {
 			if (filter != null && !filter(supath.join('.'))) {
 				omitted ++;
 				
-				var path:Array<String> = cls.pack.copy(); path.push(cls.name);
-				
-				haxe.Log.trace('${Insanity.blobWarn} ${Insanity.ansiEsc}49;33mScriptableMacro.buildHscript${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (extends exclusion ${supath.join('.')})', null);
+				if (Insanity.isVerbose()) {
+					var path:Array<String> = cls.pack.copy(); path.push(cls.name);
+					
+					haxe.Log.trace('${Insanity.blobWarn} ${Insanity.ansiEsc}49;33mScriptableMacro.buildHscript${Insanity.ansiEsc}0m OMITTED ${path.join('.')} (extends exclusion ${supath.join('.')})', null);
+				}
 				
 				return null;
 			}
