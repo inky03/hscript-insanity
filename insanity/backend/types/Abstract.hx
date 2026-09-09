@@ -89,6 +89,7 @@ class InsanityAbstract implements ICustomReflection implements ICustomClassType 
 	
 	public static var needOps:Map<String, Bool> = [for (op in ['+', '-', '*', '/', '%', '&', '|', '^', '<<', '>>', '>>>']) op => true];
 	
+	var implFields:Map<String, Dynamic>;
 	var methodCache:Map<String, Dynamic> = [];
 	
 	#if cpp var resolve:String -> Dynamic; #end
@@ -102,6 +103,21 @@ class InsanityAbstract implements ICustomReflection implements ICustomClassType 
 		#if cpp resolve = Reflect.field(impl, 'insanityCppResolve'); #end
 		
 		if (isEnum) initEnumConstructors();
+		
+		initImplFields();
+	}
+	
+	function initImplFields():Void {
+		implFields = [for (name in info.properties.keys()) name => Reflect.field(impl, name)];
+		
+		for (name in info.methods.keys()) {
+			if (Reflect.field(impl, 'insanity$name') != null) {
+				implFields.set('insanity$name', Reflect.field(impl, 'insanity$name'));
+				continue;
+			}
+			
+			implFields.set(name, Reflect.field(impl, name));
+		}
 	}
 	
 	function initEnumConstructors():Void {
@@ -258,9 +274,7 @@ class InsanityAbstractValue implements ICustomReflection {
 		
 		info = base.info;
 		impl = base.impl;
-		
-		implFields = [for (name in info.properties.keys()) name => Reflect.field(impl, name)];
-		for (name in info.methods.keys()) implFields.set(name, Reflect.field(impl, name));
+		implFields = base.implFields;
 		
 		__a = value;
 	}

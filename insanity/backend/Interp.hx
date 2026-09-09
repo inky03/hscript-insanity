@@ -801,7 +801,7 @@ class Interp {
 	 * @return	Whether the variable identifier exists or not.
 	 */
 	public function isResolvable(id:String):Bool {
-		return (imports.exists(id) || variables.exists(id) || Tools.resolve(id, environment) != null);
+		return (imports.exists(id) || variables.exists(id));
 	}
 	
 	function importType(name:String, t:Dynamic, enumValueImport:Bool = true) {
@@ -1229,13 +1229,14 @@ class Interp {
 			usingType(path);
 		case EImport(path, mode):
 			importPath(path, mode);
-		case EConst(c):
-			switch( c ) {
-			case CInt(v): return v;
-			case CFloat(f): return f;
-			case CString(s): return s;
-			case CReg(p, m): return new EReg(p, m);
-			}
+		case EConst(CInt(i)):
+			return i;
+		case EConst(CFloat(f)):
+			return f;
+		case EConst(CString(s)):
+			return s;
+		case EConst(CReg(p, m)):
+			return new EReg(p, m);
 		case EIdent(id):
 			if (captures.exists(id)) return captures.get(id);
 			if (locals.exists(id)) return getLocal(id);
@@ -1391,9 +1392,8 @@ class Interp {
 		case EContinue:
 			continuing = true;
 		case EReturn(e):
-			returnValue = (e == null ? null : expr(e, void, mapCompr));
 			returning = true;
-			return returnValue;
+			return (returnValue = (e == null ? null : expr(e, void, mapCompr)));
 		case EFunction(params,fexpr,name,ret,id):
 			return buildFunction(name, params, fexpr, ret, id);
 		case EArrayDecl(arr):

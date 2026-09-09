@@ -1053,6 +1053,8 @@ class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityInte
 	
 	override function initEnumConstructors():Void {}
 	
+	override function initImplFields():Void {}
+	
 	function ctypeToAbstractTypeCast(type:Null<CType>):AbstractTypeCast {
 		if (type == null) return null;
 		
@@ -1305,6 +1307,9 @@ class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityInte
 			__vars.set(f, interp.locals.get(f));
 		}
 		
+		implFields = [for (name in info.properties.keys()) name => interp.locals.get(name)];
+		for (name in info.methods.keys()) implFields.set(name, interp.locals.get(name));
+		
 		for (name => field in info.properties) {
 			if (!field.isConstructor) continue;
 		
@@ -1389,8 +1394,6 @@ class InsanityScriptedAbstractValue extends InsanityAbstractValue {
 		
 		__base = cast base;
 		__prop = MScriptAbstract(this);
-		
-		for (name in implFields.keys()) implFields.set(name, __base.interp.locals.get(name));
 	}
 	
 	override function cacheMethod(field:String):Dynamic {
