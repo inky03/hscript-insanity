@@ -1392,8 +1392,9 @@ class Interp {
 		case EContinue:
 			continuing = true;
 		case EReturn(e):
+			returnValue = (e == null ? null : expr(e, void, mapCompr));
 			returning = true;
-			return (returnValue = (e == null ? null : expr(e, void, mapCompr)));
+			return returnValue;
 		case EFunction(params,fexpr,name,ret,id):
 			return buildFunction(name, params, fexpr, ret, id);
 		case EArrayDecl(arr):
