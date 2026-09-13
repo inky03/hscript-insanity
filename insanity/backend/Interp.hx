@@ -2168,8 +2168,10 @@ class Interp {
 		final fun:Dynamic = get(o, f);
 		
 		if (o != Std || f != 'string') { // dirty solution but Yeah what ever
-			for (i => arg in args)
-				args[i] = (AbstractTools.isAbstract(arg) ? arg.__a : arg);
+			for (i in 0 ... args.length) {
+				if (AbstractTools.isAbstract(args[i]))
+					args[i] = args[i].__a;
+			}
 		}
 		
 		if (!Reflect.isFunction(fun)) {
@@ -2232,6 +2234,11 @@ class Interp {
 			return null;
 		}
 		#end
+		
+		for (i in 0 ... args.length) {
+			if (AbstractTools.isAbstract(args[i]))
+				args[i] = args[i].__a;
+		}
 		
 		#if hl if (c is Class && c.insanityhlnew != null) return c.insanityhlnew(args); else #end
 		
