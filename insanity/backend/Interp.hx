@@ -232,7 +232,11 @@ class Interp {
 				return throw 'Cannot perform $op on ${ab.info.name} and ${AbstractTools.abstractTypeCastToString(type)}';
 			}
 		} else {
-			if (op == '??' && v1 != null) {
+			if (v1 is InsanityScriptedEnumValue && op == '==' && (v2 = (v2 is Expr ? expr(v2) : v2)) is InsanityScriptedEnumValue) {
+				final e1:InsanityScriptedEnumValue = cast v1, e2:InsanityScriptedEnumValue = cast v2;
+				
+				return (e1.arguments == e2.arguments /* see this is only true for no argument enums */ && e1.constructor == e2.constructor);
+			} else if (op == '??' && v1 != null) {
 				return v1;
 			} else if (op == '||' && v1 == true) {
 				return true;
