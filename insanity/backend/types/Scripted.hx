@@ -1312,9 +1312,12 @@ class InsanityScriptedAbstract extends InsanityAbstract implements IInsanityInte
 		
 		for (name => field in info.properties) {
 			if (!field.isConstructor) continue;
-		
+			
+			var a = create(interp.locals.get(name).r);
 			enumConstructors.push(name);
-			enumValues.set(name, create(interp.locals.get(name).r));
+			enumValues.set(name, a);
+			
+			a.__ev = true;
 		}
 	}
 	

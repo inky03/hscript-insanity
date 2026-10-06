@@ -225,9 +225,10 @@ class Interp {
 			
 			if (field != null) {
 				return v1.binop(op, v2);
-			} else if (!InsanityAbstract.needOps.exists(op)) {
+			} else if (!InsanityAbstract.needOps.exists(op) || Type.enumEq(v1.base.info.underlying, type)) {
 				return defaultOp(op, v1.__a, v2 is InsanityAbstractValue ? v2.__a : v2);
 			} else {
+				if (v1.castTo(type, false) != null) trace('can op');
 				return throw 'Cannot perform $op on ${ab.info.name} and ${AbstractTools.abstractTypeCastToString(type)}';
 			}
 		} else {
@@ -247,7 +248,7 @@ class Interp {
 					
 					if (field != null && (ab.info.methods.get(field).isCommutative || ab.info.methods.get(field).isStatic)) {
 						return v2.binop(op, v1);
-					} else if (!InsanityAbstract.needOps.exists(op)) {
+					} else if (!InsanityAbstract.needOps.exists(op) || Type.enumEq(type, v2.base.info.underlying)) {
 						return defaultOp(op, v1, v2.__a);
 					} else {
 						return throw 'Cannot perform $op on ${AbstractTools.abstractTypeCastToString(type)} and ${ab.info.name}';
@@ -464,8 +465,9 @@ class Interp {
 		var l:Variable = map.get(id);
 		if (l == null) return null;
 		
-		if (v is InsanityAbstractValue)
-			v = v.__a;
+		final vv:Dynamic = v;
+		final setAbstract:Bool = (v is InsanityAbstractValue);
+		if (setAbstract) v = v.__a;
 		
 		if (l.isFinal)
 			throw 'Cannot assign to final';
@@ -477,18 +479,24 @@ class Interp {
 			case 'null':
 				if (accessingInterp != this) throw 'This expression cannot be accessed for writing';
 				
-				if (l.a != null) return l.a.__a = v;
+				if (setAbstract && vv.__ev) return l.a = vv;
+				if (l.a != null && !l.a.__ev) return l.a.__a = v;
 				
 				return l.r = v;
+				
 			case 'never':
 				throw 'This expression cannot be accessed for writing'; return null;
+				
 			case 'set' | 'dynamic' if (getMeta(':bypassAccessor') != null):
-				if (l.a != null) return l.a.__a = v;
+				if (setAbstract && vv.__ev) return l.a = vv;
+				if (l.a != null && !l.a.__ev) return l.a.__a = v;
 				
 				return l.r = v;
+				
 			case 'set' | 'dynamic':
 				if (curAccess == id) {
-					if (l.a != null) return l.a.__a = v;
+					if (setAbstract && vv.__ev) return l.a = vv;
+					if (l.a != null && !l.a.__ev) return l.a.__a = v;
 					
 					return l.r = v;
 				}
@@ -503,10 +511,13 @@ class Interp {
 				}
 				
 				error(ECustom('Method set_$id required by property $id is missing')); return null;
+				
 			case 'default':
-				if (l.a != null) return l.a.__a = v;
+				if (setAbstract && vv.__ev) return l.a = vv;
+				if (l.a != null && !l.a.__ev) return l.a.__a = v;
 				
 				return l.r = v;
+				
 			default:
 				error(ECustom('Invalid property accessor ${l.set}')); return null;
 		}

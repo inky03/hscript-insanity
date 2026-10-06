@@ -265,6 +265,7 @@ class InsanityAbstractValue implements ICustomReflection {
 	@:noCompletion public var impl:Class<Dynamic>;
 	
 	@:noCompletion public var __a(default, set):Dynamic;
+	@:noCompletion public var __ev:Bool = false;
 	
 	var methodCache:Map<String, Dynamic> = [];
 	var implFields:Map<String, Dynamic>;
@@ -468,8 +469,7 @@ class InsanityAbstractValue implements ICustomReflection {
 			
 			return (to == null ? __a : callImpl(to, []));
 		} else {
-			throw 'Can\'t cast ${info.name} to ${cls}';
-			return null;
+			return throw 'Can\'t cast ${info.name} to ${cls}';
 		}
 	}
 }
