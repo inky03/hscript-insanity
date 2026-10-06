@@ -1940,11 +1940,8 @@ class Interp {
 		var it = makeIterator(expr(it));
 		var next:Void -> Dynamic = Reflect.field(it, 'next'), hasNext:Void -> Bool = Reflect.field(it, 'hasNext');
 		
-		final iterV:Variable = {r: null};
-		locals.set(n, iterV);
-		
 		while( hasNext() ) {
-			iterV.r = next();
+			locals.set(n, {r: next()});
 			
 			if (!loopRun(ef))
 				break;
@@ -1963,8 +1960,6 @@ class Interp {
 		var next:Void -> Dynamic = Reflect.field(it, 'next'), hasNext:Void -> Bool = Reflect.field(it, 'hasNext');
 		
 		final iterV:Variable = {r: null}, iterK:Variable = {r: null};
-		locals.set(vk, iterV);
-		locals.set(vv, iterK);
 		
 		while( hasNext() ) {
 			final v = next();
@@ -1972,8 +1967,8 @@ class Interp {
 			if (v.key == null) error(EUnknownField(v, 'key'));
 			if (v.value == null) error(EUnknownField(v, 'value'));
 			
-			iterV.r = v.key;
-			iterK.r = v.value;
+			locals.set(vk, {r: v.key});
+			locals.set(vv, {r: v.value});
 			
 			if (!loopRun(ef))
 				break;
