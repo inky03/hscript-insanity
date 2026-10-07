@@ -1664,7 +1664,7 @@ class Parser {
 		
 		var params = parseParams();
 		
-		ensure(TPOpen);
+		if (!maybe(TPOpen)) error(ECustom('Abstract is missing underlying type declaration'), tokenMin, tokenMax);
 		var underlying = parseType();
 		ensure(TPClose);
 		

@@ -1697,11 +1697,27 @@ class Interp {
 						
 					case EBinop('=>', e1, e2):
 						captures.set('_', match);
+						var extract:Dynamic = match;
 						
-						var a:Dynamic = expr(e1);
-						testCase(e2, a);
+						function testExtractor(e:Expr):Expr {
+							return switch (e.e) {
+								case EBinop('=>', e1, e2):
+									extract = testExtractor(e1);
+									testCase(e2, extract);
+									
+									testExtractor(e2);
+									
+								case EParent(e): testExtractor(e); // not exactly but its kinda hrhfgdh
+								
+								default: expr(e);
+							}
+						}
 						
-						matchValues(a, expr(e2));
+						extract = testExtractor(e1);
+						captures.set('_', extract);
+						
+						var r = testExtractor(e2);
+						matchValues(extract, r);
 						
 					case EBinop('|', e1, e2):
 						testCase(e1, match);
