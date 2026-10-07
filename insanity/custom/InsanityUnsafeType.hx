@@ -5,7 +5,7 @@ import insanity.custom.InsanityType;
 
 #if (insanity.scriptableTypes)
 /**
- * unsafe version of InsanityType (internal use ONLY)
+ * unsafe version of InsanityType (internal use only)
  */
 class InsanityUnsafeType {
 	public static inline function getClass(o:Dynamic):Dynamic {

@@ -44,6 +44,9 @@ using insanity.tools.Tools;
 using insanity.backend.TypeCollection;
 using insanity.backend.types.Abstract;
 
+/**
+ * Describes local variables defined in scripts (internal use only)
+ */
 @:structInit class Variable {
 	public var r:Dynamic;
 	public var a:Null<InsanityAbstractValue> = null;
@@ -55,13 +58,16 @@ using insanity.backend.types.Abstract;
 	public var set:String = 'default';
 }
 
+/**
+ * Stores the definition of a local variable in lower scope (internal use only)
+ */
 @:structInit class RestoreVariable {
 	public var n:String;
 	public var old:Variable;
 }
 
 /**
- * Interprets script expressions generated from a `Parser`.
+ * Executes instructions generated from a `Parser`.
  */
 class Interp {
 	/**
@@ -76,10 +82,11 @@ class Interp {
 	 * The interpreter's global variables.
 	 */
 	public var variables : Map<String, Dynamic>;
-	var binops : Map<String, Expr -> Expr -> Dynamic >;
-	var mathOps : Map<String, Bool>;
-	
-	public var parent : Dynamic = null;
+	/**
+	 * The object this script is parented to.
+	 * This only serves as a hint and is not used in practice by this library.
+	 */
+	public var parent(default, set) : Dynamic = null;
 	/**
 	 * The interpreter's `Environment`.
 	 */
@@ -142,11 +149,14 @@ class Interp {
 	@:noCompletion public var canDefer:Bool = false;
 	@:noCompletion public var canInit:Bool = false;
 	
+	var binops : Map<String, Expr -> Expr -> Dynamic >;
+	var mathOps : Map<String, Bool>;
+	
 	/**
 	 * Creates a new `Interp`.
 	 * 
 	 * @param	environment	The `Environment` this script will use.
-	 * @param	parent		Unused
+	 * @param	parent		The object this script is parented to.
 	 */
 	public function new(?environment:Environment, ?parent:Dynamic) {
 		this.environment = environment;
@@ -213,6 +223,7 @@ class Interp {
 	
 	inline function set_origin(v:String):String { return position.origin = v; }
 	inline function get_origin():String { return position.origin; }
+	function set_parent(v:Dynamic) { return parent = v; }
 	
 	inline function basicOp(op:String, v1:Dynamic, v2:Dynamic):Dynamic {
 		if (v1 is Expr) v1 = expr(v1);
