@@ -33,7 +33,7 @@ class Config { #if (!macro)
 	]);
 	
 	/**
-	 * A map containing global variables to include in every module, script and type.
+	 * A map containing global variables to include in all scripts and modules.
 	 */
 	public static var globalVariables:Map<String, Dynamic> = [
 		'null' => null,
@@ -42,7 +42,7 @@ class Config { #if (!macro)
 	];
 	
 	/**
-	 * A map containing paths to import by default in every script, and their respective import mode.
+	 * A map containing paths to import by default in all scripts and modules, and their respective import mode.
 	 */
 	public static var globalImports:Map<String, ImportMode> = [
 		'' => IAll
@@ -50,7 +50,8 @@ class Config { #if (!macro)
 	
 	/**
 	 * A map containing redirects from types to other types.
-	 * This can be used for sandboxing.
+	 * 
+	 * Can be used for sandboxing!
 	 */
 	@:unreflective public static var typeProxy:Map<String, Dynamic> = [
 		#if hl
@@ -64,7 +65,8 @@ class Config { #if (!macro)
 	
 	/**
 	 * A map containing paths to block any scripts from accessing.
-	 * This can be used for sandboxing.
+	 * 
+	 * Can be used for sandboxing!
 	 */
 	@:unreflective public static var blacklist:Map<ConfigBlacklistKind, Map<String, Bool>> = [
 		ByPackage(false) => [
@@ -141,7 +143,7 @@ enum ConfigBlacklistKind {
 	ByPackage(recursive:Bool);
 	
 	/**
-	 * Blacklists a module, including types inside it.
+	 * Blacklists a module and all of its types.
 	 */
 	ByModule;
 	

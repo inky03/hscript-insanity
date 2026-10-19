@@ -136,19 +136,19 @@ class Script {
 	}
 	
 	/**
-	 * This function is called when the script encounters an error when parsing.
+	 * This function is called when the script encounters an exception when parsing.
 	 * Can be overridden to execute custom behavior.
 	 * 
-	 * @param	exception	The exception that caused the parsing to halt.
+	 * @param	exception	The exception encountered during parsing.
 	 */
 	public dynamic function onParsingError(exception:haxe.Exception):Void {
 		trace('Failed to initialize script program!\n' + exception.details());
 	}
 	/**
-	 * This function is called when the script program encounters an error when first running.
+	 * This function is called when the script program encounters an exception when first running.
 	 * Can be overridden to execute custom behavior.
 	 * 
-	 * @param	exception	The exception that caused the parsing to halt.
+	 * @param	exception	The exception encountered during first execution.
 	 */
 	public dynamic function onProgramError(exception:haxe.Exception):Void {
 		trace('Script program stopped unexpectedly!\n' + exception.details());

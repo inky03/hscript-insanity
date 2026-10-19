@@ -64,7 +64,7 @@ class TypeCollection {
 	/**
 	 * A `TypeCollection` that stores information for all classes generated at compile time.
 	 */
-	public static var main(default, never):TypeCollection = new TypeCollection(insanity.macro.TypeCollectionMacro.build());
+	public static var main(default, never):TypeCollection = new TypeCollection(#if display [] #else insanity.macro.TypeCollectionMacro.build() #end);
 	/**
 	 * This collection's index.
 	 */

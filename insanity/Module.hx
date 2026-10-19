@@ -65,7 +65,7 @@ class Module {
 	 * Array containing other modules.
 	 * 
 	 * This is used to expose this module's main type to all other modules, like Haxe does for all modules within the same directory and subdirectories.
-	 * If it contains an `ImportModule`, all of it's import / using statements will be set on this module.
+	 * If it contains an `ImportModule`, all of it's import / using statements will be set on this module during initialization.
 	 */
 	public var subModules:Array<Module> = [];
 	
@@ -91,7 +91,7 @@ class Module {
 	 * 
 	 * @param	string		The code string to parse.
 	 * @param	name		The origin/name of the script (this is used for error reporting).
-	 * @param	pack		The module's packages. This is also used to assert the package and an error will be thrown if the module doesn't match it.
+	 * @param	pack		The module's packages. This is also used to assert the package and an exception will be thrown if the `package` statement doesn't match.
 	 * @param	origin		The origin of the module (this is used for error reporting).
 	 */
 	#if (insanity.noScriptableTypes && (insanity.verbose || insanity.verboseFull || verbose))
@@ -143,11 +143,12 @@ class Module {
 	/**
 	 * Creates a scripted type from a module declaration.
 	 * 
+	 * Any declaration that's passed to this function that is not of a type will not execute or return anything!
+	 * 
 	 * If the declaration is a `DField`, `moduleFields` will be initialized, and this function will not return anything.
-	 * Any other non-type declarations will not execute or return anything.
 	 * 
 	 * @param	decl		The module type declaration.
-	 * @return 	A scripted type instance (if any). This type is not initialized and should not be used yet!
+	 * @return 	A scripted type instance (if any). The type is not initialized by this function and is not ready for use yet!
 	 */
 	public function loadType(decl:ModuleDecl):IInsanityType {
 		return switch (decl.d) {
@@ -338,8 +339,10 @@ class Module {
 	}
 	
 	/**
-	 * Initializes default variables within the script.
-	 * This can be overridden to define new variables.
+	 * Initializes default variables within the module.
+	 * Can be overridden to define new variables.
+	 * 
+	 * All variables set here will also be set in the module's types when initializing them.
 	 */
 	public function setDefaults():Void {
 		interp.setDefaults();
@@ -361,20 +364,20 @@ class Module {
 		}
 	}
 	/**
-	 * This function is called when the module program encounters an error when first running.
+	 * This function is called when the module program encounters an exception when first running.
 	 * Can be overridden to execute custom behavior.
 	 * 
-	 * @param	exception	The exception that caused the parsing to halt.
+	 * @param	exception	The exception encountered during parsing.
 	 */
 	public dynamic function onProgramError(exception:haxe.Exception):Void {
 		trace('Module program stopped unexpectedly!\n' + exception.details());
 	}
 	/**
-	 * This function is called when a type fails to initialize.
+	 * This function is called when a type encounters an exception during initialization.
 	 * Can be overridden to execute custom behavior.
 	 * 
-	 * @param	exception	The exception that caused the parsing to halt.
-	 * @param 	type 		The type that encountered the error.
+	 * @param	exception	The exception encountered during type initialization.
+	 * @param 	type 		The type the exception was thrown from.
 	 */
 	public dynamic function onTypeError(exception:haxe.Exception, type:IInsanityType):Void {
 		trace('Failed to load type ${type.name} for module $path!\nException: $exception' /*+ e.details()*/);

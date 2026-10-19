@@ -4,15 +4,17 @@ import insanity.backend.types.Scripted;
 import insanity.backend.TypeCollection;
 
 /**
- * Base that allows all modules and scripts within it to know and be able to import each other!
+ * Container for modules and scripts akin to Haxe's source code folder.
+ * 
+ * All modules and scripts inside will be able to recognize and import each other.
  */
 class Environment {
 	/**
-	 * A map storing all modules defined for this environment, by path.
+	 * A map storing all modules declared in this environment, by path.
 	 */
 	public var modules:Map<String, Module> = [];
 	/**
-	 * A `TypeCollection` of all modules defined for this environment.
+	 * A `TypeCollection` of all modules declared in this environment.
 	 */
 	public var types:TypeCollection;
 	
@@ -50,8 +52,10 @@ class Environment {
 	/**
 	 * Adds a single `Module` to this environment.
 	 * 
+	 * Note that this will rebuild all of this environment's `types`; passing an array of modules to `new` is recommended to maximize performance!
+	 * 
 	 * @param	module		The module to store in this environment.
-	 * @return	The module that was added to this environment.
+	 * @return	The added module.
 	 */
 	public function addModule(module:Module):Module {
 		modules.set(module.path, module);
@@ -60,10 +64,12 @@ class Environment {
 	}
 	
 	/**
-	 * Removes a single `Module` to this environment.
+	 * Removes a single `Module` from this environment.
+	 * 
+	 * Note that this will rebuild all of this environment's `types`; passing an array of modules to `new` is recommended to maximize performance!
 	 * 
 	 * @param	module		The module to remove from this environment.
-	 * @return	The module that was removed from this environment.
+	 * @return	The removed module.
 	 */
 	public function removeModule(module:Module):Module {
 		modules.remove(module.path);
@@ -113,8 +119,9 @@ class Environment {
 				onInitialized.remove(onInitialized[i]);
 		}
 	}
+	
 	/**
-	 * Snapshots all modules in this environment.
+	 * Creates a snapshot of the fields of all modules in this environment (that use the `@:snapshot` metadata).
 	 */
 	public function snapshot():Void {
 		for (module in modules)

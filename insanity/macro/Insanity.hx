@@ -13,7 +13,7 @@ class Insanity {
 	public static macro function init():Void {
 		if (!Context.defined('insanity.noScriptableTypes')) Compiler.define('insanity.scriptableTypes');
 		
-		if (Context.defined('hl')) Compiler.addGlobalMetadata('', '@:build(insanity.macro.Patcher.fixHLLongMethods())');
+		if (Context.defined('hl') && !Context.defined('display')) Compiler.addGlobalMetadata('', '@:build(insanity.macro.Patcher.fixHLLongMethods())');
 	}
 	
 	public static var ansiEsc:String = '\x1B[';

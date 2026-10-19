@@ -12,11 +12,26 @@ import insanity.custom.InsanityType as Type;
 
 using insanity.backend.TypeCollection;
 
+/**
+ * Helper class used by this library to work with abstracts in scripts.
+ */
 class AbstractTools {
+	/**
+	 * Map containing all `AbstractInfo`s indexed at compile time.
+	 */
 	public static var abstractInfos:Map<String, AbstractInfo> = AbstractMacro.listAbstractInfos();
 	
+	/**
+	 * Cache of all `InsanityAbstract`s used in scripts.
+	 */
 	public static var abstracts:Map<String, InsanityAbstract> = []; // could maybe move this to typecollection
 	
+	/**
+	 * Locates an abstract and creates an `InsanityAbstract` from a string. This result will be cached in `abstracts`.
+	 * 
+	 * @param	path 		The path of the abstract to resolve.
+	 * @return	The `InsanityAbstract` if any was found, otherwise null.
+	 */
 	public static function resolve(path:String):Null<InsanityAbstract> {
 		var t = (TypeCollection.main.fromPath(path) ?? TypeCollection.main.fromCompilePath(path));
 		
@@ -32,6 +47,12 @@ class AbstractTools {
 		return null;
 	}
 	
+	/**
+	 * Converts a value into an `AbstractTypeCast` (used for type casting).
+	 * 
+	 * @param	v	Value to convert.
+	 * @return	`AbstractTypeCast`.
+	 */
 	@:access(insanity.backend.types.InsanityAbstractValue)
 	public static function getAbstractTypeCast(v:Dynamic):AbstractTypeCast {
 		if (v is InsanityAbstractValue) return ATType(v.info.name);
@@ -65,6 +86,12 @@ class AbstractTools {
 		return ATDynamic;
 	}
 	
+	/**
+	 * Converts an `AbstractTypeCast` into a string (used for error reporting).
+	 * 
+	 * @param	t	`AbstractTypeCast` to convert.
+	 * @return	String representation.
+	 */
 	public static inline function abstractTypeCastToString(t:AbstractTypeCast):String {
 		return switch (t) {
 			case ATType(t): t;
@@ -74,11 +101,20 @@ class AbstractTools {
 		}
 	}
 	
+	/**
+	 * Checks if an object is an `InsanityAbstractValue` or not.
+	 * 
+	 * @param	o	The object.
+	 * @return	Whether the object is an abstract instance or not.
+	 */
 	public static inline function isAbstract(o:Dynamic):Bool {
 		return (o is InsanityAbstractValue);
 	}
 }
 
+/**
+ * Library implementation of an abstract type.
+ */
 class InsanityAbstract implements ICustomReflection implements ICustomClassType {
 	public var info:AbstractInfo;
 	public var impl:Class<Dynamic>;
@@ -257,6 +293,9 @@ class InsanityAbstract implements ICustomReflection implements ICustomClassType 
 	}
 }
 
+/**
+ * Library implementation of an abstract instance.
+ */
 @:access(insanity.backend.types.InsanityAbstract)
 class InsanityAbstractValue implements ICustomReflection {
 	@:noCompletion public var base:InsanityAbstract;

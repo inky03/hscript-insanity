@@ -1,13 +1,13 @@
 package insanity;
 
 /**
- * Like `Module`, but to load [import modules](https://haxe.org/manual/type-system-import-defaults.html).
+ * Like `Module`, but used to parse [import module](https://haxe.org/manual/type-system-import-defaults.html) code.
  */
 class ImportModule extends Module {
 	var attempted:Bool = false;
 	
 	/**
-	 * Creates a `ImportModule` and parses an import module code string.
+	 * Creates an `ImportModule` and parses an import module code string.
 	 * 
 	 * @param	string		The code string to parse.
 	 * @param	origin		The origin of the module (this is used for error reporting).

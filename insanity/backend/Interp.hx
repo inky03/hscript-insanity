@@ -84,7 +84,8 @@ class Interp {
 	public var variables : Map<String, Dynamic>;
 	/**
 	 * The object this script is parented to.
-	 * This only serves as a hint and is not used in practice by this library.
+	 * 
+	 * This only serves as a hint and is not used in practice by this library!
 	 */
 	public var parent(default, set) : Dynamic = null;
 	/**
@@ -116,8 +117,8 @@ class Interp {
 	public var locals : Map<String, Variable>;
 	
 	/**
-	 * Whether functions created by this interpreter can have more arguments than specified or not.
-	 * If not, "Too many arguments" exceptions will be able to thrown.
+	 * Whether functions created by this interpreter can tolerate overflowing arguments.
+	 * If not, "Too many arguments" exceptions will be thrown in such cases.
 	 */
 	public var argumentOverflow:Bool = Config.argumentOverflow;
 	/**
