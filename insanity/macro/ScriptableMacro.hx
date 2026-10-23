@@ -157,6 +157,7 @@ class ScriptableMacro {
 			
 			if (f == 'toString') hasToString = true;
 			if (f.contains('insanitySuper') || ignoreFields.exists(f)) continue;
+			if (field?.access.contains(AAbstract)) continue;
 			
 			final isStatic:Bool = (field?.access.contains(AStatic));
 			
