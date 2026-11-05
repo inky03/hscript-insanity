@@ -1288,7 +1288,8 @@ class Interp {
 				v = expr(e, void, mapCompr);
 				
 				if (returning) {
-					return returnValue;
+					v = returnValue;
+					break;
 				} else if (deferring || continuing || breaking) {
 					break;
 				}
