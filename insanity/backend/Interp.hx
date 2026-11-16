@@ -2176,6 +2176,8 @@ class Interp {
 		var field:Dynamic = Reflect.field(o, f);
 		if (field is InsanityAbstractValue) return #if cpp Reflect.setProperty(field, '__a', v) #else field.__a = v #end ;
 		
+		field ??= Reflect.field(o, 'set_$f');
+		
 		if (field == null && hasField(o, f) == false) {
 			var fields = getFieldsClass((o is Class #if (insanity.scriptableTypes) || o is InsanityScriptedClass #end) ? Type.getClassName(o) : Type.getEnumName(o));
 			if (fields != null) return (bypassAccessor ? Reflect.setField(fields, f, v) : Reflect.setProperty(fields, f, v));
